@@ -1,0 +1,92 @@
+{{define "room_game_panel.html"}}
+{{with .Dot}}
+{{$room := .Snapshot}}
+<section id="{{$.Jid}}" class="panel game-panel">
+  {{if eq $room.State "lobby"}}
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Deck Selection</p>
+      <h2>Build the room’s card mix</h2>
+    </div>
+    {{$.Button .Page.StartGameAction `class="button button-primary"`}}
+  </div>
+  <p class="muted">{{$room.BlackCount}} unique black cards and {{$room.WhiteCount}} unique white cards selected. Need at least 50 black and {{$room.RequiredWhite}} white for this table.</p>
+  <div class="deck-grid">
+    {{range $deck := .Page.App.Catalog.OrderedDecks}}
+    <label class="deck-option">
+      <span class="deck-option-head">
+        {{$.Checkbox ($.Dot.Page.DeckToggle $deck.ID) `class="deck-check"`}}
+        <span class="deck-copy">
+          <span class="deck-name">{{$deck.Name}}</span>
+          <span class="deck-meta">
+            {{if and $deck.Description (ne $deck.Description $deck.Name)}}
+            {{$deck.Description}}
+            {{else}}
+            {{len $deck.BlackIDs}} black / {{len $deck.WhiteIDs}} white
+            {{end}}
+          </span>
+        </span>
+      </span>
+    </label>
+    {{end}}
+  </div>
+  {{else}}
+  {{if $room.CurrentBlack}}
+  <section class="black-card">
+    <p class="eyebrow">Prompt</p>
+    <div class="card-face card-face-black">
+      <p>{{$room.CurrentBlack.Text}}</p>
+      <div class="card-meta">
+        <span>pick {{$room.NeedPick}}</span>
+        {{if gt $room.NeedDraw 0}}<span>draw {{$room.NeedDraw}}</span>{{end}}
+      </div>
+    </div>
+  </section>
+  {{end}}
+
+  {{if $room.CanSubmit}}
+  <section class="hand-panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Your Hand</p>
+        <h2>Choose {{$room.NeedPick}} card{{if ne $room.NeedPick 1}}s{{end}}</h2>
+      </div>
+      {{$.Button .Page.SubmitCardsAction `class="button button-primary"`}}
+    </div>
+    <div class="hand-grid">
+      {{range $card := $room.Hand}}
+      {{$.Button ($.Dot.Page.CardAction $card) `class="card-face card-face-white hand-button"`}}
+      {{end}}
+    </div>
+  </section>
+  {{else if $room.CanJudge}}
+  <section class="judge-panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Judge</p>
+        <h2>Pick the winning answer</h2>
+      </div>
+      {{$.Button .Page.JudgeAction `class="button button-primary"`}}
+    </div>
+    <div class="submission-grid">
+      {{range $submission := $room.Submissions}}
+      {{$.Button ($.Dot.Page.SubmissionAction $submission) `class="card-face card-face-white submission-button"`}}
+      {{end}}
+    </div>
+  </section>
+  {{else}}
+  <section class="single-panel">
+    {{if eq $room.State "judging"}}
+    <p class="eyebrow">Waiting</p>
+    <h2>{{$room.JudgeName}} is judging</h2>
+    {{else}}
+    <p class="eyebrow">Waiting</p>
+    <h2>Cards are in play</h2>
+    {{end}}
+    <p class="muted">Your seat is still active. Refreshing this page reconnects to the same player while the server is running.</p>
+  </section>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+{{end}}

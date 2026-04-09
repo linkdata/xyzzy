@@ -1,0 +1,32 @@
+{{define "lobby_rooms_panel.html"}}
+{{with .Dot}}
+<section id="{{$.Jid}}" class="panel room-list-panel">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">Open Rooms</p>
+      <h2>Live lobby</h2>
+    </div>
+  </div>
+  {{if .Page.RoomSummaries}}
+  <div class="room-list">
+    {{range .Page.RoomSummaries}}
+    <article class="room-card">
+      <div class="room-card-head">
+        <div>
+          <p class="room-code">{{.Code}}</p>
+          <h3>{{.HostName}}</h3>
+        </div>
+        <span class="pill">{{.State}}</span>
+      </div>
+      <p class="muted">{{.Players}} players</p>
+      <p class="muted">{{join .DeckNames ", "}}</p>
+      <a class="button button-secondary" href="{{$.Dot.Page.App.RoomURL .Code}}">Open Room</a>
+    </article>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="muted">No rooms yet. Create one and pick the first deck mix.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

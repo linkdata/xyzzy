@@ -1,0 +1,38 @@
+{{define "lobby_welcome_panel.html"}}
+{{with .Dot}}
+<section id="{{$.Jid}}" class="panel hero-panel">
+  <div class="hero-copy">
+    <p class="eyebrow">Lobby</p>
+    {{if .Page.HasNickname}}
+    <h2>Welcome, {{.Page.Nickname}}</h2>
+    <p>Pick a room, create a fresh table, or jump back into your active room.</p>
+    {{else}}
+    <h2>Choose a nickname to get started</h2>
+    <p>Your seat is tied to this browser session, so refresh reconnects cleanly while the server stays up.</p>
+    {{end}}
+  </div>
+  {{if .Page.Alert}}
+  <p class="notice">{{.Page.Alert}}</p>
+  {{end}}
+  <div class="stack gap-md">
+    <label class="field">
+      <span>Nickname</span>
+      {{$.Text .Page.NicknameField `class="text-input" placeholder="e.g. CardCzar"`}}
+    </label>
+    <div class="action-row">
+      {{$.Button .Page.SaveNameAction `class="button button-primary"`}}
+    </div>
+    {{if .Page.HasCurrentRoom}}
+    <div class="status-chip">
+      <span>Current room</span>
+      <strong>{{.Page.CurrentRoomCode}}</strong>
+    </div>
+    <div class="action-row">
+      <a class="button button-secondary" href="{{.Page.CurrentRoomURL}}">Return To Room</a>
+      {{$.Button .Page.LeaveCurrentRoomAction `class="button button-quiet"`}}
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

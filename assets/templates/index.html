@@ -11,7 +11,7 @@
       <p class="lede">A browser-based Cards Against Humanity clone powered by Go, JaWS, and embedded card sets.</p>
     </div>
   </header>
-  {{$.Template "lobby_body.html" $.Dot $.Dot.App}}
+  {{$.Container "main" $.Dot.Main `class="content-grid"`}}
   {{$.TailHTML}}
 </form>
 </body>

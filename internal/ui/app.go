@@ -49,13 +49,13 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 	mux.Handle("GET /jaws/", a.Jaws)
-	mux.Handle("GET /", a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveLobby)))
-	mux.Handle("GET /room/{code}", a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveRoom)))
+	mux.Handle("GET /", a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveLobby))))
+	mux.Handle("GET /room/{code}", a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveRoom))))
 	return nil
 }
 
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
-	page := NewLobbyPage(a, a.ensureSession(w, r))
+	page := NewLobbyPage(a, a.ensureSession(r))
 	if page.Session == nil {
 		http.Error(w, "missing session", http.StatusInternalServerError)
 		return
@@ -68,7 +68,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
-	page := NewRoomPage(a, a.ensureSession(w, r), r.PathValue("code"))
+	page := NewRoomPage(a, a.ensureSession(r), r.PathValue("code"))
 	if page.Session == nil {
 		http.Error(w, "missing session", http.StatusInternalServerError)
 		return
@@ -98,15 +98,8 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
 }
 
-func (a *App) ensureSession(w http.ResponseWriter, r *http.Request) *jaws.Session {
-	if sess := a.Jaws.GetSession(r); sess != nil {
-		return sess
-	}
-	sess := a.Jaws.NewSession(w, r)
-	if sess != nil {
-		r.AddCookie(sess.Cookie())
-	}
-	return sess
+func (a *App) ensureSession(r *http.Request) *jaws.Session {
+	return a.Jaws.GetSession(r)
 }
 
 func (a *App) Dirty(tags ...any) {
@@ -119,6 +112,14 @@ func (a *App) Dirty(tags ...any) {
 	if len(filtered) > 0 {
 		a.Jaws.Dirty(filtered...)
 	}
+}
+
+func (a *App) DirtyLobby() {
+	a.Dirty(a.Manager)
+}
+
+func (a *App) DirtyRoom(room *game.Room) {
+	a.Dirty(a.Manager, room)
 }
 
 func (a *App) sessionString(sess *jaws.Session, key string) string {
@@ -195,7 +196,7 @@ func (a *App) createRoom(sess *jaws.Session) (*game.Room, error) {
 		return nil, err
 	}
 	a.setRoomCode(sess, room.Code())
-	a.Dirty(a, room)
+	a.DirtyRoom(room)
 	return room, nil
 }
 
@@ -210,7 +211,7 @@ func (a *App) joinRoom(sess *jaws.Session, roomCode string) (*game.Room, error) 
 		return nil, err
 	}
 	a.setRoomCode(sess, room.Code())
-	a.Dirty(a, room)
+	a.DirtyRoom(room)
 	return room, nil
 }
 
@@ -223,7 +224,7 @@ func (a *App) leaveRoom(sess *jaws.Session) *game.Room {
 	}
 	room, _ := a.Manager.LeaveRoom(roomCode, playerID)
 	a.clearRoom(sess)
-	a.Dirty(a, room)
+	a.DirtyRoom(room)
 	return room
 }
 

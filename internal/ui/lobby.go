@@ -54,8 +54,7 @@ func (p *LobbyPage) JoinCodeField() bind.Binder[string] {
 			p.mu.Lock()
 			p.JoinInput = strings.ToUpper(strings.TrimSpace(value))
 			p.mu.Unlock()
-			elem.Dirty(p)
-			return nil
+			return bind.JawsSetLocked(elem, p.JoinInput)
 		})
 }
 
@@ -65,18 +64,18 @@ func (p *LobbyPage) SaveNameAction() bind.Binder[string] {
 		name := strings.TrimSpace(p.NickInput)
 		if name == "" {
 			p.Alert = "Enter a nickname first."
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		if p.HasCurrentRoom() {
 			p.Alert = "Leave your current room before changing nickname."
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		p.App.setNickname(p.Session, name)
 		p.NickInput = name
 		p.Alert = ""
-		p.App.Dirty(p, p.App)
+		elem.Dirty(p)
 		return nil
 	})
 }
@@ -92,7 +91,7 @@ func (p *LobbyPage) CreateRoomAction() bind.Binder[string] {
 			name := strings.TrimSpace(p.NickInput)
 			if name == "" {
 				p.Alert = "Choose a nickname before creating a room."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.App.setNickname(p.Session, name)
@@ -100,7 +99,7 @@ func (p *LobbyPage) CreateRoomAction() bind.Binder[string] {
 		room, err := p.App.createRoom(p.Session)
 		if err != nil {
 			p.Alert = err.Error()
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		elem.Request.Redirect(p.App.roomURL(room.Code()))
@@ -114,7 +113,7 @@ func (p *LobbyPage) JoinRoomAction() bind.Binder[string] {
 		code := strings.ToUpper(strings.TrimSpace(p.JoinInput))
 		if code == "" {
 			p.Alert = "Enter a room code first."
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		if p.HasCurrentRoom() {
@@ -125,7 +124,7 @@ func (p *LobbyPage) JoinRoomAction() bind.Binder[string] {
 			name := strings.TrimSpace(p.NickInput)
 			if name == "" {
 				p.Alert = "Choose a nickname before joining a room."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.App.setNickname(p.Session, name)
@@ -133,7 +132,7 @@ func (p *LobbyPage) JoinRoomAction() bind.Binder[string] {
 		room, err := p.App.joinRoom(p.Session, code)
 		if err != nil {
 			p.Alert = err.Error()
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		elem.Request.Redirect(p.App.roomURL(room.Code()))
@@ -146,7 +145,7 @@ func (p *LobbyPage) LeaveCurrentRoomAction() bind.Binder[string] {
 	return bind.New(&p.mu, &label).Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
 		p.App.leaveRoom(p.Session)
 		p.Alert = "You left the room."
-		p.App.Dirty(p, p.App)
+		elem.Dirty(p)
 		return nil
 	})
 }

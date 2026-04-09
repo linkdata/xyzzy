@@ -1,0 +1,33 @@
+{{define "room_summary_panel.html"}}
+{{with .Dot}}
+{{$room := .Snapshot}}
+<section id="{{$.Jid}}" class="panel room-summary">
+  <div class="room-summary-head">
+    <div>
+      <p class="eyebrow">Room {{.Page.RoomCode}}</p>
+      <h2>{{if $room.HostName}}Hosted by {{$room.HostName}}{{else}}Waiting for host{{end}}</h2>
+    </div>
+    <div class="action-row">
+      {{$.Button .Page.LeaveRoomAction `class="button button-quiet"`}}
+    </div>
+  </div>
+  <div class="status-bar">
+    <span class="pill">{{if eq $room.State "lobby"}}lobby{{else if eq $room.State "playing"}}playing{{else}}judging{{end}}</span>
+    <span class="muted">{{$room.StatusMessage}}</span>
+  </div>
+  <div class="scoreboard">
+    {{range $room.Players}}
+    <article class="player-card">
+      <h3>{{.Nickname}}</h3>
+      <p>{{.Score}} points</p>
+      <div class="mini-flags">
+        {{if .IsHost}}<span class="mini-pill">host</span>{{end}}
+        {{if .IsJudge}}<span class="mini-pill">judge</span>{{end}}
+        {{if .Submitted}}<span class="mini-pill">submitted</span>{{end}}
+      </div>
+    </article>
+    {{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

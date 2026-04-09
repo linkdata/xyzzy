@@ -35,8 +35,6 @@ func (p *RoomPage) Nickname() string { return p.App.nickname(p.Session) }
 
 func (p *RoomPage) Room() *game.Room { return p.App.Manager.GetRoom(p.RoomCode) }
 
-func (p *RoomPage) RoomTag() any { return p.Room() }
-
 func (p *RoomPage) Snapshot() game.RoomView {
 	if room := p.Room(); room != nil {
 		p.App.reconcileSession(p.Session)
@@ -55,7 +53,7 @@ func (p *RoomPage) SaveNameAndJoinAction() bind.Binder[string] {
 		name := strings.TrimSpace(p.NickInput)
 		if name == "" {
 			p.Alert = "Enter a nickname first."
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		}
 		p.App.setNickname(p.Session, name)
@@ -65,7 +63,7 @@ func (p *RoomPage) SaveNameAndJoinAction() bind.Binder[string] {
 		} else {
 			p.Alert = err.Error()
 		}
-		p.App.Dirty(p, p.App, p.RoomTag())
+		elem.Dirty(p)
 		return nil
 	})
 }
@@ -86,18 +84,19 @@ func (p *RoomPage) StartGameAction() bind.Binder[string] {
 			room := p.Room()
 			if room == nil {
 				p.Alert = "Room not found."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			if err := room.Start(p.App.playerID(p.Session)); err != nil {
 				p.Alert = err.Error()
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.SelectedCardIDs = nil
 			p.SelectedSubmission = ""
 			p.Alert = ""
-			p.App.Dirty(p, p.App, room)
+			p.App.DirtyRoom(room)
+			elem.Dirty(p)
 			return nil
 		})
 }
@@ -127,16 +126,17 @@ func (p *RoomPage) DeckToggle(deckID string) bind.Binder[bool] {
 			room := p.Room()
 			if room == nil {
 				p.Alert = "Room not found."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			if err := room.ToggleDeck(p.App.playerID(p.Session), deckID, value); err != nil {
 				p.Alert = err.Error()
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.Alert = ""
-			p.App.Dirty(p, p.App, room)
+			p.App.DirtyRoom(room)
+			elem.Dirty(p)
 			return nil
 		})
 }
@@ -168,13 +168,13 @@ func (p *RoomPage) CardAction(card deck.WhiteCard) bind.Binder[string] {
 			} else {
 				if len(p.SelectedCardIDs) >= snap.NeedPick {
 					p.Alert = fmt.Sprintf("Select exactly %d cards.", snap.NeedPick)
-					p.App.Dirty(p)
+					elem.Dirty(p)
 					return nil
 				}
 				p.SelectedCardIDs = append(p.SelectedCardIDs, card.ID)
 				p.Alert = ""
 			}
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		})
 }
@@ -195,17 +195,18 @@ func (p *RoomPage) SubmitCardsAction() bind.Binder[string] {
 			room := p.Room()
 			if room == nil {
 				p.Alert = "Room not found."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			if err := room.PlayCards(p.App.playerID(p.Session), append([]string(nil), p.SelectedCardIDs...)); err != nil {
 				p.Alert = err.Error()
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.SelectedCardIDs = nil
 			p.Alert = ""
-			p.App.Dirty(p, p.App, room)
+			p.App.DirtyRoom(room)
+			elem.Dirty(p)
 			return nil
 		})
 }
@@ -236,7 +237,7 @@ func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[string]
 			} else {
 				p.SelectedSubmission = sub.ID
 			}
-			p.App.Dirty(p)
+			elem.Dirty(p)
 			return nil
 		})
 }
@@ -256,17 +257,18 @@ func (p *RoomPage) JudgeAction() bind.Binder[string] {
 			room := p.Room()
 			if room == nil {
 				p.Alert = "Room not found."
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			if err := room.Judge(p.App.playerID(p.Session), p.SelectedSubmission); err != nil {
 				p.Alert = err.Error()
-				p.App.Dirty(p)
+				elem.Dirty(p)
 				return nil
 			}
 			p.SelectedSubmission = ""
 			p.Alert = ""
-			p.App.Dirty(p, p.App, room)
+			p.App.DirtyRoom(room)
+			elem.Dirty(p)
 			return nil
 		})
 }

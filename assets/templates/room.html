@@ -11,7 +11,8 @@
       <p class="lede">Host deck selection, live hands, server-side judging, and refresh-safe seats.</p>
     </div>
   </header>
-  {{$.Template "room_body.html" $.Dot $.Dot.App $.Dot.RoomTag}}
+  {{$.Div $.Dot.Alert $.Dot `class="notice room-notice"`}}
+  {{$.Container "main" $.Dot.Main `class="room-layout"`}}
   {{$.TailHTML}}
 </form>
 </body>

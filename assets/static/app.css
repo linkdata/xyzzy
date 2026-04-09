@@ -220,6 +220,14 @@ input:disabled {
   color: var(--red-dark);
 }
 
+.notice:empty {
+  display: none;
+}
+
+.room-notice {
+  margin-bottom: 18px;
+}
+
 .status-chip,
 .pill,
 .mini-pill {
