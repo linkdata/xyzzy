@@ -2,6 +2,7 @@ package ui
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"html/template"
@@ -21,6 +22,7 @@ const (
 	sessionKeyNickname = "nickname"
 	sessionKeyPlayerID = "player_id"
 	sessionKeyRoomCode = "room_code"
+	nicknameCookieTTL  = 365 * 24 * 60 * 60
 )
 
 type App struct {
@@ -60,7 +62,9 @@ func (a *App) Middleware(next http.Handler) http.Handler {
 }
 
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
-	page := NewLobbyPage(a, a.session(r))
+	sess := a.session(r)
+	a.syncNicknameCookie(w, r, sess)
+	page := NewLobbyPage(a, sess)
 	a.reconcileSession(page.Session)
 	if err := a.renderTemplate(w, r, "index.html", page); err != nil {
 		a.Jaws.Log(err)
@@ -69,7 +73,9 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
-	page := NewRoomPage(a, a.session(r), r.PathValue("code"))
+	sess := a.session(r)
+	a.syncNicknameCookie(w, r, sess)
+	page := NewRoomPage(a, sess, r.PathValue("code"))
 	a.reconcileSession(page.Session)
 	if current := a.roomCode(page.Session); current != "" && current != page.RoomCode {
 		http.Redirect(w, r, "/room/"+current, http.StatusSeeOther)
@@ -128,6 +134,55 @@ func (a *App) sessionString(sess *jaws.Session, key string) string {
 		return value
 	}
 	return ""
+}
+
+func (a *App) nicknameCookieName() string {
+	name := strings.TrimSpace(a.Jaws.CookieName)
+	if name == "" {
+		name = "jaws"
+	}
+	return name + "_nickname"
+}
+
+func (a *App) nicknameFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie(a.nicknameCookieName())
+	if err != nil || cookie.Value == "" {
+		return ""
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname string) {
+	nickname = strings.TrimSpace(nickname)
+	value := ""
+	if nickname != "" {
+		value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     a.nicknameCookieName(),
+		Value:    value,
+		Path:     "/",
+		MaxAge:   nicknameCookieTTL,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestIsSecure(r),
+	})
+}
+
+func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, sess *jaws.Session) {
+	cookieName := a.nicknameFromCookie(r)
+	sessionName := a.nickname(sess)
+	if sessionName == "" && cookieName != "" {
+		a.setSessionString(sess, sessionKeyNickname, cookieName)
+		sessionName = cookieName
+	}
+	if sessionName != "" && sessionName != cookieName {
+		a.setNicknameCookie(w, r, sessionName)
+	}
 }
 
 func (a *App) setSessionString(sess *jaws.Session, key, value string) {
@@ -229,3 +284,14 @@ func (a *App) roomURL(code string) string {
 }
 
 func (a *App) RoomURL(code string) string { return a.roomURL(code) }
+
+func requestIsSecure(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	proto := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0])
+	return strings.EqualFold(proto, "https")
+}

@@ -74,8 +74,7 @@ func (p *LobbyPage) SaveNameAction() bind.Binder[string] {
 		}
 		p.App.setNickname(p.Session, name)
 		p.NickInput = name
-		p.Alert = ""
-		elem.Dirty(p)
+		elem.Request.Redirect("/")
 		return nil
 	})
 }
