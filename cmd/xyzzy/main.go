@@ -23,6 +23,7 @@ var (
 	flagUser      = flag.String("user", envOrDefault("WEBSERV_USER", ""), "switch to this user after startup (*nix only)")
 	flagDataDir   = flag.String("datadir", envOrDefault("WEBSERV_DATADIR", "$HOME"), "where to store data files after startup")
 	flagListenURL = flag.String("listenurl", os.Getenv("WEBSERV_LISTENURL"), "specify the external URL clients can reach us at")
+	flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode and allow two-player games")
 )
 
 func envOrDefault(envvar, fallback string) string {
@@ -48,8 +49,13 @@ func main() {
 	defer jw.Close()
 	jw.Logger = slog.Default()
 	jw.CookieName = "xyzzy"
+	jw.Debug = *flagDebug
 
-	manager := game.NewManager(catalog, rand.New(rand.NewSource(time.Now().UnixNano())))
+	managerOpts := game.Options{}
+	if *flagDebug {
+		managerOpts.MinPlayers = 2
+	}
+	manager := game.NewManagerWithOptions(catalog, rand.New(rand.NewSource(time.Now().UnixNano())), managerOpts)
 	app := appui.New(jw, catalog, manager)
 
 	mux := http.NewServeMux()

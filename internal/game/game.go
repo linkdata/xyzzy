@@ -32,7 +32,6 @@ var (
 	ErrOnlyHostCanEdit     = errors.New("only the host can change deck selection")
 	ErrDecksLocked         = errors.New("deck selection is locked after the game starts")
 	ErrUnknownDeck         = errors.New("unknown deck")
-	ErrNotEnoughPlayers    = errors.New("need at least 3 players to start")
 	ErrNotEnoughBlackCards = errors.New("selected decks need at least 50 unique black cards")
 	ErrNotEnoughWhiteCards = errors.New("selected decks need at least 20 white cards per player")
 	ErrOnlyHostCanStart    = errors.New("only the host can start the game")
@@ -45,6 +44,10 @@ var (
 	ErrSubmissionNotFound  = errors.New("submission not found")
 	ErrNotJudge            = errors.New("only the judge can pick a winner")
 )
+
+type Options struct {
+	MinPlayers int
+}
 
 type RoomState string
 
@@ -59,12 +62,14 @@ type Manager struct {
 	rooms   map[string]*Room
 	catalog *deck.Catalog
 	rand    *mathrand.Rand
+	opts    Options
 }
 
 type Room struct {
 	code            string
 	catalog         *deck.Catalog
 	rand            *mathrand.Rand
+	minPlayers      int
 	mu              sync.RWMutex
 	hostID          string
 	players         []*Player
@@ -146,13 +151,21 @@ type RoomView struct {
 }
 
 func NewManager(catalog *deck.Catalog, rng *mathrand.Rand) *Manager {
+	return NewManagerWithOptions(catalog, rng, Options{})
+}
+
+func NewManagerWithOptions(catalog *deck.Catalog, rng *mathrand.Rand, opts Options) *Manager {
 	if rng == nil {
 		rng = mathrand.New(mathrand.NewSource(1))
+	}
+	if opts.MinPlayers < 2 {
+		opts.MinPlayers = MinPlayers
 	}
 	return &Manager{
 		rooms:   make(map[string]*Room),
 		catalog: catalog,
 		rand:    rng,
+		opts:    opts,
 	}
 }
 
@@ -175,6 +188,7 @@ func (m *Manager) CreateRoom(playerID, nickname string, defaultDeckIDs []string)
 		code:            code,
 		catalog:         m.catalog,
 		rand:            mathrand.New(mathrand.NewSource(m.rand.Int63())),
+		minPlayers:      m.opts.MinPlayers,
 		hostID:          playerID,
 		state:           StateLobby,
 		czarIndex:       -1,
@@ -327,8 +341,8 @@ func (r *Room) Start(playerID string) error {
 	if playerID != r.hostID {
 		return ErrOnlyHostCanStart
 	}
-	if len(r.players) < MinPlayers {
-		return ErrNotEnoughPlayers
+	if len(r.players) < r.minPlayers {
+		return fmt.Errorf("need at least %d players to start", r.minPlayers)
 	}
 	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if err != nil {
@@ -472,7 +486,7 @@ func (r *Room) Snapshot(playerID string) RoomView {
 	view.InRoom = player != nil
 	view.IsHost = playerID != "" && playerID == r.hostID
 	view.CanJoin = player == nil && r.state == StateLobby && len(r.players) < MaxPlayers
-	view.CanStart = view.IsHost && r.state == StateLobby && len(r.players) >= MinPlayers && blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
+	view.CanStart = view.IsHost && r.state == StateLobby && len(r.players) >= r.minPlayers && blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
 	if host := r.playerLocked(r.hostID); host != nil {
 		view.HostName = host.Nickname
 	}
@@ -581,7 +595,7 @@ func (r *Room) leave(playerID string) bool {
 		return true
 	}
 	if r.state != StateLobby {
-		if len(r.players) < MinPlayers {
+		if len(r.players) < r.minPlayers {
 			r.resetToLobbyLocked("Not enough players to continue. Room reset to the lobby.")
 		} else if wasJudge {
 			r.resetToLobbyLocked("The judge left. Room reset to the lobby.")

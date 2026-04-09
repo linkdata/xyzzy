@@ -66,6 +66,24 @@ func TestManagerRoomLifecycle(t *testing.T) {
 	}
 }
 
+func TestDebugMinPlayersAllowsTwoPlayerStart(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManagerWithOptions(catalog, mathrand.New(mathrand.NewSource(11)), Options{MinPlayers: 2})
+	room, err := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	if _, err := mgr.JoinRoom(room.Code(), "p2", "Bob"); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+	if err := room.Start("p1"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if snap := room.Snapshot("p1"); snap.State != StatePlaying || len(snap.Players) != 2 || snap.CurrentBlack == nil {
+		t.Fatalf("unexpected two-player snapshot: %#v", snap)
+	}
+}
+
 func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog, mathrand.New(mathrand.NewSource(2)))
