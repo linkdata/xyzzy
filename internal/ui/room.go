@@ -167,18 +167,7 @@ func (p *RoomPage) CardAction(card *deck.WhiteCard) bind.Binder[HandCardRef] {
 			if card == nil {
 				return nil
 			}
-			cardID := card.ID
-			if slicesContains(p.SelectedCardIDs, cardID) {
-				p.SelectedCardIDs = deleteString(p.SelectedCardIDs, cardID)
-			} else {
-				if len(p.SelectedCardIDs) >= snap.NeedPick {
-					p.Alert = fmt.Sprintf("Select exactly %d cards.", snap.NeedPick)
-					elem.Dirty(p)
-					return nil
-				}
-				p.SelectedCardIDs = append(p.SelectedCardIDs, cardID)
-				p.Alert = ""
-			}
+			p.applyCardSelection(card.ID, snap.NeedPick)
 			elem.Dirty(p)
 			return nil
 		})
@@ -220,7 +209,7 @@ func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[Submiss
 	ref := SubmissionRef{
 		Room:         p.Room(),
 		Submission:   sub.Submission,
-		RenderedHTML: renderSubmissionHTML(sub.Cards),
+		RenderedHTML: renderSubmissionHTML(p.Room(), sub.Cards),
 	}
 	return bind.New(&p.mu, &ref).
 		GetLocked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element) SubmissionRef {
@@ -254,6 +243,28 @@ func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[Submiss
 			elem.Dirty(p)
 			return nil
 		})
+}
+
+func (p *RoomPage) BlackCardFootnote(card *deck.BlackCard) string {
+	return renderBlackCardFootnote(p.Room(), card)
+}
+
+func (p *RoomPage) applyCardSelection(cardID string, needPick int) {
+	if slicesContains(p.SelectedCardIDs, cardID) {
+		p.SelectedCardIDs = deleteString(p.SelectedCardIDs, cardID)
+		return
+	}
+	if needPick == 1 {
+		p.SelectedCardIDs = []string{cardID}
+		p.Alert = ""
+		return
+	}
+	if len(p.SelectedCardIDs) >= needPick {
+		p.Alert = fmt.Sprintf("Select exactly %d cards.", needPick)
+		return
+	}
+	p.SelectedCardIDs = append(p.SelectedCardIDs, cardID)
+	p.Alert = ""
 }
 
 func (p *RoomPage) JudgeAction() bind.Binder[string] {

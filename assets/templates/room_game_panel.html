@@ -35,10 +35,13 @@
   <section class="black-card">
     <p class="eyebrow">Prompt</p>
     <div class="card-face card-face-black">
-      <p>{{cardhtml $room.CurrentBlack.Text}}</p>
-      <div class="card-meta">
-        <span>pick {{$room.NeedPick}}</span>
-        {{if gt $room.NeedDraw 0}}<span>draw {{$room.NeedDraw}}</span>{{end}}
+      <div class="card-copy">{{cardhtml $room.CurrentBlack.Text}}</div>
+      <div class="card-footer">
+        <div class="card-meta">
+          <span>pick {{$room.NeedPick}}</span>
+          {{if gt $room.NeedDraw 0}}<span>draw {{$room.NeedDraw}}</span>{{end}}
+        </div>
+        <div class="card-footnote card-footnote-dark">{{$.Dot.Page.BlackCardFootnote $room.CurrentBlack}}</div>
       </div>
     </div>
   </section>

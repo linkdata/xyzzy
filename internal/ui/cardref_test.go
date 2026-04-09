@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
@@ -26,6 +27,23 @@ func TestHandCardRefBinderUsesSemanticTag(t *testing.T) {
 	want := handCardTag{Room: room, Card: card}
 	if got := tags[0]; got != want {
 		t.Fatalf("tag = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandCardRefStringIncludesDeckAndCardFootnote(t *testing.T) {
+	catalog := testCatalog(t)
+	manager := game.NewManager(catalog)
+	room, err := manager.CreateRoom("p1", "Alice", catalog.DefaultDeckIDs())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	ref := HandCardRef{
+		Room: room,
+		Card: catalog.WhiteCards["w1"],
+	}
+	got := ref.String()
+	if !strings.Contains(got, "Base · 1") {
+		t.Fatalf("String() = %q, want user-facing deck name and numeric card id footnote", got)
 	}
 }
 

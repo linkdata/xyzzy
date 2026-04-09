@@ -324,6 +324,9 @@ input:disabled {
   width: 100%;
   min-height: 220px;
   padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   border-radius: 20px;
   border: 1px solid var(--line);
   text-align: left;
@@ -342,17 +345,45 @@ input:disabled {
   color: var(--ink);
 }
 
+.card-copy {
+  flex: 1 1 auto;
+}
+
 .card-meta {
   display: flex;
   gap: 10px;
-  margin-top: 18px;
   color: rgba(255, 247, 235, 0.8);
   font-size: 0.88rem;
+}
+
+.card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+}
+
+.card-footnote {
+  color: var(--muted);
+  font: italic 0.74rem/1.3 var(--font-body);
+  text-align: right;
+  opacity: 0.9;
+}
+
+.card-footnote-dark {
+  color: rgba(255, 247, 235, 0.72);
 }
 
 .hand-button,
 .submission-button {
   cursor: pointer;
+}
+
+.submission-button > .submission-card,
+.submission-button > .submission-stack {
+  flex: 1 1 auto;
+  width: 100%;
 }
 
 .is-selected {
@@ -365,6 +396,23 @@ input:disabled {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.submission-stack {
+  display: grid;
+  gap: 12px;
+  grid-auto-rows: minmax(120px, 1fr);
+  width: 100%;
+}
+
+.submission-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.submission-card + .submission-card {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 @media (max-width: 1080px) {

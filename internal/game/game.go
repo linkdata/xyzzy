@@ -734,6 +734,76 @@ func (r *Room) selectedDeckNamesLocked() []string {
 	return names
 }
 
+func (r *Room) SelectedDeckIDsForWhiteCard(cardID string) []string {
+	if r == nil || cardID == "" {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.selectedDeckIDsForCardLocked(cardID, false)
+}
+
+func (r *Room) SelectedDeckIDsForBlackCard(cardID string) []string {
+	if r == nil || cardID == "" {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.selectedDeckIDsForCardLocked(cardID, true)
+}
+
+func (r *Room) FirstSelectedDeckNameForWhiteCard(cardID string) string {
+	if r == nil || cardID == "" {
+		return ""
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.firstSelectedDeckNameForCardLocked(cardID, false)
+}
+
+func (r *Room) FirstSelectedDeckNameForBlackCard(cardID string) string {
+	if r == nil || cardID == "" {
+		return ""
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.firstSelectedDeckNameForCardLocked(cardID, true)
+}
+
+func (r *Room) selectedDeckIDsForCardLocked(cardID string, black bool) []string {
+	deckIDs := make([]string, 0, len(r.selectedDeckIDs))
+	for _, deckID := range r.selectedDeckIDs {
+		deck := r.catalog.DeckByID(deckID)
+		if deck == nil {
+			continue
+		}
+		if black && slices.Contains(deck.BlackIDs, cardID) {
+			deckIDs = append(deckIDs, deckID)
+			continue
+		}
+		if !black && slices.Contains(deck.WhiteIDs, cardID) {
+			deckIDs = append(deckIDs, deckID)
+		}
+	}
+	return deckIDs
+}
+
+func (r *Room) firstSelectedDeckNameForCardLocked(cardID string, black bool) string {
+	for _, deckID := range r.selectedDeckIDs {
+		deck := r.catalog.DeckByID(deckID)
+		if deck == nil {
+			continue
+		}
+		if black && slices.Contains(deck.BlackIDs, cardID) {
+			return deck.Name
+		}
+		if !black && slices.Contains(deck.WhiteIDs, cardID) {
+			return deck.Name
+		}
+	}
+	return ""
+}
+
 func (r *Room) lookupWhiteCardsLocked(ids []string) []*deck.WhiteCard {
 	cards := make([]*deck.WhiteCard, 0, len(ids))
 	for _, id := range ids {
