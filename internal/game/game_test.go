@@ -235,37 +235,6 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	}
 }
 
-func playOutRound(t *testing.T, room *Room) {
-	t.Helper()
-	snap := room.Snapshot("p1")
-	var judgeID string
-	for _, player := range snap.Players {
-		if player.IsJudge {
-			judgeID = player.ID
-		}
-	}
-	for _, player := range snap.Players {
-		if player.ID == judgeID {
-			continue
-		}
-		playerSnap := room.Snapshot(player.ID)
-		cardIDs := []string{playerSnap.Hand[0].ID}
-		for len(cardIDs) < playerSnap.NeedPick {
-			cardIDs = append(cardIDs, playerSnap.Hand[len(cardIDs)].ID)
-		}
-		if err := room.PlayCards(player.ID, cardIDs); err != nil {
-			t.Fatalf("PlayCards(%s) error = %v", player.ID, err)
-		}
-	}
-	judgeSnap := room.Snapshot(judgeID)
-	if len(judgeSnap.Submissions) == 0 {
-		t.Fatal("expected submissions for judge")
-	}
-	if err := room.Judge(judgeID, judgeSnap.Submissions[0].ID); err != nil {
-		t.Fatalf("Judge() error = %v", err)
-	}
-}
-
 func forceRound(t *testing.T, room *Room, blackID string) {
 	t.Helper()
 	room.mu.Lock()
