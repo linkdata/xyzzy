@@ -1,53 +1,31 @@
 {{define "room_summary_panel.html"}}
 {{with .Dot}}
 {{$room := .Snapshot}}
-<section id="{{$.Jid}}" class="panel room-summary">
-  <div class="room-summary-head">
-    <div>
-      <p class="eyebrow">Room {{.Page.RoomCode}}</p>
-      <h2>{{if $room.HostName}}Hosted by {{$room.HostName}}{{else}}Waiting for host{{end}}</h2>
-    </div>
-    <div class="action-row">
-      {{$.Button .Page.LeaveRoomAction `class="button button-quiet"`}}
-    </div>
+<div id="{{$.Jid}}">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="fw-bold font-monospace">{{.Page.RoomCode}}</div>
+    <span class="badge {{if eq $room.State "lobby"}}bg-secondary{{else if eq $room.State "playing"}}bg-success{{else}}bg-warning text-dark{{end}}">
+      {{$room.State}}
+    </span>
   </div>
-  <div class="status-bar">
-    <span class="pill">{{if eq $room.State "lobby"}}lobby{{else if eq $room.State "playing"}}playing{{else}}judging{{end}}</span>
-    <span class="muted">{{$room.StatusMessage}}</span>
+
+  <div class="d-grid mb-3">
+    {{$.Button .Page.LeaveRoomAction `class="btn btn-outline-danger btn-sm"`}}
   </div>
-  {{if and (eq $room.State "lobby") $room.LastGameWinner}}
-  <div class="stack gap-md">
-    <div>
-      <p class="eyebrow">Last Game</p>
-      <h3>{{$room.LastGameWinner}} won</h3>
-    </div>
-    <div class="scoreboard">
-      {{range $room.LastGameScores}}
-      <article class="player-card{{if .IsWinner}} player-card-winner{{end}}">
-        <h3>{{.Nickname}}</h3>
-        <p>{{.Score}} points</p>
-        <div class="mini-flags">
-          {{if .IsWinner}}<span class="mini-pill">winner</span>{{end}}
-        </div>
-      </article>
-      {{end}}
-    </div>
-  </div>
-  {{else}}
-  <div class="scoreboard">
+
+  <div class="list-group list-group-flush">
     {{range $room.Players}}
-    <article class="player-card">
-      <h3>{{.Nickname}}</h3>
-      <p>{{.Score}} points</p>
-      <div class="mini-flags">
-        {{if .IsHost}}<span class="mini-pill">host</span>{{end}}
-        {{if .IsJudge}}<span class="mini-pill">judge</span>{{end}}
-        {{if .Submitted}}<span class="mini-pill">submitted</span>{{end}}
-      </div>
-    </article>
+    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+      <span>
+        {{.Nickname}}
+        {{if .IsHost}}<span class="badge bg-secondary ms-1">host</span>{{end}}
+        {{if .IsJudge}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
+        {{if .Submitted}}<span class="badge bg-success ms-1">✓</span>{{end}}
+      </span>
+      <span class="badge bg-primary rounded-pill">{{.Score}}</span>
+    </div>
     {{end}}
   </div>
-  {{end}}
-</section>
+</div>
 {{end}}
 {{end}}

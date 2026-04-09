@@ -1,32 +1,34 @@
 {{define "room_single_panel.html"}}
 {{with .Dot}}
-<section id="{{$.Jid}}" class="panel single-panel">
+<div id="{{$.Jid}}" class="py-4">
   {{if eq .Mode "nickname"}}
-  <p class="eyebrow">Join This Room</p>
-  <h2>Set your nickname first</h2>
-  <p class="muted">Your current browser session will keep this seat warm while the server stays up.</p>
-  <label class="field">
-    <span>Nickname</span>
-    {{$.Text .Page.NicknameField `class="text-input" placeholder="e.g. DeckDealer"`}}
-  </label>
-  <div class="action-row">
-    {{$.Button .Page.SaveNameAndJoinAction `class="button button-primary"`}}
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">Join This Room</h5>
+      <p class="card-text text-muted">Set your nickname to take a seat.</p>
+      <div class="input-group mb-3">
+        {{$.Text .Page.NicknameField `class="form-control" placeholder="Nickname"`}}
+        {{$.Button .Page.SaveNameAndJoinAction `class="btn btn-primary"`}}
+      </div>
+    </div>
   </div>
   {{else if eq .Mode "missing"}}
-  <p class="eyebrow">Missing Room</p>
-  <h2>That room no longer exists</h2>
-  <p class="muted">It may have been emptied or reset in another session.</p>
-  <a class="button button-secondary" href="/">Return To Lobby</a>
+  <div class="alert alert-warning">
+    <h5 class="alert-heading">Room not found</h5>
+    <p class="mb-2">This room no longer exists. It may have been emptied or reset.</p>
+    <a class="btn btn-sm btn-secondary" href="/">Back to Lobby</a>
+  </div>
   {{else}}
-  <p class="eyebrow">Unavailable</p>
-  <h2>You are not seated at this table</h2>
-  {{if eq .Snapshot.State "lobby"}}
-  <p class="muted">Reloading this page should auto-join while the room is in lobby state. If that failed, try again from the lobby.</p>
-  {{else}}
-  <p class="muted">This game is already in progress. Only players already seated can reconnect.</p>
+  <div class="alert alert-info">
+    <h5 class="alert-heading">Not seated at this table</h5>
+    {{if eq .Snapshot.State "lobby"}}
+    <p class="mb-2">Reloading should auto-join while the room is in lobby state.</p>
+    {{else}}
+    <p class="mb-2">This game is already in progress. Only players already seated can reconnect.</p>
+    {{end}}
+    <a class="btn btn-sm btn-secondary" href="/">Back to Lobby</a>
+  </div>
   {{end}}
-  <a class="button button-secondary" href="/">Return To Lobby</a>
-  {{end}}
-</section>
+</div>
 {{end}}
 {{end}}

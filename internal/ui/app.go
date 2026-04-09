@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"html/template"
 	"net/http"
 	"path"
 	"strings"
 
 	"github.com/linkdata/jaws"
+	"github.com/linkdata/jaws/jawsboot"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/staticserve"
 	"github.com/linkdata/xyzzy"
@@ -46,7 +48,8 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		return err
 	}
 	if err := a.Jaws.Setup(mux.Handle, "/static",
-		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "app.css", "images/favicon.svg"),
+		jawsboot.Setup,
+		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
 	); err != nil {
 		return err
 	}
@@ -179,9 +182,19 @@ func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, sess *j
 		a.setSessionString(sess, sessionKeyNickname, cookieName)
 		sessionName = cookieName
 	}
+	if sessionName == "" {
+		sessionName = generateNickname()
+		a.setSessionString(sess, sessionKeyNickname, sessionName)
+	}
 	if sessionName != "" && sessionName != cookieName {
 		a.setNicknameCookie(w, r, sessionName)
 	}
+}
+
+func generateNickname() string {
+	var b [3]byte
+	_, _ = rand.Read(b[:])
+	return fmt.Sprintf("Player-%X", b)
 }
 
 func (a *App) setSessionString(sess *jaws.Session, key, value string) {

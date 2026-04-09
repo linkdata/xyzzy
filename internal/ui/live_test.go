@@ -220,12 +220,12 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 
 	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
 	defer done()
-	want := fmt.Sprintf("%d unique black cards and %d unique white cards selected", 2, 4)
+	want := fmt.Sprintf("%d black / %d white selected", 2, 4)
 	msg, err := readUntilContains(ctx, conn, want)
 	if err != nil {
 		t.Fatalf("readUntilContains() error = %v", err)
 	}
-	if !strings.Contains(msg, "Deck Selection") {
+	if !strings.Contains(msg, "Card Packs") {
 		t.Fatalf("expected room update to include deck panel markup, got %s", msg)
 	}
 }

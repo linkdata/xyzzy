@@ -61,7 +61,7 @@ func TestLobbyPageRenders(t *testing.T) {
 		t.Fatalf("ServeHTTP() status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, "Choose a nickname") {
+	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, "nickname-section") {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
@@ -94,7 +94,7 @@ func TestRoomPageRendersExistingRoom(t *testing.T) {
 		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
 	}
 	body := roomRec.Body.String()
-	if !strings.Contains(body, room.Code()) || !strings.Contains(body, "Deck Selection") {
+	if !strings.Contains(body, room.Code()) || !strings.Contains(body, "Card Packs") {
 		t.Fatalf("unexpected room body: %s", body)
 	}
 }
@@ -164,7 +164,7 @@ func TestMissingRoomSkipsRedundantAlert(t *testing.T) {
 	if strings.Contains(body, `<p class="notice room-notice">room not found</p>`) {
 		t.Fatalf("unexpected duplicate missing-room alert: %s", body)
 	}
-	if !strings.Contains(body, "That room no longer exists") {
+	if !strings.Contains(body, "Room not found") {
 		t.Fatalf("expected missing-room panel text: %s", body)
 	}
 }

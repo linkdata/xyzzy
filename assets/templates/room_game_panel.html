@@ -1,100 +1,110 @@
 {{define "room_game_panel.html"}}
 {{with .Dot}}
 {{$room := .Snapshot}}
-<section id="{{$.Jid}}" class="panel game-panel">
-  {{if eq $room.State "lobby"}}
-  <div class="panel-header">
-    <div>
-      <p class="eyebrow">Deck Selection</p>
-      <h2>Build the room's card mix</h2>
-    </div>
-    {{$.Button .Page.StartGameAction `class="button button-primary"`}}
-  </div>
+<div id="{{$.Jid}}">
+
+{{if eq $room.State "lobby"}}
+
   {{if $room.LastGameWinner}}
-  <section class="result-banner">
-    <p class="eyebrow">Last Game</p>
-    <h3>{{$room.LastGameWinner}} won</h3>
-    <p class="muted">Final standings are shown in the room summary. Starting again resets everyone to zero.</p>
-  </section>
-  {{end}}
-  <p class="muted">{{$room.BlackCount}} unique black cards and {{$room.WhiteCount}} unique white cards selected. Need at least 50 black and {{$room.RequiredWhite}} white for this table.</p>
-  <div class="deck-grid">
-    {{range $deck := .Page.App.Catalog.OrderedDecks}}
-    <label class="deck-option">
-      <span class="deck-option-head">
-        {{$.Checkbox ($.Dot.Page.DeckToggle $deck.ID) `class="deck-check"`}}
-        <span class="deck-copy">
-          <span class="deck-name">{{$deck.Name}}</span>
-          <span class="deck-meta">
-            {{if and $deck.Description (ne $deck.Description $deck.Name)}}
-            {{$deck.Description}}
-            {{else}}
-            {{len $deck.BlackIDs}} black / {{len $deck.WhiteIDs}} white
-            {{end}}
-          </span>
-        </span>
+  <div class="alert alert-warning mb-3">
+    <strong>{{$room.LastGameWinner}}</strong> won the last game!
+    <div class="mt-2">
+      {{range $room.LastGameScores}}
+      <span class="badge {{if .IsWinner}}bg-warning text-dark{{else}}bg-secondary{{end}} me-1">
+        {{.Nickname}} {{.Score}}
       </span>
-    </label>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h5 class="mb-0">Card Packs</h5>
+      <small class="text-muted">
+        {{$room.BlackCount}} black / {{$room.WhiteCount}} white selected
+        (need ≥50 black, ≥{{$room.RequiredWhite}} white)
+      </small>
+    </div>
+    {{$.Button .Page.StartGameAction `class="btn btn-success"`}}
+  </div>
+
+  <div class="row row-cols-1 row-cols-sm-2 g-2">
+    {{range $deck := .Page.App.Catalog.OrderedDecks}}
+    <div class="col">
+      <label class="card h-100 cursor-pointer">
+        <div class="card-body d-flex gap-2 align-items-start py-2">
+          {{$.Checkbox ($.Dot.Page.DeckToggle $deck.ID) `class="form-check-input flex-shrink-0 mt-1"`}}
+          <div>
+            <div class="fw-semibold">{{$deck.Name}}</div>
+            <small class="text-muted">
+              {{if and $deck.Description (ne $deck.Description $deck.Name)}}
+              {{$deck.Description}}
+              {{else}}
+              {{len $deck.BlackIDs}} black / {{len $deck.WhiteIDs}} white
+              {{end}}
+            </small>
+          </div>
+        </div>
+      </label>
+    </div>
     {{end}}
   </div>
-  {{else}}
+
+{{else}}
+
   {{if $room.CurrentBlack}}
-  <section class="black-card">
-    <p class="eyebrow">Prompt</p>
-    <div class="card-face card-face-black">
-      <div class="card-copy">{{cardhtml $room.CurrentBlack.Text}}</div>
-      <div class="card-footer">
-        <div class="card-meta">
-          <span>pick {{$room.NeedPick}}</span>
-          {{if gt $room.NeedDraw 0}}<span>draw {{$room.NeedDraw}}</span>{{end}}
-        </div>
-        <div class="card-footnote card-footnote-dark">{{$.Dot.Page.BlackCardFootnote $room.CurrentBlack}}</div>
-      </div>
+  <div class="card-face card-face-black mb-4">
+    <div class="card-copy">{{cardhtml $room.CurrentBlack.Text}}</div>
+    <div class="card-footer-row">
+      <small class="opacity-75">pick {{$room.NeedPick}}{{if gt $room.NeedDraw 0}} · draw {{$room.NeedDraw}}{{end}}</small>
+      <small class="opacity-60 fst-italic">{{$.Dot.Page.BlackCardFootnote $room.CurrentBlack}}</small>
     </div>
-  </section>
+  </div>
   {{end}}
 
   {{if $room.CanSubmit}}
-  <section class="hand-panel">
-    <div class="panel-header">
-      <div>
-        <p class="eyebrow">Your Hand</p>
-        <h2>Choose {{$room.NeedPick}} card{{if ne $room.NeedPick 1}}s{{end}}</h2>
-      </div>
-      {{$.Button .Page.SubmitCardsAction `class="button button-primary"`}}
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
+    {{$.Button .Page.SubmitCardsAction `class="btn btn-primary"`}}
+  </div>
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+    {{range $card := $room.Hand}}
+    {{$action := $.Dot.Page.CardAction $card}}
+    <div class="col">
+      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white w-100 text-start"`}}
     </div>
-    <div class="hand-grid">
-      {{range $card := $room.Hand}}
-      {{$action := $.Dot.Page.CardAction $card}}
-      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white hand-button"`}}
-      {{end}}
-    </div>
-  </section>
+    {{end}}
+  </div>
+
   {{else if $room.CanJudge}}
-  <section class="judge-panel">
-    <div class="panel-header">
-      <div>
-        <p class="eyebrow">Judge</p>
-        <h2>Pick the winning answer</h2>
-      </div>
-      {{$.Button .Page.JudgeAction `class="button button-primary"`}}
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Pick the Winner</h5>
+    {{$.Button .Page.JudgeAction `class="btn btn-primary"`}}
+  </div>
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+    {{range $submission := $room.Submissions}}
+    {{$action := $.Dot.Page.SubmissionAction $submission}}
+    <div class="col">
+      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white w-100 text-start"`}}
     </div>
-    <div class="submission-grid">
-      {{range $submission := $room.Submissions}}
-      {{$action := $.Dot.Page.SubmissionAction $submission}}
-      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white submission-button"`}}
-      {{end}}
-    </div>
-  </section>
+    {{end}}
+  </div>
+
   {{else}}
-  <section class="single-panel">
-    <p class="eyebrow">Round Status</p>
-    <h2>{{$.Dot.Page.WaitingTitle $room}}</h2>
+
+  <div class="text-center py-5">
+    <h5>{{$.Dot.Page.WaitingTitle $room}}</h5>
     {{$detail := $.Dot.Page.WaitingDetail $room}}
-    {{if $detail}}<p class="muted">{{$detail}}</p>{{end}}
-  </section>
+    {{if $detail}}<p class="text-muted">{{$detail}}</p>{{end}}
+  </div>
+
   {{end}}
-  {{end}}
-</section>
+
+{{end}}
+
+</div>
 {{end}}
 {{end}}

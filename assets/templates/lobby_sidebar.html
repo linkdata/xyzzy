@@ -1,0 +1,24 @@
+{{define "lobby_sidebar.html"}}
+{{with .Dot}}
+<div id="{{$.Jid}}">
+  <div class="d-grid mb-3">
+    {{$.Button .Page.CreateRoomAction `class="btn btn-primary"`}}
+  </div>
+  {{if .Page.RoomSummaries}}
+  <div class="list-group">
+    {{range .Page.RoomSummaries}}
+    <a href="{{$.Dot.Page.App.RoomURL .Code}}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+      <span>
+        <span class="fw-semibold font-monospace">{{.Code}}</span>
+        <small class="text-muted ms-2">{{.HostName}}</small>
+      </span>
+      <span class="badge bg-secondary rounded-pill">{{.Players}}</span>
+    </a>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="text-muted small">No rooms yet — create one above.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

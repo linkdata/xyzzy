@@ -7,6 +7,26 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
+// LobbySidebar is the reactive left sidebar for the lobby page.
+type LobbySidebar struct {
+	Page *LobbyPage
+}
+
+func (p *LobbyPage) Sidebar() *LobbySidebar {
+	return &LobbySidebar{Page: p}
+}
+
+func (m *LobbySidebar) JawsGetTag(jtag.Context) any {
+	return []any{m.Page, m.Page.App.Manager}
+}
+
+func (m *LobbySidebar) JawsContains(*jaws.Element) []jaws.UI {
+	return []jaws.UI{
+		jui.NewTemplate("lobby_sidebar.html", &LobbyPanelVM{Page: m.Page}),
+	}
+}
+
+// LobbyMain is the reactive main content area for the lobby page.
 type LobbyMain struct {
 	Page *LobbyPage
 }
@@ -22,8 +42,6 @@ func (m *LobbyMain) JawsGetTag(jtag.Context) any {
 func (m *LobbyMain) JawsContains(*jaws.Element) []jaws.UI {
 	return []jaws.UI{
 		jui.NewTemplate("lobby_welcome_panel.html", &LobbyPanelVM{Page: m.Page}),
-		jui.NewTemplate("lobby_actions_panel.html", &LobbyPanelVM{Page: m.Page}),
-		jui.NewTemplate("lobby_rooms_panel.html", &LobbyPanelVM{Page: m.Page}),
 	}
 }
 
@@ -31,6 +49,38 @@ type LobbyPanelVM struct {
 	Page *LobbyPage
 }
 
+// RoomSidebar is the reactive left sidebar for the room page.
+type RoomSidebar struct {
+	Page *RoomPage
+	Room *game.Room
+}
+
+func (p *RoomPage) Sidebar() *RoomSidebar {
+	return &RoomSidebar{Page: p, Room: p.Room()}
+}
+
+func (m *RoomSidebar) JawsGetTag(jtag.Context) any {
+	tags := []any{m.Page}
+	if m.Room != nil {
+		tags = append(tags, m.Room)
+	}
+	return tags
+}
+
+func (m *RoomSidebar) JawsContains(*jaws.Element) []jaws.UI {
+	snap := m.Page.Snapshot()
+	if !snap.InRoom {
+		return nil
+	}
+	return []jaws.UI{
+		jui.NewTemplate("room_summary_panel.html", &RoomPanelVM{
+			Page:     m.Page,
+			Snapshot: snap,
+		}),
+	}
+}
+
+// RoomMain is the reactive main content area for the room page.
 type RoomMain struct {
 	Page *RoomPage
 	Room *game.Room
@@ -85,7 +135,6 @@ func (m *RoomMain) JawsContains(*jaws.Element) []jaws.UI {
 		Snapshot: snap,
 	}
 	return []jaws.UI{
-		jui.NewTemplate("room_summary_panel.html", vm),
 		jui.NewTemplate("room_game_panel.html", vm),
 	}
 }

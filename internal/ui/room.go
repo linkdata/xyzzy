@@ -74,9 +74,9 @@ func (p *RoomPage) StartGameAction() bind.Binder[string] {
 		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
 			snap := p.Snapshot()
 			if !snap.CanStart {
-				elem.SetAttr("disabled", "")
+				elem.SetAttr("hidden", "")
 			} else {
-				elem.RemoveAttr("disabled")
+				elem.RemoveAttr("hidden")
 			}
 			return label
 		}).
