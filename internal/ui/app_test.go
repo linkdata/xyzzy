@@ -99,6 +99,76 @@ func TestRoomPageRendersExistingRoom(t *testing.T) {
 	}
 }
 
+func TestRoomPageAutoJoinSkipsRedundantSuccessAlert(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostRec := httptest.NewRecorder()
+	handler.ServeHTTP(hostRec, hostReq)
+	hostSess := app.Jaws.GetSession(hostReq)
+	if hostSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	app.setNickname(hostSess, "Alice")
+	room, err := app.createRoom(hostSess)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinRec := httptest.NewRecorder()
+	handler.ServeHTTP(joinRec, joinReq)
+	joinSess := app.Jaws.GetSession(joinReq)
+	if joinSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	app.setNickname(joinSess, "Bob")
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(joinSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+	body := roomRec.Body.String()
+	if strings.Contains(body, "Joined room") {
+		t.Fatalf("unexpected redundant join alert: %s", body)
+	}
+}
+
+func TestMissingRoomSkipsRedundantAlert(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	app.setNickname(sess, "Alice")
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
+	roomReq.SetPathValue("code", "MISSING")
+	roomReq.AddCookie(sess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+	body := roomRec.Body.String()
+	if strings.Contains(body, `<p class="notice room-notice">room not found</p>`) {
+		t.Fatalf("unexpected duplicate missing-room alert: %s", body)
+	}
+	if !strings.Contains(body, "That room no longer exists") {
+		t.Fatalf("expected missing-room panel text: %s", body)
+	}
+}
+
 func TestLobbyPageSetsNicknameCookieFromSession(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)

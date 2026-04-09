@@ -249,6 +249,14 @@ func (p *RoomPage) BlackCardFootnote(card *deck.BlackCard) string {
 	return renderBlackCardFootnote(p.Room(), card)
 }
 
+func (p *RoomPage) WaitingTitle(snap game.RoomView) string {
+	return waitingTitle(snap, p.App.playerID(p.Session))
+}
+
+func (p *RoomPage) WaitingDetail(snap game.RoomView) string {
+	return waitingDetail(snap, p.App.playerID(p.Session))
+}
+
 func (p *RoomPage) applyCardSelection(cardID string, needPick int) {
 	if slicesContains(p.SelectedCardIDs, cardID) {
 		p.SelectedCardIDs = deleteString(p.SelectedCardIDs, cardID)
@@ -265,6 +273,52 @@ func (p *RoomPage) applyCardSelection(cardID string, needPick int) {
 	}
 	p.SelectedCardIDs = append(p.SelectedCardIDs, cardID)
 	p.Alert = ""
+}
+
+func waitingTitle(snap game.RoomView, playerID string) string {
+	switch snap.State {
+	case game.StateJudging:
+		if snap.JudgeName != "" {
+			return snap.JudgeName + " is picking the winner"
+		}
+		return "Waiting for the judge"
+	case game.StatePlaying:
+		if player := currentPlayerView(snap, playerID); player != nil && player.IsJudge {
+			return "Waiting for answers"
+		}
+		return "Waiting for the rest of the table"
+	default:
+		return "Waiting"
+	}
+}
+
+func waitingDetail(snap game.RoomView, playerID string) string {
+	if snap.State != game.StatePlaying {
+		return ""
+	}
+	player := currentPlayerView(snap, playerID)
+	if player == nil {
+		return ""
+	}
+	if player.IsJudge {
+		return "You'll choose the winner once every answer is in."
+	}
+	if player.Submitted {
+		return "Your cards are in."
+	}
+	return ""
+}
+
+func currentPlayerView(snap game.RoomView, playerID string) *game.PlayerView {
+	if playerID == "" {
+		return nil
+	}
+	for i := range snap.Players {
+		if snap.Players[i].ID == playerID {
+			return &snap.Players[i]
+		}
+	}
+	return nil
 }
 
 func (p *RoomPage) JudgeAction() bind.Binder[string] {

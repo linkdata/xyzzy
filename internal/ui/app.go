@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"html/template"
 	"net/http"
 	"path"
@@ -82,12 +81,12 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Nickname() != "" && a.roomCode(page.Session) == "" {
-		if room, err := a.joinRoom(page.Session, page.RoomCode); err == nil {
-			page.Alert = fmt.Sprintf("Joined room %s.", room.Code())
-		} else if err != game.ErrGameInProgress && err != game.ErrRoomFull && err != game.ErrRoomNotFound {
-			page.Alert = err.Error()
-		} else {
-			page.Alert = err.Error()
+		if _, err := a.joinRoom(page.Session, page.RoomCode); err != nil {
+			if err == game.ErrRoomNotFound {
+				page.Alert = ""
+			} else {
+				page.Alert = err.Error()
+			}
 		}
 	}
 	if err := a.renderTemplate(w, r, "room.html", page); err != nil {

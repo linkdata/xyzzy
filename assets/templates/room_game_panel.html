@@ -81,14 +81,10 @@
   </section>
   {{else}}
   <section class="single-panel">
-    {{if eq $room.State "judging"}}
-    <p class="eyebrow">Waiting</p>
-    <h2>{{$room.JudgeName}} is judging</h2>
-    {{else}}
-    <p class="eyebrow">Waiting</p>
-    <h2>Cards are in play</h2>
-    {{end}}
-    <p class="muted">Your seat is still active. Refreshing this page reconnects to the same player while the server is running.</p>
+    <p class="eyebrow">Round Status</p>
+    <h2>{{$.Dot.Page.WaitingTitle $room}}</h2>
+    {{$detail := $.Dot.Page.WaitingDetail $room}}
+    {{if $detail}}<p class="muted">{{$detail}}</p>{{end}}
   </section>
   {{end}}
   {{end}}
