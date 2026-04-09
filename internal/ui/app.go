@@ -35,7 +35,8 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 
 func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	templates, err := template.New("root").Funcs(template.FuncMap{
-		"join": strings.Join,
+		"cardhtml": formatCardHTML,
+		"join":     strings.Join,
 	}).ParseFS(xyzzy.Assets, "assets/templates/*.html")
 	if err != nil {
 		return err

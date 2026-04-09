@@ -45,6 +45,12 @@ func TestLoadFSAndUnion(t *testing.T) {
 	if len(black) != 2 || len(white) != 3 {
 		t.Fatalf("UnionCards() got %d black and %d white", len(black), len(white))
 	}
+	if black[0] != catalog.BlackCards["b1"] || black[1] != catalog.BlackCards["b2"] {
+		t.Fatalf("UnionCards() did not return shared black card instances")
+	}
+	if white[0] != catalog.WhiteCards["w1"] || white[1] != catalog.WhiteCards["w2"] || white[2] != catalog.WhiteCards["w3"] {
+		t.Fatalf("UnionCards() did not return shared white card instances")
+	}
 	if black[1].Pick != 2 || black[1].Draw != 1 {
 		t.Fatalf("expected black card defaults preserved, got %#v", black[1])
 	}

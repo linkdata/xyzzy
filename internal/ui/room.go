@@ -141,37 +141,42 @@ func (p *RoomPage) DeckToggle(deckID string) bind.Binder[bool] {
 		})
 }
 
-func (p *RoomPage) CardAction(card deck.WhiteCard) bind.Binder[string] {
-	label := card.Text
-	return bind.New(&p.mu, &label).
-		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
+func (p *RoomPage) CardAction(card *deck.WhiteCard) bind.Binder[HandCardRef] {
+	ref := HandCardRef{Room: p.Room(), Card: card}
+	return bind.New(&p.mu, &ref).
+		GetLocked(func(bind bind.Binder[HandCardRef], elem *jaws.Element) HandCardRef {
 			snap := p.Snapshot()
 			if !snap.CanSubmit {
 				elem.SetAttr("disabled", "")
 			} else {
 				elem.RemoveAttr("disabled")
 			}
-			if slicesContains(p.SelectedCardIDs, card.ID) {
+			if card != nil && slicesContains(p.SelectedCardIDs, card.ID) {
 				elem.SetClass("is-selected")
 			} else {
 				elem.RemoveClass("is-selected")
 			}
-			return label
+			return ref
 		}).
-		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
+		Clicked(func(bind bind.Binder[HandCardRef], elem *jaws.Element, _ string) error {
 			snap := p.Snapshot()
 			if !snap.CanSubmit {
 				return nil
 			}
-			if slicesContains(p.SelectedCardIDs, card.ID) {
-				p.SelectedCardIDs = deleteString(p.SelectedCardIDs, card.ID)
+			card := bind.JawsGet(elem).Card
+			if card == nil {
+				return nil
+			}
+			cardID := card.ID
+			if slicesContains(p.SelectedCardIDs, cardID) {
+				p.SelectedCardIDs = deleteString(p.SelectedCardIDs, cardID)
 			} else {
 				if len(p.SelectedCardIDs) >= snap.NeedPick {
 					p.Alert = fmt.Sprintf("Select exactly %d cards.", snap.NeedPick)
 					elem.Dirty(p)
 					return nil
 				}
-				p.SelectedCardIDs = append(p.SelectedCardIDs, card.ID)
+				p.SelectedCardIDs = append(p.SelectedCardIDs, cardID)
 				p.Alert = ""
 			}
 			elem.Dirty(p)
@@ -211,10 +216,14 @@ func (p *RoomPage) SubmitCardsAction() bind.Binder[string] {
 		})
 }
 
-func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[string] {
-	label := joinSubmission(sub.Cards)
-	return bind.New(&p.mu, &label).
-		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
+func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[SubmissionRef] {
+	ref := SubmissionRef{
+		Room:         p.Room(),
+		Submission:   sub.Submission,
+		RenderedHTML: renderSubmissionHTML(sub.Cards),
+	}
+	return bind.New(&p.mu, &ref).
+		GetLocked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element) SubmissionRef {
 			snap := p.Snapshot()
 			if !snap.CanJudge {
 				elem.SetAttr("disabled", "")
@@ -226,16 +235,21 @@ func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[string]
 			} else {
 				elem.RemoveClass("is-selected")
 			}
-			return label
+			return ref
 		}).
-		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
+		Clicked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element, _ string) error {
 			if !p.Snapshot().CanJudge {
 				return nil
 			}
-			if p.SelectedSubmission == sub.ID {
+			submission := bind.JawsGet(elem).Submission
+			if submission == nil {
+				return nil
+			}
+			submissionID := submission.ID
+			if p.SelectedSubmission == submissionID {
 				p.SelectedSubmission = ""
 			} else {
-				p.SelectedSubmission = sub.ID
+				p.SelectedSubmission = submissionID
 			}
 			elem.Dirty(p)
 			return nil
@@ -271,14 +285,6 @@ func (p *RoomPage) JudgeAction() bind.Binder[string] {
 			elem.Dirty(p)
 			return nil
 		})
-}
-
-func joinSubmission(cards []deck.WhiteCard) string {
-	parts := make([]string, 0, len(cards))
-	for _, card := range cards {
-		parts = append(parts, card.Text)
-	}
-	return strings.Join(parts, " / ")
 }
 
 func slicesContains(values []string, target string) bool {

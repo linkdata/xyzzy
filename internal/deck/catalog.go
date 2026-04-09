@@ -24,8 +24,8 @@ var (
 
 // Catalog is the immutable in-memory deck catalog loaded from embedded assets.
 type Catalog struct {
-	BlackCards map[string]BlackCard
-	WhiteCards map[string]WhiteCard
+	BlackCards map[string]*BlackCard
+	WhiteCards map[string]*WhiteCard
 	Decks      map[string]*Deck
 	ordered    []*Deck
 	defaultIDs []string
@@ -34,13 +34,13 @@ type Catalog struct {
 // LoadFS loads a catalog from the provided filesystem.
 func LoadFS(fsys fs.FS) (*Catalog, error) {
 	c := &Catalog{
-		BlackCards: make(map[string]BlackCard),
-		WhiteCards: make(map[string]WhiteCard),
+		BlackCards: make(map[string]*BlackCard),
+		WhiteCards: make(map[string]*WhiteCard),
 		Decks:      make(map[string]*Deck),
 	}
 	if err := loadJSONDir(fsys, blackDir, func(name string, raw []byte) error {
-		var card BlackCard
-		if err := json.Unmarshal(raw, &card); err != nil {
+		card := new(BlackCard)
+		if err := json.Unmarshal(raw, card); err != nil {
 			return fmt.Errorf("%s: decode black card: %w", name, err)
 		}
 		card.Pick = max(card.Pick, 1)
@@ -56,8 +56,8 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 		return nil, err
 	}
 	if err := loadJSONDir(fsys, whiteDir, func(name string, raw []byte) error {
-		var card WhiteCard
-		if err := json.Unmarshal(raw, &card); err != nil {
+		card := new(WhiteCard)
+		if err := json.Unmarshal(raw, card); err != nil {
 			return fmt.Errorf("%s: decode white card: %w", name, err)
 		}
 		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
@@ -217,7 +217,7 @@ func (c *Catalog) UnionCounts(deckIDs []string) (blackCount, whiteCount int, err
 }
 
 // UnionCards returns unique cards from the selected decks, sorted by card ID.
-func (c *Catalog) UnionCards(deckIDs []string) (black []BlackCard, white []WhiteCard, err error) {
+func (c *Catalog) UnionCards(deckIDs []string) (black []*BlackCard, white []*WhiteCard, err error) {
 	blackSet, whiteSet, err := c.unionSet(deckIDs)
 	if err != nil {
 		return nil, nil, err
@@ -228,8 +228,8 @@ func (c *Catalog) UnionCards(deckIDs []string) (black []BlackCard, white []White
 	for id := range whiteSet {
 		white = append(white, c.WhiteCards[id])
 	}
-	slices.SortFunc(black, func(a, b BlackCard) int { return strings.Compare(a.ID, b.ID) })
-	slices.SortFunc(white, func(a, b WhiteCard) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(black, func(a, b *BlackCard) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(white, func(a, b *WhiteCard) int { return strings.Compare(a.ID, b.ID) })
 	return black, white, nil
 }
 

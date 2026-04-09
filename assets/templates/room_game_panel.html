@@ -35,7 +35,7 @@
   <section class="black-card">
     <p class="eyebrow">Prompt</p>
     <div class="card-face card-face-black">
-      <p>{{$room.CurrentBlack.Text}}</p>
+      <p>{{cardhtml $room.CurrentBlack.Text}}</p>
       <div class="card-meta">
         <span>pick {{$room.NeedPick}}</span>
         {{if gt $room.NeedDraw 0}}<span>draw {{$room.NeedDraw}}</span>{{end}}
@@ -55,7 +55,8 @@
     </div>
     <div class="hand-grid">
       {{range $card := $room.Hand}}
-      {{$.Button ($.Dot.Page.CardAction $card) `class="card-face card-face-white hand-button"`}}
+      {{$action := $.Dot.Page.CardAction $card}}
+      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white hand-button"`}}
       {{end}}
     </div>
   </section>
@@ -70,7 +71,8 @@
     </div>
     <div class="submission-grid">
       {{range $submission := $room.Submissions}}
-      {{$.Button ($.Dot.Page.SubmissionAction $submission) `class="card-face card-face-white submission-button"`}}
+      {{$action := $.Dot.Page.SubmissionAction $submission}}
+      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white submission-button"`}}
       {{end}}
     </div>
   </section>

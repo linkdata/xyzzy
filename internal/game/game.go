@@ -119,8 +119,9 @@ type PlayerView struct {
 }
 
 type SubmissionView struct {
-	ID    string
-	Cards []deck.WhiteCard
+	ID         string
+	Submission *Submission
+	Cards      []*deck.WhiteCard
 }
 
 type RoomView struct {
@@ -143,7 +144,7 @@ type RoomView struct {
 	NeedPick        int
 	NeedDraw        int
 	CurrentBlack    *deck.BlackCard
-	Hand            []deck.WhiteCard
+	Hand            []*deck.WhiteCard
 	Submissions     []SubmissionView
 	LastWinnerName  string
 	StatusMessage   string
@@ -506,8 +507,7 @@ func (r *Room) Snapshot(playerID string) RoomView {
 		})
 	}
 	if black := r.currentBlackLocked(); black != nil {
-		card := *black
-		view.CurrentBlack = &card
+		view.CurrentBlack = black
 		view.NeedPick = black.Pick
 		view.NeedDraw = black.Draw
 	}
@@ -519,8 +519,9 @@ func (r *Room) Snapshot(playerID string) RoomView {
 	if r.state == StateJudging {
 		for _, submission := range r.submissions {
 			view.Submissions = append(view.Submissions, SubmissionView{
-				ID:    submission.ID,
-				Cards: r.lookupWhiteCardsLocked(submission.CardIDs),
+				ID:         submission.ID,
+				Submission: submission,
+				Cards:      r.lookupWhiteCardsLocked(submission.CardIDs),
 			})
 		}
 	}
@@ -702,11 +703,7 @@ func (r *Room) currentBlackLocked() *deck.BlackCard {
 	if r.currentBlackID == "" {
 		return nil
 	}
-	card, ok := r.catalog.BlackCards[r.currentBlackID]
-	if !ok {
-		return nil
-	}
-	return &card
+	return r.catalog.BlackCards[r.currentBlackID]
 }
 
 func (r *Room) playerLocked(playerID string) *Player {
@@ -737,8 +734,8 @@ func (r *Room) selectedDeckNamesLocked() []string {
 	return names
 }
 
-func (r *Room) lookupWhiteCardsLocked(ids []string) []deck.WhiteCard {
-	cards := make([]deck.WhiteCard, 0, len(ids))
+func (r *Room) lookupWhiteCardsLocked(ids []string) []*deck.WhiteCard {
+	cards := make([]*deck.WhiteCard, 0, len(ids))
 	for _, id := range ids {
 		if card, ok := r.catalog.WhiteCards[id]; ok {
 			cards = append(cards, card)
@@ -798,7 +795,7 @@ func sortedSelected(values map[string]bool) []string {
 	return out
 }
 
-func idsFromBlack(cards []deck.BlackCard) []string {
+func idsFromBlack(cards []*deck.BlackCard) []string {
 	out := make([]string, len(cards))
 	for i, card := range cards {
 		out[i] = card.ID
@@ -806,7 +803,7 @@ func idsFromBlack(cards []deck.BlackCard) []string {
 	return out
 }
 
-func idsFromWhite(cards []deck.WhiteCard) []string {
+func idsFromWhite(cards []*deck.WhiteCard) []string {
 	out := make([]string, len(cards))
 	for i, card := range cards {
 		out[i] = card.ID
