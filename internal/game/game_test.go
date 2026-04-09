@@ -1,7 +1,6 @@
 package game
 
 import (
-	mathrand "math/rand"
 	"testing"
 	"testing/fstest"
 
@@ -40,7 +39,7 @@ func testCatalog(t *testing.T) *deck.Catalog {
 
 func TestManagerRoomLifecycle(t *testing.T) {
 	catalog := testCatalog(t)
-	mgr := NewManager(catalog, mathrand.New(mathrand.NewSource(1)))
+	mgr := NewManager(catalog)
 	room, err := mgr.CreateRoom("p1", "Alice", catalog.DefaultDeckIDs())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
@@ -68,7 +67,7 @@ func TestManagerRoomLifecycle(t *testing.T) {
 
 func TestDebugMinPlayersAllowsTwoPlayerStart(t *testing.T) {
 	catalog := testCatalog(t)
-	mgr := NewManagerWithOptions(catalog, mathrand.New(mathrand.NewSource(11)), Options{MinPlayers: 2})
+	mgr := NewManagerWithOptions(catalog, Options{MinPlayers: 2})
 	room, err := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
@@ -86,7 +85,7 @@ func TestDebugMinPlayersAllowsTwoPlayerStart(t *testing.T) {
 
 func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	catalog := testCatalog(t)
-	mgr := NewManager(catalog, mathrand.New(mathrand.NewSource(2)))
+	mgr := NewManager(catalog)
 	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
 	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
 	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
@@ -126,7 +125,7 @@ func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 
 func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 	catalog := testCatalog(t)
-	mgr := NewManager(catalog, mathrand.New(mathrand.NewSource(4)))
+	mgr := NewManager(catalog)
 	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
 	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
 	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
@@ -154,7 +153,7 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 
 func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	catalog := testCatalog(t)
-	mgr := NewManager(catalog, mathrand.New(mathrand.NewSource(3)))
+	mgr := NewManager(catalog)
 	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
 	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
 	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")

@@ -2,6 +2,7 @@ package game
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	mathrand "math/rand"
@@ -61,7 +62,6 @@ type Manager struct {
 	mu      sync.RWMutex
 	rooms   map[string]*Room
 	catalog *deck.Catalog
-	rand    *mathrand.Rand
 	opts    Options
 }
 
@@ -151,21 +151,17 @@ type RoomView struct {
 	JudgeName       string
 }
 
-func NewManager(catalog *deck.Catalog, rng *mathrand.Rand) *Manager {
-	return NewManagerWithOptions(catalog, rng, Options{})
+func NewManager(catalog *deck.Catalog) *Manager {
+	return NewManagerWithOptions(catalog, Options{})
 }
 
-func NewManagerWithOptions(catalog *deck.Catalog, rng *mathrand.Rand, opts Options) *Manager {
-	if rng == nil {
-		rng = mathrand.New(mathrand.NewSource(1))
-	}
+func NewManagerWithOptions(catalog *deck.Catalog, opts Options) *Manager {
 	if opts.MinPlayers < 2 {
 		opts.MinPlayers = MinPlayers
 	}
 	return &Manager{
 		rooms:   make(map[string]*Room),
 		catalog: catalog,
-		rand:    rng,
 		opts:    opts,
 	}
 }
@@ -185,10 +181,14 @@ func (m *Manager) CreateRoom(playerID, nickname string, defaultDeckIDs []string)
 	if err != nil {
 		return nil, err
 	}
+	roomRand, err := newCryptoRand()
+	if err != nil {
+		return nil, err
+	}
 	room := &Room{
 		code:            code,
 		catalog:         m.catalog,
-		rand:            mathrand.New(mathrand.NewSource(m.rand.Int63())),
+		rand:            roomRand,
 		minPlayers:      m.opts.MinPlayers,
 		hostID:          playerID,
 		state:           StateLobby,
@@ -292,7 +292,7 @@ func (m *Manager) RoomSummaries() []RoomSummary {
 
 func (m *Manager) newRoomCodeLocked() (string, error) {
 	for i := 0; i < 1024; i++ {
-		code, err := randomCode(m.rand)
+		code, err := randomCode()
 		if err != nil {
 			return "", err
 		}
@@ -818,17 +818,22 @@ func max(a, b int) int {
 	return b
 }
 
-func randomCode(rng *mathrand.Rand) (string, error) {
-	if rng == nil {
-		var seed [8]byte
-		if _, err := rand.Read(seed[:]); err != nil {
-			return "", err
-		}
-		rng = mathrand.New(mathrand.NewSource(int64(seed[0])<<56 | int64(seed[1])<<48 | int64(seed[2])<<40 | int64(seed[3])<<32 | int64(seed[4])<<24 | int64(seed[5])<<16 | int64(seed[6])<<8 | int64(seed[7])))
+func randomCode() (string, error) {
+	var raw [roomCodeLength]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
 	}
 	var b strings.Builder
-	for range roomCodeLength {
-		b.WriteByte(roomCodeAlphabet[rng.Intn(len(roomCodeAlphabet))])
+	for _, n := range raw {
+		b.WriteByte(roomCodeAlphabet[n&31])
 	}
 	return b.String(), nil
+}
+
+func newCryptoRand() (*mathrand.Rand, error) {
+	var seed [8]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return nil, err
+	}
+	return mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:])))), nil
 }

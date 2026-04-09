@@ -4,10 +4,8 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/webserv"
@@ -55,7 +53,7 @@ func main() {
 	if *flagDebug {
 		managerOpts.MinPlayers = 2
 	}
-	manager := game.NewManagerWithOptions(catalog, rand.New(rand.NewSource(time.Now().UnixNano())), managerOpts)
+	manager := game.NewManagerWithOptions(catalog, managerOpts)
 	app := appui.New(jw, catalog, manager)
 
 	mux := http.NewServeMux()

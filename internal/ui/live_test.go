@@ -35,7 +35,7 @@ func newLiveHarness(t *testing.T) *liveHarness {
 		t.Fatalf("jaws.New() error = %v", err)
 	}
 	catalog := testCatalog(t)
-	app := New(jw, catalog, game.NewManager(catalog, nil))
+	app := New(jw, catalog, game.NewManager(catalog))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)

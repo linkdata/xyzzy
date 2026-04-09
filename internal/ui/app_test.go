@@ -42,7 +42,7 @@ func testApp(t *testing.T) (*App, *http.ServeMux) {
 		t.Fatalf("jaws.New() error = %v", err)
 	}
 	t.Cleanup(jw.Close)
-	app := New(jw, testCatalog(t), game.NewManager(testCatalog(t), nil))
+	app := New(jw, testCatalog(t), game.NewManager(testCatalog(t)))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)
