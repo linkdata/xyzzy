@@ -1,3 +1,10 @@
+/* Keep the jaws connection-lost bar above the fixed navbar */
+.jaws-lost {
+  position: fixed;
+  top: 0;
+  z-index: 1040;
+}
+
 /* Card game visuals not covered by Bootstrap */
 
 :root {
