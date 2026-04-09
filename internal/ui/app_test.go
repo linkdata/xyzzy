@@ -51,10 +51,11 @@ func testApp(t *testing.T) (*App, *http.ServeMux) {
 }
 
 func TestLobbyPageRenders(t *testing.T) {
-	_, mux := testApp(t)
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("ServeHTTP() status = %d", rec.Code)
 	}
@@ -62,13 +63,21 @@ func TestLobbyPageRenders(t *testing.T) {
 	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, "Choose a nickname") {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
+	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
+		t.Fatalf("unexpected lobby body: %s", body)
+	}
 }
 
 func TestRoomPageRendersExistingRoom(t *testing.T) {
 	app, mux := testApp(t)
+	handler := app.Middleware(mux)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	rec := httptest.NewRecorder()
-	sess := app.Jaws.NewSession(rec, req)
+	handler.ServeHTTP(rec, req)
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected JaWS session")
+	}
 	app.setNickname(sess, "Alice")
 	room, err := app.createRoom(sess)
 	if err != nil {
@@ -79,7 +88,7 @@ func TestRoomPageRendersExistingRoom(t *testing.T) {
 	roomReq.SetPathValue("code", room.Code())
 	roomReq.AddCookie(sess.Cookie())
 	roomRec := httptest.NewRecorder()
-	mux.ServeHTTP(roomRec, roomReq)
+	handler.ServeHTTP(roomRec, roomReq)
 	if roomRec.Code != http.StatusOK {
 		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
 	}

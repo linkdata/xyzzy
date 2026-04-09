@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"net/http"
 	"path"
 	"strings"
 
 	"github.com/linkdata/jaws"
 	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/staticserve"
 	"github.com/linkdata/xyzzy"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
@@ -43,23 +43,23 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	if err := a.Jaws.AddTemplateLookuper(templates); err != nil {
 		return err
 	}
-	staticFS, err := fs.Sub(xyzzy.Assets, "assets/static")
-	if err != nil {
+	if err := a.Jaws.Setup(mux.Handle, "/static",
+		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "app.css", "images/favicon.svg"),
+	); err != nil {
 		return err
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 	mux.Handle("GET /jaws/", a.Jaws)
-	mux.Handle("GET /", a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveLobby))))
-	mux.Handle("GET /room/{code}", a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(http.HandlerFunc(a.serveRoom))))
+	mux.Handle("GET /", http.HandlerFunc(a.serveLobby))
+	mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
 	return nil
 }
 
+func (a *App) Middleware(next http.Handler) http.Handler {
+	return a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(next))
+}
+
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
-	page := NewLobbyPage(a, a.ensureSession(r))
-	if page.Session == nil {
-		http.Error(w, "missing session", http.StatusInternalServerError)
-		return
-	}
+	page := NewLobbyPage(a, a.session(r))
 	a.reconcileSession(page.Session)
 	if err := a.renderTemplate(w, r, "index.html", page); err != nil {
 		a.Jaws.Log(err)
@@ -68,11 +68,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
-	page := NewRoomPage(a, a.ensureSession(r), r.PathValue("code"))
-	if page.Session == nil {
-		http.Error(w, "missing session", http.StatusInternalServerError)
-		return
-	}
+	page := NewRoomPage(a, a.session(r), r.PathValue("code"))
 	a.reconcileSession(page.Session)
 	if current := a.roomCode(page.Session); current != "" && current != page.RoomCode {
 		http.Redirect(w, r, "/room/"+current, http.StatusSeeOther)
@@ -98,8 +94,12 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
 }
 
-func (a *App) ensureSession(r *http.Request) *jaws.Session {
-	return a.Jaws.GetSession(r)
+func (a *App) session(r *http.Request) *jaws.Session {
+	sess := a.Jaws.GetSession(r)
+	if sess == nil {
+		panic("ui.App handlers require JaWS session middleware")
+	}
+	return sess
 }
 
 func (a *App) Dirty(tags ...any) {
@@ -123,9 +123,6 @@ func (a *App) DirtyRoom(room *game.Room) {
 }
 
 func (a *App) sessionString(sess *jaws.Session, key string) string {
-	if sess == nil {
-		return ""
-	}
 	if value, ok := sess.Get(key).(string); ok {
 		return value
 	}
@@ -133,9 +130,6 @@ func (a *App) sessionString(sess *jaws.Session, key string) string {
 }
 
 func (a *App) setSessionString(sess *jaws.Session, key, value string) {
-	if sess == nil {
-		return
-	}
 	value = strings.TrimSpace(value)
 	if value == "" {
 		sess.Set(key, nil)
@@ -167,9 +161,6 @@ func (a *App) ensurePlayerID(sess *jaws.Session) string {
 }
 
 func (a *App) clearRoom(sess *jaws.Session) {
-	if sess == nil {
-		return
-	}
 	sess.Set(sessionKeyRoomCode, nil)
 }
 

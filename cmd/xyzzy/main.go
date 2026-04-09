@@ -81,7 +81,7 @@ func main() {
 	defer l.Close()
 
 	go jw.Serve()
-	if err := cfg.Serve(context.Background(), l, mux); err != nil {
+	if err := cfg.Serve(context.Background(), l, app.Middleware(mux)); err != nil {
 		slog.Error("serve", "err", err)
 		os.Exit(1)
 	}

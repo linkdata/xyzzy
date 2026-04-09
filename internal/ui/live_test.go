@@ -42,7 +42,7 @@ func newLiveHarness(t *testing.T) *liveHarness {
 	}
 
 	go jw.Serve()
-	server := httptest.NewServer(mux)
+	server := httptest.NewServer(app.Middleware(mux))
 	t.Cleanup(server.Close)
 	t.Cleanup(jw.Close)
 
