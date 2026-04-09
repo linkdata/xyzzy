@@ -20,6 +20,7 @@ type RoomPage struct {
 	Alert              string
 	SelectedCardIDs    []string
 	SelectedSubmission string
+	scoreTarget        int
 }
 
 func NewRoomPage(app *App, sess *jaws.Session, roomCode string) *RoomPage {
@@ -73,10 +74,14 @@ func (p *RoomPage) StartGameAction() bind.Binder[string] {
 	return bind.New(&p.mu, &label).
 		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
 			snap := p.Snapshot()
-			if !snap.CanStart {
+			if !snap.IsHost {
 				elem.SetAttr("hidden", "")
+			} else if !snap.CanStart {
+				elem.RemoveAttr("hidden")
+				elem.SetAttr("disabled", "")
 			} else {
 				elem.RemoveAttr("hidden")
+				elem.RemoveAttr("disabled")
 			}
 			return label
 		}).

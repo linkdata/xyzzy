@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
@@ -74,6 +75,7 @@ type Room struct {
 	hostID          string
 	players         []*Player
 	selectedDeckIDs []string
+	targetScore     int
 	state           RoomState
 	round           int
 	czarIndex       int
@@ -160,6 +162,7 @@ type RoomView struct {
 	LastWinnerName  string
 	StatusMessage   string
 	JudgeName       string
+	TargetScore     int
 }
 
 func NewManager(catalog *deck.Catalog) *Manager {
@@ -202,6 +205,7 @@ func (m *Manager) CreateRoom(playerID, nickname string, defaultDeckIDs []string)
 		rand:            roomRand,
 		minPlayers:      m.opts.MinPlayers,
 		hostID:          playerID,
+		targetScore:     ScoreGoal,
 		state:           StateLobby,
 		czarIndex:       -1,
 		selectedDeckIDs: normalizeDeckIDs(m.catalog, defaultDeckIDs),
@@ -315,6 +319,28 @@ func (m *Manager) newRoomCodeLocked() (string, error) {
 }
 
 func (r *Room) Code() string { return r.code }
+
+func (r *Room) BindTargetScore() bind.Binder[int] {
+	return bind.New(&r.mu, &r.targetScore)
+}
+
+func (r *Room) SetTargetScore(playerID string, score int) error {
+	if score < 2 {
+		score = 2
+	} else if score > 10 {
+		score = 10
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if playerID != r.hostID {
+		return ErrOnlyHostCanEdit
+	}
+	if r.state != StateLobby {
+		return ErrGameInProgress
+	}
+	r.targetScore = score
+	return nil
+}
 
 func (r *Room) ToggleDeck(playerID, deckID string, enabled bool) error {
 	r.mu.Lock()
@@ -471,7 +497,7 @@ func (r *Room) Judge(playerID, submissionID string) error {
 	}
 	winner.Score++
 	r.lastWinnerName = winner.Nickname
-	if winner.Score >= ScoreGoal {
+	if winner.Score >= r.targetScore {
 		r.captureLastGameLocked(winner.ID)
 		r.resetToLobbyLocked(fmt.Sprintf("%s won the game. Room reset to the lobby.", winner.Nickname))
 		return nil
@@ -506,6 +532,7 @@ func (r *Room) Snapshot(playerID string) RoomView {
 	view.IsHost = playerID != "" && playerID == r.hostID
 	view.CanJoin = player == nil && r.state == StateLobby && len(r.players) < MaxPlayers
 	view.CanStart = view.IsHost && r.state == StateLobby && len(r.players) >= r.minPlayers && blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
+	view.TargetScore = r.targetScore
 	if host := r.playerLocked(r.hostID); host != nil {
 		view.HostName = host.Nickname
 	}
