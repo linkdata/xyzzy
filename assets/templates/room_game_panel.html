@@ -10,6 +10,13 @@
     </div>
     {{$.Button .Page.StartGameAction `class="button button-primary"`}}
   </div>
+  {{if $room.LastGameWinner}}
+  <section class="result-banner">
+    <p class="eyebrow">Last Game</p>
+    <h3>{{$room.LastGameWinner}} won</h3>
+    <p class="muted">Final standings are shown in the room summary. Starting again resets everyone to zero.</p>
+  </section>
+  {{end}}
   <p class="muted">{{$room.BlackCount}} unique black cards and {{$room.WhiteCount}} unique white cards selected. Need at least 50 black and {{$room.RequiredWhite}} white for this table.</p>
   <div class="deck-grid">
     {{range $deck := .Page.App.Catalog.OrderedDecks}}

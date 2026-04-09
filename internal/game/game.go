@@ -79,6 +79,8 @@ type Room struct {
 	czarIndex       int
 	currentBlackID  string
 	lastWinnerName  string
+	lastGameWinner  string
+	lastGameScores  []FinalScore
 	statusMessage   string
 	blackDraw       []string
 	blackDiscard    []string
@@ -99,6 +101,13 @@ type Submission struct {
 	ID       string
 	PlayerID string
 	CardIDs  []string
+}
+
+type FinalScore struct {
+	PlayerID string
+	Nickname string
+	Score    int
+	IsWinner bool
 }
 
 type RoomSummary struct {
@@ -146,6 +155,8 @@ type RoomView struct {
 	CurrentBlack    *deck.BlackCard
 	Hand            []*deck.WhiteCard
 	Submissions     []SubmissionView
+	LastGameWinner  string
+	LastGameScores  []FinalScore
 	LastWinnerName  string
 	StatusMessage   string
 	JudgeName       string
@@ -368,6 +379,8 @@ func (r *Room) Start(playerID string) error {
 	r.submissions = nil
 	r.currentBlackID = ""
 	r.lastWinnerName = ""
+	r.lastGameWinner = ""
+	r.lastGameScores = nil
 	r.statusMessage = ""
 	r.round = 0
 	r.czarIndex = -1
@@ -459,6 +472,7 @@ func (r *Room) Judge(playerID, submissionID string) error {
 	winner.Score++
 	r.lastWinnerName = winner.Nickname
 	if winner.Score >= ScoreGoal {
+		r.captureLastGameLocked(winner.ID)
 		r.resetToLobbyLocked(fmt.Sprintf("%s won the game. Room reset to the lobby.", winner.Nickname))
 		return nil
 	}
@@ -475,8 +489,12 @@ func (r *Room) Snapshot(playerID string) RoomView {
 		Code:            r.code,
 		State:           r.state,
 		SelectedDeckIDs: append([]string(nil), r.selectedDeckIDs...),
+		LastGameWinner:  r.lastGameWinner,
 		LastWinnerName:  r.lastWinnerName,
 		StatusMessage:   r.statusMessage,
+	}
+	if len(r.lastGameScores) > 0 {
+		view.LastGameScores = append([]FinalScore(nil), r.lastGameScores...)
 	}
 	blackCount, whiteCount, _ := r.catalog.UnionCounts(r.selectedDeckIDs)
 	view.BlackCount = blackCount
@@ -629,6 +647,29 @@ func (r *Room) resetToLobbyLocked(message string) {
 		player.Hand = nil
 		player.Submitted = nil
 	}
+}
+
+func (r *Room) captureLastGameLocked(winnerID string) {
+	r.lastGameWinner = ""
+	r.lastGameScores = make([]FinalScore, 0, len(r.players))
+	for _, player := range r.players {
+		score := FinalScore{
+			PlayerID: player.ID,
+			Nickname: player.Nickname,
+			Score:    player.Score,
+			IsWinner: player.ID == winnerID,
+		}
+		if score.IsWinner {
+			r.lastGameWinner = player.Nickname
+		}
+		r.lastGameScores = append(r.lastGameScores, score)
+	}
+	slices.SortStableFunc(r.lastGameScores, func(a, b FinalScore) int {
+		if a.Score != b.Score {
+			return b.Score - a.Score
+		}
+		return strings.Compare(a.Nickname, b.Nickname)
+	})
 }
 
 func (r *Room) advanceRoundLocked() {

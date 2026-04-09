@@ -15,6 +15,25 @@
     <span class="pill">{{if eq $room.State "lobby"}}lobby{{else if eq $room.State "playing"}}playing{{else}}judging{{end}}</span>
     <span class="muted">{{$room.StatusMessage}}</span>
   </div>
+  {{if and (eq $room.State "lobby") $room.LastGameWinner}}
+  <div class="stack gap-md">
+    <div>
+      <p class="eyebrow">Last Game</p>
+      <h3>{{$room.LastGameWinner}} won</h3>
+    </div>
+    <div class="scoreboard">
+      {{range $room.LastGameScores}}
+      <article class="player-card{{if .IsWinner}} player-card-winner{{end}}">
+        <h3>{{.Nickname}}</h3>
+        <p>{{.Score}} points</p>
+        <div class="mini-flags">
+          {{if .IsWinner}}<span class="mini-pill">winner</span>{{end}}
+        </div>
+      </article>
+      {{end}}
+    </div>
+  </div>
+  {{else}}
   <div class="scoreboard">
     {{range $room.Players}}
     <article class="player-card">
@@ -28,6 +47,7 @@
     </article>
     {{end}}
   </div>
+  {{end}}
 </section>
 {{end}}
 {{end}}

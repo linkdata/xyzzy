@@ -258,6 +258,19 @@ input:disabled {
   margin-top: 14px;
 }
 
+.result-banner {
+  margin-top: 16px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(184, 136, 59, 0.18), rgba(255, 248, 233, 0.88));
+  border: 1px solid rgba(184, 136, 59, 0.24);
+}
+
+.result-banner h3 {
+  margin: 0;
+}
+
 .hand-grid,
 .submission-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -271,6 +284,11 @@ input:disabled {
   padding: 18px;
   background: rgba(255, 255, 255, 0.74);
   border: 1px solid var(--line);
+}
+
+.player-card-winner {
+  border-color: rgba(184, 136, 59, 0.55);
+  background: linear-gradient(180deg, rgba(255, 251, 241, 0.96), rgba(248, 236, 208, 0.88));
 }
 
 .room-code {

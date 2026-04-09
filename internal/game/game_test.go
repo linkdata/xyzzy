@@ -170,6 +170,71 @@ func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	}
 }
 
+func TestFinishedGameResultsPersistInLobby(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
+	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
+	if err := room.Start("p1"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	var judgeID string
+	var winner *Player
+	room.mu.Lock()
+	if judge := room.judgeLocked(); judge != nil {
+		judgeID = judge.ID
+	}
+	for _, player := range room.players {
+		if player.ID != judgeID {
+			winner = player
+			break
+		}
+	}
+	if winner == nil {
+		room.mu.Unlock()
+		t.Fatal("expected non-judge winner candidate")
+	}
+	winner.Score = ScoreGoal - 1
+	room.state = StateJudging
+	room.submissions = []*Submission{{
+		ID:       "w1",
+		PlayerID: winner.ID,
+		CardIDs:  []string{"w1"},
+	}}
+	room.mu.Unlock()
+
+	if err := room.Judge(judgeID, "w1"); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	snap := room.Snapshot("p1")
+	if snap.State != StateLobby {
+		t.Fatalf("expected lobby reset, got %s", snap.State)
+	}
+	if snap.LastGameWinner != winner.Nickname {
+		t.Fatalf("LastGameWinner = %q, want %q", snap.LastGameWinner, winner.Nickname)
+	}
+	if len(snap.LastGameScores) != 3 {
+		t.Fatalf("LastGameScores = %#v", snap.LastGameScores)
+	}
+	if !snap.LastGameScores[0].IsWinner || snap.LastGameScores[0].Nickname != winner.Nickname || snap.LastGameScores[0].Score != ScoreGoal {
+		t.Fatalf("unexpected winning score row: %#v", snap.LastGameScores[0])
+	}
+	for _, player := range snap.Players {
+		if player.Score != 0 {
+			t.Fatalf("player %s score = %d, want reset to 0", player.Nickname, player.Score)
+		}
+	}
+	if err := room.Start("p1"); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	nextSnap := room.Snapshot("p1")
+	if nextSnap.LastGameWinner != "" || len(nextSnap.LastGameScores) != 0 {
+		t.Fatalf("expected last game results to clear on restart, got %#v", nextSnap.LastGameScores)
+	}
+}
+
 func playOutRound(t *testing.T, room *Room) {
 	t.Helper()
 	snap := room.Snapshot("p1")
