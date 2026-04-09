@@ -1,0 +1,8 @@
+{
+  "id": "base-game-uk",
+  "name": "Base Game (UK)",
+  "description": "Base Game (UK)",
+  "weight": 3,
+  "base_deck": false,
+  "enabled_by_default": false
+}

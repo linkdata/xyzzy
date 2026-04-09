@@ -1,0 +1,8 @@
+{
+  "id": "reject-pack-2",
+  "name": "Reject Pack 2",
+  "description": "Reject Pack 2",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}

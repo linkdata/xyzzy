@@ -1,0 +1,8 @@
+{
+  "id": "90s-nostalgia-pack",
+  "name": "90s Nostalgia Pack",
+  "description": "90s Nostalgia Pack",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}

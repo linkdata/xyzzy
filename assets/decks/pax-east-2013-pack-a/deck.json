@@ -1,0 +1,8 @@
+{
+  "id": "pax-east-2013-pack-a",
+  "name": "PAX East 2013 Pack A",
+  "description": "PAX East 2013 Pack A",
+  "weight": 102,
+  "base_deck": false,
+  "enabled_by_default": false
+}

@@ -1,0 +1,8 @@
+{
+  "id": "box-expansion-pack",
+  "name": "Box Expansion Pack",
+  "description": "Box Expansion Pack",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}

@@ -1,0 +1,8 @@
+{
+  "id": "food-pack",
+  "name": "Food Pack",
+  "description": "Food Pack",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}

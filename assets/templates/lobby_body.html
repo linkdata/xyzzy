@@ -1,0 +1,86 @@
+{{define "lobby_body.html"}}
+{{with .Dot}}
+<main id="{{$.Jid}}" class="content-grid">
+  <section class="panel hero-panel">
+    <div class="hero-copy">
+      <p class="eyebrow">Lobby</p>
+      {{if .HasNickname}}
+      <h2>Welcome, {{.Nickname}}</h2>
+      <p>Pick a room, create a fresh table, or jump back into your active room.</p>
+      {{else}}
+      <h2>Choose a nickname to get started</h2>
+      <p>Your seat is tied to this browser session, so refresh reconnects cleanly while the server stays up.</p>
+      {{end}}
+    </div>
+    {{if .Alert}}
+    <p class="notice">{{.Alert}}</p>
+    {{end}}
+    <div class="stack gap-md">
+      <label class="field">
+        <span>Nickname</span>
+        {{$.Text .NicknameField `class="text-input" placeholder="e.g. CardCzar"`}}
+      </label>
+      <div class="action-row">
+        {{$.Button .SaveNameAction `class="button button-primary"`}}
+      </div>
+      {{if .HasCurrentRoom}}
+      <div class="status-chip">
+        <span>Current room</span>
+        <strong>{{.CurrentRoomCode}}</strong>
+      </div>
+      <div class="action-row">
+        <a class="button button-secondary" href="{{.CurrentRoomURL}}">Return To Room</a>
+        {{$.Button .LeaveCurrentRoomAction `class="button button-quiet"`}}
+      </div>
+      {{end}}
+    </div>
+  </section>
+
+  <section class="panel action-panel">
+    <p class="eyebrow">Quick Start</p>
+    <h2>Spin up a table or jump into one</h2>
+    <div class="stack gap-md">
+      <div class="action-row">
+        {{$.Button .CreateRoomAction `class="button button-primary"`}}
+      </div>
+      <label class="field">
+        <span>Room code</span>
+        {{$.Text .JoinCodeField `class="text-input code-input" placeholder="ABC123"`}}
+      </label>
+      <div class="action-row">
+        {{$.Button .JoinRoomAction `class="button button-secondary"`}}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel room-list-panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Open Rooms</p>
+        <h2>Live lobby</h2>
+      </div>
+    </div>
+    {{if .RoomSummaries}}
+    <div class="room-list">
+      {{range .RoomSummaries}}
+      <article class="room-card">
+        <div class="room-card-head">
+          <div>
+            <p class="room-code">{{.Code}}</p>
+            <h3>{{.HostName}}</h3>
+          </div>
+          <span class="pill">{{.State}}</span>
+        </div>
+        <p class="muted">{{.Players}} players</p>
+        <p class="muted">{{join .DeckNames ", "}}</p>
+        <a class="button button-secondary" href="{{$.Dot.App.RoomURL .Code}}">Open Room</a>
+      </article>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="muted">No rooms yet. Create one and pick the first deck mix.</p>
+    {{end}}
+  </section>
+</main>
+{{end}}
+{{end}}

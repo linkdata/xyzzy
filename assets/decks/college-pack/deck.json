@@ -1,0 +1,8 @@
+{
+  "id": "college-pack",
+  "name": "College Pack",
+  "description": "College Pack",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}

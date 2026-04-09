@@ -1,0 +1,8 @@
+{
+  "id": "base-game-australia",
+  "name": "Base Game (Australia)",
+  "description": "Base Game (Australia)",
+  "weight": 4,
+  "base_deck": false,
+  "enabled_by_default": false
+}

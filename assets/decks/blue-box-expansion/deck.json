@@ -1,0 +1,8 @@
+{
+  "id": "blue-box-expansion",
+  "name": "Blue Box Expansion",
+  "description": "Blue Box Expansion",
+  "weight": 10,
+  "base_deck": false,
+  "enabled_by_default": false
+}

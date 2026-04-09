@@ -1,0 +1,8 @@
+{
+  "id": "base-game-international",
+  "name": "Base Game (International)",
+  "description": "Base Game (International)",
+  "weight": 5,
+  "base_deck": false,
+  "enabled_by_default": false
+}

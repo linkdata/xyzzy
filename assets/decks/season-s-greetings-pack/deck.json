@@ -1,0 +1,8 @@
+{
+  "id": "season-s-greetings-pack",
+  "name": "Season's Greetings Pack",
+  "description": "Season's Greetings Pack",
+  "weight": 83,
+  "base_deck": false,
+  "enabled_by_default": false
+}

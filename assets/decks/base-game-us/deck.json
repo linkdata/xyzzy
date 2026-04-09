@@ -1,0 +1,8 @@
+{
+  "id": "base-game-us",
+  "name": "Base Game (US)",
+  "description": "Base Game (US)",
+  "weight": 1,
+  "base_deck": false,
+  "enabled_by_default": true
+}

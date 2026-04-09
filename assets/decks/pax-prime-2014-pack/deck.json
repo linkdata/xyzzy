@@ -1,0 +1,8 @@
+{
+  "id": "pax-prime-2014-pack",
+  "name": "PAX Prime 2014 Pack",
+  "description": "PAX Prime 2014 Pack",
+  "weight": 107,
+  "base_deck": false,
+  "enabled_by_default": false
+}

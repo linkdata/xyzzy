@@ -1,0 +1,19 @@
+{{define "index.html"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head.html" $}}</head>
+<body>
+<form autocomplete="off" class="page-shell">
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Server-Held State, Local Decks, Zero Database</p>
+      <h1>Pretend You're Xyzzy</h1>
+      <p class="lede">A browser-based Cards Against Humanity clone powered by Go, JaWS, and embedded card sets.</p>
+    </div>
+  </header>
+  {{$.Template "lobby_body.html" $.Dot $.Dot.App}}
+  {{$.TailHTML}}
+</form>
+</body>
+</html>
+{{end}}

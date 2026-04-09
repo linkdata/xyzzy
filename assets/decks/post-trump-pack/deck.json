@@ -1,0 +1,8 @@
+{
+  "id": "post-trump-pack",
+  "name": "Post-Trump Pack",
+  "description": "Post-Trump Pack",
+  "weight": 72,
+  "base_deck": false,
+  "enabled_by_default": false
+}

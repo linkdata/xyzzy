@@ -1,0 +1,8 @@
+{
+  "id": "nasa-pack",
+  "name": "NASA Pack",
+  "description": "NASA Pack",
+  "weight": 30,
+  "base_deck": false,
+  "enabled_by_default": false
+}
