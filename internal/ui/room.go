@@ -1,8 +1,8 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
-	"html"
 	"html/template"
 	"sync"
 
@@ -30,12 +30,10 @@ type roomDeckTag struct {
 func (a *App) roomMutation(player *game.Player, elem *jaws.Element, mutate func(*game.Room) error, after func(*game.Room)) error {
 	room := player.Room
 	if room == nil {
-		elem.Request.Alert("warning", "Room not found.")
-		return nil
+		return game.ErrRoomNotFound
 	}
 	if err := mutate(room); err != nil {
-		elem.Request.Alert("warning", html.EscapeString(err.Error()))
-		return nil
+		return err
 	}
 	if after != nil {
 		after(room)
@@ -71,9 +69,11 @@ func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) bind.Binder[
 			if card == nil {
 				return nil
 			}
-			if changed, alert := applyCardSelection(player, card.ID, room.NeedPick()); alert != "" {
-				elem.Request.Alert("warning", html.EscapeString(alert))
-			} else if changed {
+			changed, alert := applyCardSelection(player, card.ID, room.NeedPick())
+			if alert != "" {
+				return errors.New(alert)
+			}
+			if changed {
 				elem.Dirty(player)
 			}
 			return nil

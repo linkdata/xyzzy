@@ -1,7 +1,6 @@
 package game
 
 import (
-	"html"
 	"html/template"
 
 	"github.com/linkdata/jaws"
@@ -16,8 +15,7 @@ func (r *Room) ScoreTargetSlider(player *Player) bind.Binder[int] {
 	return bind.New(&r.mu, &r.targetScore).
 		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) error {
 			if err := r.setTargetScoreLocked(player, value); err != nil {
-				elem.Request.Alert("warning", html.EscapeString(err.Error()))
-				return nil
+				return err
 			}
 			return nil
 		})
@@ -76,8 +74,7 @@ func (h startGameClick) JawsClick(elem *jaws.Element, _ string) error {
 		return nil
 	}
 	if err := h.Room.Start(h.Player); err != nil {
-		elem.Request.Alert("warning", html.EscapeString(err.Error()))
-		return nil
+		return err
 	}
 	h.Player.SelectedCardIDs = nil
 	h.Player.SelectedSubmission = nil
@@ -96,8 +93,7 @@ func (h submitCardsClick) JawsClick(elem *jaws.Element, _ string) error {
 	}
 	selected := append([]string(nil), h.Player.SelectedCardIDs...)
 	if err := h.Room.PlayCards(h.Player, selected); err != nil {
-		elem.Request.Alert("warning", html.EscapeString(err.Error()))
-		return nil
+		return err
 	}
 	h.Player.SelectedCardIDs = nil
 	elem.Dirty(h.Player, h.Room)
@@ -115,8 +111,7 @@ func (h judgeClick) JawsClick(elem *jaws.Element, _ string) error {
 	}
 	selected := h.Player.SelectedSubmission
 	if err := h.Room.Judge(h.Player, selected); err != nil {
-		elem.Request.Alert("warning", html.EscapeString(err.Error()))
-		return nil
+		return err
 	}
 	h.Player.SelectedSubmission = nil
 	elem.Dirty(h.Player, h.Room)

@@ -41,8 +41,8 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	}
 
 	guestSlider := room.ScoreTargetSlider(guest)
-	if err := guestSlider.JawsSet(newScoreTargetElement(app, guestSlider), 8); err != nil {
-		t.Fatalf("guestSlider.JawsSet() error = %v", err)
+	if err := guestSlider.JawsSet(newScoreTargetElement(app, guestSlider), 8); err != game.ErrOnlyHostCanEdit {
+		t.Fatalf("guestSlider.JawsSet() error = %v, want %v", err, game.ErrOnlyHostCanEdit)
 	}
 	if got := room.TargetScore(); got != game.ScoreGoal {
 		t.Fatalf("TargetScore after non-host set = %d, want %d", got, game.ScoreGoal)
@@ -61,8 +61,8 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	}
 
 	lockedSlider := room.ScoreTargetSlider(host)
-	if err := lockedSlider.JawsSet(newScoreTargetElement(app, lockedSlider), 10); err != nil {
-		t.Fatalf("lockedSlider.JawsSet() error = %v", err)
+	if err := lockedSlider.JawsSet(newScoreTargetElement(app, lockedSlider), 10); err != game.ErrGameInProgress {
+		t.Fatalf("lockedSlider.JawsSet() error = %v, want %v", err, game.ErrGameInProgress)
 	}
 	if got := room.TargetScore(); got != 8 {
 		t.Fatalf("TargetScore after in-game set = %d, want 8", got)

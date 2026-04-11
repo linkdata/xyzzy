@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"html"
-
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -31,8 +29,7 @@ func (h createRoomClick) JawsClick(elem *jaws.Element, _ string) error {
 	h.App.setNickname(h.Player, h.Player.NicknameInput)
 	room, err := h.App.createRoom(h.Player)
 	if err != nil {
-		elem.Request.Alert("warning", html.EscapeString(err.Error()))
-		return nil
+		return err
 	}
 	elem.Request.Redirect(h.App.roomURL(room.Code()))
 	return nil

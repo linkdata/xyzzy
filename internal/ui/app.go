@@ -177,23 +177,7 @@ func (a *App) cleanupExpired() {
 	for _, room := range affected {
 		tags = append(tags, room)
 	}
-	a.Dirty(tags...)
-}
-
-func (a *App) Dirty(tags ...any) {
-	filtered := make([]any, 0, len(tags))
-	for _, tag := range tags {
-		if tag != nil {
-			filtered = append(filtered, tag)
-		}
-	}
-	if len(filtered) > 0 {
-		a.Jaws.Dirty(filtered...)
-	}
-}
-
-func (a *App) DirtyRoom(room *game.Room) {
-	a.Dirty(a.Manager, room)
+	a.Jaws.Dirty(tags...)
 }
 
 func (a *App) nicknameCookieName() string {
@@ -270,7 +254,7 @@ func (a *App) createRoom(player *game.Player) (*game.Room, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.Dirty(a.Manager, room, player)
+	a.Jaws.Dirty(a.Manager, room, player)
 	return room, nil
 }
 
@@ -279,13 +263,13 @@ func (a *App) joinRoom(player *game.Player, roomCode string) (*game.Room, error)
 	if err != nil {
 		return nil, err
 	}
-	a.Dirty(a.Manager, room, player)
+	a.Jaws.Dirty(a.Manager, room, player)
 	return room, nil
 }
 
 func (a *App) leaveRoom(player *game.Player) *game.Room {
 	room, _ := a.Manager.LeaveRoom(player)
-	a.Dirty(a.Manager, room, player)
+	a.Jaws.Dirty(a.Manager, room, player)
 	return room
 }
 

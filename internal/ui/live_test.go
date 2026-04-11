@@ -56,7 +56,7 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 	if err := room.SetDeckEnabled(player, h.app.Catalog.DeckByID("extra"), true); err != nil {
 		t.Fatalf("SetDeckEnabled() error = %v", err)
 	}
-	h.app.DirtyRoom(room)
+	h.app.Jaws.Dirty(h.app.Manager, room)
 
 	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
 	defer done()
