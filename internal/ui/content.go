@@ -1,97 +1,93 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/jtag"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type lobbySection struct {
-	Page         *LobbyPage
-	TemplateName string
+type sectionKind string
+
+const (
+	sectionLobbySidebar sectionKind = "lobby-sidebar"
+	sectionLobbyMain    sectionKind = "lobby-main"
+	sectionRoomSidebar  sectionKind = "room-sidebar"
+	sectionRoomMain     sectionKind = "room-main"
+)
+
+type section struct {
+	App           *App
+	Player        *game.Player
+	RequestedCode string
+	Kind          sectionKind
 }
 
-type lobbyRenderData struct {
-	*LobbyPage
+type templateFrame struct {
+	jui.Template
 }
 
-func (p *LobbyPage) Sidebar() *lobbySection {
-	return &lobbySection{Page: p, TemplateName: "lobby_sidebar.html"}
+func (a *App) LobbySidebar(player *game.Player) jaws.Container {
+	return &section{App: a, Player: player, Kind: sectionLobbySidebar}
 }
 
-func (p *LobbyPage) Main() *lobbySection {
-	return &lobbySection{Page: p, TemplateName: "lobby_welcome_panel.html"}
+func (a *App) LobbyMain(player *game.Player) jaws.Container {
+	return &section{App: a, Player: player, Kind: sectionLobbyMain}
 }
 
-func (s *lobbySection) JawsGetTag(jtag.Context) any {
-	return []any{s.Page, s.Page.App.Manager}
+func (a *App) RoomSidebar(player *game.Player, roomCode string) jaws.Container {
+	return &section{App: a, Player: player, RequestedCode: normalizeRoomCode(roomCode), Kind: sectionRoomSidebar}
 }
 
-func (s *lobbySection) JawsContains(*jaws.Element) []jaws.UI {
-	return []jaws.UI{
-		jui.NewTemplate(s.TemplateName, &lobbyRenderData{LobbyPage: s.Page}),
-	}
+func (a *App) RoomMain(player *game.Player, roomCode string) jaws.Container {
+	return &section{App: a, Player: player, RequestedCode: normalizeRoomCode(roomCode), Kind: sectionRoomMain}
 }
 
-type roomSection struct {
-	Page    *RoomPage
-	Sidebar bool
-}
-
-func (p *RoomPage) Sidebar() *roomSection {
-	return &roomSection{Page: p, Sidebar: true}
-}
-
-func (p *RoomPage) Main() *roomSection {
-	return &roomSection{Page: p}
-}
-
-func (s *roomSection) JawsGetTag(jtag.Context) any {
-	tags := []any{s.Page}
-	if room := s.Page.Room(); room != nil {
-		tags = append(tags, room)
+func (s *section) JawsGetTag(jtag.Context) any {
+	tags := []any{s.Player}
+	switch s.Kind {
+	case sectionLobbySidebar:
+		tags = append(tags, s.App.Manager)
+	case sectionRoomSidebar, sectionRoomMain:
+		if room := s.currentRoom(); room != nil {
+			tags = append(tags, room)
+		}
 	}
 	return tags
 }
 
-func (s *roomSection) JawsContains(*jaws.Element) []jaws.UI {
-	data := s.Page.RenderData()
-	if s.Sidebar {
-		if !data.Snapshot.InRoom {
+func (s *section) JawsContains(*jaws.Element) []jaws.UI {
+	switch s.Kind {
+	case sectionLobbySidebar:
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", s.Player)}}
+	case sectionLobbyMain:
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", s.Player)}}
+	case sectionRoomSidebar:
+		if s.currentRoom() == nil {
 			return nil
 		}
-		return []jaws.UI{
-			jui.NewTemplate("room_summary_panel.html", data),
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", s.Player)}}
+	default:
+		templateName := "room_single_panel.html"
+		if s.currentRoom() != nil {
+			templateName = "room_game_panel.html"
 		}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, s.Player)}}
 	}
-	templateName := "room_game_panel.html"
-	if data.Mode != "game" {
-		templateName = "room_single_panel.html"
-	}
-	return []jaws.UI{jui.NewTemplate(templateName, data)}
 }
 
-type RoomRenderData struct {
-	Page     *RoomPage
-	Snapshot game.RoomView
-	Mode     string
+func (s *section) currentRoom() *game.Room {
+	if s.Player == nil || s.Player.Room == nil {
+		return nil
+	}
+	if s.RequestedCode != "" && !strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
+		return nil
+	}
+	return s.Player.Room
 }
 
-func (p *RoomPage) RenderData() *RoomRenderData {
-	snap := p.Snapshot()
-	mode := "game"
-	switch {
-	case p.Nickname() == "":
-		mode = "nickname"
-	case !snap.Exists:
-		mode = "missing"
-	case !snap.InRoom:
-		mode = "unavailable"
-	}
-	return &RoomRenderData{
-		Page:     p,
-		Snapshot: snap,
-		Mode:     mode,
-	}
+func normalizeRoomCode(roomCode string) string {
+	return strings.ToUpper(strings.TrimSpace(roomCode))
 }

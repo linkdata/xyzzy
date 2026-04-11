@@ -2,286 +2,179 @@ package ui
 
 import (
 	"fmt"
-	"strings"
+	"html"
+	"html/template"
 	"sync"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
+	"github.com/linkdata/jaws/lib/jtag"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type RoomPage struct {
-	App                *App
-	Session            *jaws.Session
-	RoomCode           string
-	mu                 sync.Mutex
-	NickInput          string
-	Alert              string
-	SelectedCardIDs    []string
-	SelectedSubmission string
+type taggedBinder[T comparable] struct {
+	bind.Binder[T]
+	tag any
 }
 
-func NewRoomPage(app *App, sess *jaws.Session, roomCode string) *RoomPage {
-	return &RoomPage{
-		App:       app,
-		Session:   sess,
-		RoomCode:  strings.ToUpper(strings.TrimSpace(roomCode)),
-		NickInput: app.nickname(sess),
-	}
+func (b taggedBinder[T]) JawsGetTag(jtag.Context) any {
+	return b.tag
 }
 
-func (p *RoomPage) Nickname() string { return p.App.nickname(p.Session) }
-
-func (p *RoomPage) playerID() string { return p.App.playerID(p.Session) }
-
-func (p *RoomPage) Room() *game.Room { return p.App.Manager.GetRoom(p.RoomCode) }
-
-func (p *RoomPage) Snapshot() game.RoomView {
-	if room := p.Room(); room != nil {
-		p.App.reconcileSession(p.Session)
-		return room.Snapshot(p.App.playerID(p.Session))
-	}
-	return game.RoomView{Code: p.RoomCode}
+type roomDeckTag struct {
+	Room *game.Room
+	Deck *deck.Deck
 }
 
-func (p *RoomPage) NicknameField() bind.Binder[string] {
-	return bind.New(&p.mu, &p.NickInput)
-}
-
-func (p *RoomPage) setAlert(elem *jaws.Element, message string) error {
-	p.Alert = message
-	elem.Dirty(p)
-	return nil
-}
-
-func (p *RoomPage) clearSelections() {
-	p.SelectedCardIDs = nil
-	p.SelectedSubmission = ""
-}
-
-func (p *RoomPage) dirtyRoomAndPage(elem *jaws.Element, room *game.Room) {
-	p.App.DirtyRoom(room)
-	elem.Dirty(p)
-}
-
-func (p *RoomPage) withRoomMutation(elem *jaws.Element, mutate func(*game.Room) error, after func()) error {
-	room := p.Room()
+func (a *App) roomMutation(player *game.Player, elem *jaws.Element, mutate func(*game.Room) error, after func(*game.Room)) error {
+	room := player.Room
 	if room == nil {
-		return p.setAlert(elem, "Room not found.")
+		elem.Request.Alert("warning", "Room not found.")
+		return nil
 	}
 	if err := mutate(room); err != nil {
-		return p.setAlert(elem, err.Error())
+		elem.Request.Alert("warning", html.EscapeString(err.Error()))
+		return nil
 	}
 	if after != nil {
-		after()
+		after(room)
 	}
-	p.Alert = ""
-	p.dirtyRoomAndPage(elem, room)
+	elem.Dirty(player, room)
 	return nil
 }
 
-func (p *RoomPage) SaveNameAndJoinAction() bind.Binder[string] {
-	label := "Save Nickname and Join"
-	return bind.New(&p.mu, &label).Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-		name := strings.TrimSpace(p.NickInput)
-		if name == "" {
-			return p.setAlert(elem, "Enter a nickname first.")
-		}
-		p.App.setNickname(p.Session, name)
-		room, err := p.App.joinRoom(p.Session, p.RoomCode)
-		if err == nil {
-			elem.Request.Redirect(p.App.roomURL(room.Code()))
-			return nil
-		}
-		return p.setAlert(elem, err.Error())
-	})
-}
-
-func (p *RoomPage) StartGameAction() bind.Binder[string] {
-	label := "Start Game"
-	return bind.New(&p.mu, &label).
-		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
-			snap := p.Snapshot()
-			if !snap.IsHost {
-				elem.SetAttr("hidden", "")
-			} else if !snap.CanStart {
-				elem.RemoveAttr("hidden")
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("hidden")
-				elem.RemoveAttr("disabled")
-			}
-			return label
-		}).
-		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			return p.withRoomMutation(elem, func(room *game.Room) error {
-				return room.Start(p.playerID())
-			}, p.clearSelections)
-		})
-}
-
-func (p *RoomPage) LeaveRoomAction() bind.Binder[string] {
-	label := "Leave Room"
-	return bind.New(&p.mu, &label).Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-		p.App.leaveRoom(p.Session)
-		elem.Request.Redirect("/")
-		return nil
-	})
-}
-
-func (p *RoomPage) DeckToggle(deckID string) bind.Binder[bool] {
-	checked := false
-	return bind.New(&p.mu, &checked).
+func (a *App) DeckToggle(player *game.Player, deck *deck.Deck) bind.Binder[bool] {
+	value := false
+	room := player.Room
+	binder := bind.New(&sync.Mutex{}, &value).
 		GetLocked(func(bind bind.Binder[bool], elem *jaws.Element) bool {
-			snap := p.Snapshot()
-			if !snap.IsHost || snap.State != game.StateLobby {
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("disabled")
-			}
-			return slicesContains(snap.SelectedDeckIDs, deckID)
+			return room != nil && room.DeckEnabled(deck)
 		}).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) error {
-			return p.withRoomMutation(elem, func(room *game.Room) error {
-				return room.ToggleDeck(p.playerID(), deckID, value)
+			return a.roomMutation(player, elem, func(room *game.Room) error {
+				return room.SetDeckEnabled(player, deck, value)
 			}, nil)
 		})
+	return taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
 }
 
-func (p *RoomPage) CardAction(card *deck.WhiteCard) bind.Binder[HandCardRef] {
-	ref := HandCardRef{Room: p.Room(), Card: card}
-	return bind.New(&p.mu, &ref).
-		GetLocked(func(bind bind.Binder[HandCardRef], elem *jaws.Element) HandCardRef {
-			snap := p.Snapshot()
-			if !snap.CanSubmit {
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("disabled")
-			}
-			if card != nil && slicesContains(p.SelectedCardIDs, card.ID) {
-				elem.SetClass("is-selected")
-			} else {
-				elem.RemoveClass("is-selected")
-			}
-			return ref
-		}).
+func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) bind.Binder[HandCardRef] {
+	ref := HandCardRef{Player: player, Room: player.Room, Card: card}
+	return bind.New(player.UILocker(), &ref).
 		Clicked(func(bind bind.Binder[HandCardRef], elem *jaws.Element, _ string) error {
-			snap := p.Snapshot()
-			if !snap.CanSubmit {
+			room := player.Room
+			if room == nil || !room.CanSubmit(player) {
 				return nil
 			}
 			card := bind.JawsGet(elem).Card
 			if card == nil {
 				return nil
 			}
-			p.applyCardSelection(card.ID, snap.NeedPick)
-			elem.Dirty(p)
+			if changed, alert := applyCardSelection(player, card.ID, room.NeedPick()); alert != "" {
+				elem.Request.Alert("warning", html.EscapeString(alert))
+			} else if changed {
+				elem.Dirty(player)
+			}
 			return nil
 		})
 }
 
-func (p *RoomPage) SubmitCardsAction() bind.Binder[string] {
-	label := "Play Selected Cards"
-	return bind.New(&p.mu, &label).
-		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
-			snap := p.Snapshot()
-			if !snap.CanSubmit || len(p.SelectedCardIDs) != snap.NeedPick {
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("disabled")
-			}
-			return label
-		}).
-		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			selected := append([]string(nil), p.SelectedCardIDs...)
-			return p.withRoomMutation(elem, func(room *game.Room) error {
-				return room.PlayCards(p.playerID(), selected)
-			}, func() {
-				p.SelectedCardIDs = nil
-			})
-		})
-}
-
-func (p *RoomPage) SubmissionAction(sub game.SubmissionView) bind.Binder[SubmissionRef] {
+func (a *App) SubmissionAction(player *game.Player, submission *game.Submission) bind.Binder[SubmissionRef] {
 	ref := SubmissionRef{
-		Room:         p.Room(),
-		Submission:   sub.Submission,
-		RenderedHTML: renderSubmissionHTML(p.Room(), sub.Cards),
+		Player:       player,
+		Room:         player.Room,
+		Submission:   submission,
+		RenderedHTML: renderSubmissionHTML(player.Room, player.Room.SubmissionCards(submission)),
 	}
-	return bind.New(&p.mu, &ref).
-		GetLocked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element) SubmissionRef {
-			snap := p.Snapshot()
-			if !snap.CanJudge {
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("disabled")
-			}
-			if p.SelectedSubmission == sub.ID {
-				elem.SetClass("is-selected")
-			} else {
-				elem.RemoveClass("is-selected")
-			}
-			return ref
-		}).
+	return bind.New(player.UILocker(), &ref).
 		Clicked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element, _ string) error {
-			if !p.Snapshot().CanJudge {
+			room := player.Room
+			if room == nil || !room.CanJudge(player) {
 				return nil
 			}
 			submission := bind.JawsGet(elem).Submission
 			if submission == nil {
 				return nil
 			}
-			submissionID := submission.ID
-			if p.SelectedSubmission == submissionID {
-				p.SelectedSubmission = ""
+			if player.SelectedSubmission == submission {
+				player.SelectedSubmission = nil
 			} else {
-				p.SelectedSubmission = submissionID
+				player.SelectedSubmission = submission
 			}
-			elem.Dirty(p)
+			elem.Dirty(player)
 			return nil
 		})
 }
 
-func (p *RoomPage) BlackCardFootnote(card *deck.BlackCard) string {
-	return renderBlackCardFootnote(p.Room(), card)
+func (a *App) DeckToggleAttrs(player *game.Player) template.HTMLAttr {
+	room := player.Room
+	if room == nil || !room.IsHost(player) || room.State() != game.StateLobby {
+		return `disabled`
+	}
+	return ""
 }
 
-func (p *RoomPage) WaitingTitle(snap game.RoomView) string {
-	return waitingTitle(snap, p.playerID())
+func (a *App) HandCardAttrs(player *game.Player) template.HTMLAttr {
+	room := player.Room
+	if room == nil || !room.CanSubmit(player) {
+		return `disabled`
+	}
+	return ""
 }
 
-func (p *RoomPage) WaitingDetail(snap game.RoomView) string {
-	return waitingDetail(snap, p.playerID())
+func (a *App) HandCardClass(player *game.Player, card *deck.WhiteCard) template.HTMLAttr {
+	class := `class="card-face card-face-white w-100 text-start`
+	if card != nil && slicesContains(player.SelectedCardIDs, card.ID) {
+		class += ` is-selected`
+	}
+	return template.HTMLAttr(class + `"`)
 }
 
-func (p *RoomPage) applyCardSelection(cardID string, needPick int) {
-	if slicesContains(p.SelectedCardIDs, cardID) {
-		p.SelectedCardIDs = deleteString(p.SelectedCardIDs, cardID)
-		return
+func (a *App) SubmissionAttrs(player *game.Player) template.HTMLAttr {
+	room := player.Room
+	if room == nil || !room.CanJudge(player) {
+		return `disabled`
+	}
+	return ""
+}
+
+func (a *App) SubmissionClass(player *game.Player, submission *game.Submission) template.HTMLAttr {
+	class := `class="card-face card-face-white w-100 text-start`
+	if player.SelectedSubmission == submission {
+		class += ` is-selected`
+	}
+	return template.HTMLAttr(class + `"`)
+}
+
+func applyCardSelection(player *game.Player, cardID string, needPick int) (changed bool, alert string) {
+	if slicesContains(player.SelectedCardIDs, cardID) {
+		player.SelectedCardIDs = deleteString(player.SelectedCardIDs, cardID)
+		return true, ""
 	}
 	if needPick == 1 {
-		p.SelectedCardIDs = []string{cardID}
-		p.Alert = ""
-		return
+		player.SelectedCardIDs = []string{cardID}
+		return true, ""
 	}
-	if len(p.SelectedCardIDs) >= needPick {
-		p.Alert = fmt.Sprintf("Select exactly %d cards.", needPick)
-		return
+	if len(player.SelectedCardIDs) >= needPick {
+		return false, fmt.Sprintf("Select exactly %d cards.", needPick)
 	}
-	p.SelectedCardIDs = append(p.SelectedCardIDs, cardID)
-	p.Alert = ""
+	player.SelectedCardIDs = append(player.SelectedCardIDs, cardID)
+	return true, ""
 }
 
-func waitingTitle(snap game.RoomView, playerID string) string {
-	switch snap.State {
+func waitingTitle(player *game.Player, room *game.Room) string {
+	if room == nil {
+		return "Waiting"
+	}
+	switch room.State() {
 	case game.StateJudging:
-		if snap.JudgeName != "" {
-			return snap.JudgeName + " is picking the winner"
+		if judge := room.JudgeName(); judge != "" {
+			return judge + " is picking the winner"
 		}
 		return "Waiting for the judge"
 	case game.StatePlaying:
-		if player := currentPlayerView(snap, playerID); player != nil && player.IsJudge {
+		if room.IsJudge(player) {
 			return "Waiting for answers"
 		}
 		return "Waiting for the rest of the table"
@@ -290,54 +183,17 @@ func waitingTitle(snap game.RoomView, playerID string) string {
 	}
 }
 
-func waitingDetail(snap game.RoomView, playerID string) string {
-	if snap.State != game.StatePlaying {
+func waitingDetail(player *game.Player, room *game.Room) string {
+	if room == nil || room.State() != game.StatePlaying {
 		return ""
 	}
-	player := currentPlayerView(snap, playerID)
-	if player == nil {
-		return ""
-	}
-	if player.IsJudge {
+	if room.IsJudge(player) {
 		return "You'll choose the winner once every answer is in."
 	}
-	if player.Submitted {
+	if room.SubmittedBy(player) {
 		return "Your cards are in."
 	}
 	return ""
-}
-
-func currentPlayerView(snap game.RoomView, playerID string) *game.PlayerView {
-	if playerID == "" {
-		return nil
-	}
-	for i := range snap.Players {
-		if snap.Players[i].ID == playerID {
-			return &snap.Players[i]
-		}
-	}
-	return nil
-}
-
-func (p *RoomPage) JudgeAction() bind.Binder[string] {
-	label := "Pick Winner"
-	return bind.New(&p.mu, &label).
-		GetLocked(func(bind bind.Binder[string], elem *jaws.Element) string {
-			if !p.Snapshot().CanJudge || p.SelectedSubmission == "" {
-				elem.SetAttr("disabled", "")
-			} else {
-				elem.RemoveAttr("disabled")
-			}
-			return label
-		}).
-		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			selected := p.SelectedSubmission
-			return p.withRoomMutation(elem, func(room *game.Room) error {
-				return room.Judge(p.playerID(), selected)
-			}, func() {
-				p.SelectedSubmission = ""
-			})
-		})
 }
 
 func slicesContains(values []string, target string) bool {

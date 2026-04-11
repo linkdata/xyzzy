@@ -1,8 +1,7 @@
 {{define "room_game_panel.html"}}
 {{with .Dot}}
-{{$room := .Snapshot}}
+{{$room := .Room}}
 <div id="{{$.Jid}}">
-
 {{if eq $room.State "lobby"}}
 
   {{if $room.LastGameWinner}}
@@ -26,23 +25,23 @@
         (need ≥50 black, ≥{{$room.RequiredWhite}} white)
       </small>
     </div>
-    {{$.Button .Page.StartGameAction `class="btn btn-success"`}}
+    {{$.Button "Start Game" ($room.StartGameClick $.Dot) ($room.StartGameAttrs $.Dot) `class="btn btn-success"`}}
   </div>
 
-  {{$scoreTarget := .Page.ScoreTargetSlider}}
+  {{$scoreTarget := $room.ScoreTargetSlider $.Dot}}
   <div class="mb-3 d-flex align-items-center gap-3">
     <label class="form-label mb-0 text-nowrap">Target score</label>
-    {{$.Range $scoreTarget `class="form-range" min="2" max="10" step="1"`}}
+    {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) `class="form-range" min="2" max="10" step="1"`}}
     {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>
 
   <div class="row row-cols-1 row-cols-sm-2 g-2">
-    {{range $deck := .Page.App.Catalog.OrderedDecks}}
+    {{range $deck := orderedDecks}}
     <div class="col">
       <label class="card h-100 cursor-pointer">
         <div class="card-body d-flex gap-2 align-items-start py-2">
-          {{$.Checkbox ($.Dot.Page.DeckToggle $deck.ID) `class="form-check-input flex-shrink-0 mt-1"`}}
+          {{$.Checkbox (deckToggle $.Dot $deck) (deckToggleAttrs $.Dot) `class="form-check-input flex-shrink-0 mt-1"`}}
           <div>
             <div class="fw-semibold">{{$deck.Name}}</div>
             <small class="text-muted">
@@ -66,37 +65,37 @@
     <div class="card-copy">{{cardhtml $room.CurrentBlack.Text}}</div>
     <div class="card-footer-row">
       <small class="opacity-75">pick {{$room.NeedPick}}{{if gt $room.NeedDraw 0}} · draw {{$room.NeedDraw}}{{end}}</small>
-      <small class="opacity-60 fst-italic">{{$.Dot.Page.BlackCardFootnote $room.CurrentBlack}}</small>
+      <small class="opacity-60 fst-italic">{{blackFootnote $room $room.CurrentBlack}}</small>
     </div>
   </div>
   {{end}}
 
-  {{if $room.CanSubmit}}
+  {{if $room.CanSubmit $.Dot}}
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
-    {{$.Button .Page.SubmitCardsAction `class="btn btn-primary"`}}
+    {{$.Button "Play Selected Cards" ($room.SubmitCardsClick $.Dot) ($room.SubmitCardsAttrs $.Dot) `class="btn btn-primary"`}}
   </div>
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-    {{range $card := $room.Hand}}
-    {{$action := $.Dot.Page.CardAction $card}}
+    {{range $card := $room.HandFor $.Dot}}
+    {{$action := cardAction $.Dot $card}}
     <div class="col">
-      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white w-100 text-start"`}}
+      {{$.Button ($action.FormatHTML "%s") $action (cardAttrs $.Dot) (cardClass $.Dot $card)}}
     </div>
     {{end}}
   </div>
 
-  {{else if $room.CanJudge}}
+  {{else if $room.CanJudge $.Dot}}
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">Pick the Winner</h5>
-    {{$.Button .Page.JudgeAction `class="btn btn-primary"`}}
+    {{$.Button "Pick Winner" ($room.JudgeClick $.Dot) ($room.JudgeAttrs $.Dot) `class="btn btn-primary"`}}
   </div>
   <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
     {{range $submission := $room.Submissions}}
-    {{$action := $.Dot.Page.SubmissionAction $submission}}
+    {{$action := submissionAction $.Dot $submission}}
     <div class="col">
-      {{$.Button ($action.FormatHTML "%s") $action `class="card-face card-face-white w-100 text-start"`}}
+      {{$.Button ($action.FormatHTML "%s") $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
     </div>
     {{end}}
   </div>
@@ -104,8 +103,8 @@
   {{else}}
 
   <div class="text-center py-5">
-    <h5>{{$.Dot.Page.WaitingTitle $room}}</h5>
-    {{$detail := $.Dot.Page.WaitingDetail $room}}
+    <h5>{{waitingTitle $.Dot $room}}</h5>
+    {{$detail := waitingDetail $.Dot $room}}
     {{if $detail}}<p class="text-muted">{{$detail}}</p>{{end}}
   </div>
 

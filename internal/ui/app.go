@@ -3,7 +3,6 @@ package ui
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -20,10 +19,8 @@ import (
 )
 
 const (
-	sessionKeyNickname = "nickname"
-	sessionKeyPlayerID = "player_id"
-	sessionKeyRoomCode = "room_code"
-	nicknameCookieTTL  = 365 * 24 * 60 * 60
+	sessionKeyPlayer  = "player"
+	nicknameCookieTTL = 365 * 24 * 60 * 60
 )
 
 type App struct {
@@ -38,8 +35,40 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 
 func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	templates, err := template.New("root").Funcs(template.FuncMap{
-		"cardhtml": formatCardHTML,
-		"join":     strings.Join,
+		"blackFootnote":   renderBlackCardFootnote,
+		"cardAction":      a.CardAction,
+		"cardAttrs":       a.HandCardAttrs,
+		"cardClass":       a.HandCardClass,
+		"cardhtml":        formatCardHTML,
+		"createRoomClick": a.CreateRoomClick,
+		"deckToggle":      a.DeckToggle,
+		"deckToggleAttrs": a.DeckToggleAttrs,
+		"join":            strings.Join,
+		"lobbyMain":       a.LobbyMain,
+		"lobbySidebar":    a.LobbySidebar,
+		"orderedDecks":    a.Catalog.OrderedDecks,
+		"playerHost":      func(room *game.Room, player *game.Player) bool { return room != nil && room.IsHost(player) },
+		"playerJudge":     func(room *game.Room, player *game.Player) bool { return room != nil && room.IsJudge(player) },
+		"playerScore": func(room *game.Room, player *game.Player) int {
+			if room == nil {
+				return 0
+			}
+			return room.ScoreFor(player)
+		},
+		"playerSubmitted": func(room *game.Room, player *game.Player) bool {
+			return room != nil && room.SubmittedBy(player)
+		},
+		"roomByCode":        a.Manager.Room,
+		"roomMain":          a.RoomMain,
+		"roomSidebar":       a.RoomSidebar,
+		"rooms":             a.Manager.Rooms,
+		"saveNicknameClick": a.SaveNicknameClick,
+		"stateBadgeClass":   stateBadgeClass,
+		"submissionAttrs":   a.SubmissionAttrs,
+		"submissionAction":  a.SubmissionAction,
+		"submissionClass":   a.SubmissionClass,
+		"waitingDetail":     waitingDetail,
+		"waitingTitle":      waitingTitle,
 	}).ParseFS(xyzzy.Assets, "assets/templates/*.html")
 	if err != nil {
 		return err
@@ -65,10 +94,13 @@ func (a *App) Middleware(next http.Handler) http.Handler {
 
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
-	a.syncNicknameCookie(w, r, sess)
-	page := NewLobbyPage(a, sess)
-	a.reconcileSession(page.Session)
-	if err := a.renderTemplate(w, r, "index.html", page); err != nil {
+	player := a.player(sess, r)
+	a.cleanupExpired()
+	if player.Room != nil {
+		a.leaveRoom(player)
+	}
+	a.syncNicknameCookie(w, r, player)
+	if err := a.renderTemplate(w, r, "index.html", player); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -76,23 +108,20 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
-	a.syncNicknameCookie(w, r, sess)
-	page := NewRoomPage(a, sess, r.PathValue("code"))
-	a.reconcileSession(page.Session)
-	if current := a.roomCode(page.Session); current != "" && current != page.RoomCode {
-		http.Redirect(w, r, "/room/"+current, http.StatusSeeOther)
+	player := a.player(sess, r)
+	a.cleanupExpired()
+	roomCode := strings.ToUpper(strings.TrimSpace(r.PathValue("code")))
+	if current := player.Room; current != nil && current.Code() != roomCode {
+		http.Redirect(w, r, "/room/"+current.Code(), http.StatusSeeOther)
 		return
 	}
-	if page.Nickname() != "" && a.roomCode(page.Session) == "" {
-		if _, err := a.joinRoom(page.Session, page.RoomCode); err != nil {
-			if err == game.ErrRoomNotFound {
-				page.Alert = ""
-			} else {
-				page.Alert = err.Error()
-			}
+	if player.Room == nil {
+		if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
+			_, _ = a.joinRoom(player, roomCode)
 		}
 	}
-	if err := a.renderTemplate(w, r, "room.html", page); err != nil {
+	a.syncNicknameCookie(w, r, player)
+	if err := a.renderTemplate(w, r, "room.html", player); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -111,8 +140,48 @@ func (a *App) session(r *http.Request) *jaws.Session {
 	return sess
 }
 
+func (a *App) player(sess *jaws.Session, r *http.Request) *game.Player {
+	if player, ok := sess.Get(sessionKeyPlayer).(*game.Player); ok && player != nil {
+		if player.Session == nil {
+			player.Session = sess
+		}
+		if player.Nickname == "" {
+			player.Nickname = generateNickname()
+		}
+		if player.NicknameInput == "" {
+			player.NicknameInput = player.Nickname
+		}
+		return player
+	}
+	nickname := a.nicknameFromCookie(r)
+	if nickname == "" {
+		nickname = generateNickname()
+	} else {
+		nickname = game.NormalizeNickname(nickname)
+	}
+	player := &game.Player{
+		Session:       sess,
+		Nickname:      nickname,
+		NicknameInput: nickname,
+	}
+	sess.Set(sessionKeyPlayer, player)
+	return player
+}
+
+func (a *App) cleanupExpired() {
+	affected := a.Manager.CleanupExpiredSessions()
+	if len(affected) == 0 {
+		return
+	}
+	tags := []any{a.Manager}
+	for _, room := range affected {
+		tags = append(tags, room)
+	}
+	a.Dirty(tags...)
+}
+
 func (a *App) Dirty(tags ...any) {
-	var filtered []any
+	filtered := make([]any, 0, len(tags))
 	for _, tag := range tags {
 		if tag != nil {
 			filtered = append(filtered, tag)
@@ -123,19 +192,8 @@ func (a *App) Dirty(tags ...any) {
 	}
 }
 
-func (a *App) DirtyLobby() {
-	a.Dirty(a.Manager)
-}
-
 func (a *App) DirtyRoom(room *game.Room) {
 	a.Dirty(a.Manager, room)
-}
-
-func (a *App) sessionString(sess *jaws.Session, key string) string {
-	if value, ok := sess.Get(key).(string); ok {
-		return value
-	}
-	return ""
 }
 
 func (a *App) nicknameCookieName() string {
@@ -147,6 +205,9 @@ func (a *App) nicknameCookieName() string {
 }
 
 func (a *App) nicknameFromCookie(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
 	cookie, err := r.Cookie(a.nicknameCookieName())
 	if err != nil || cookie.Value == "" {
 		return ""
@@ -175,115 +236,56 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 	})
 }
 
-func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, sess *jaws.Session) {
-	cookieName := a.nicknameFromCookie(r)
-	sessionName := a.nickname(sess)
-	if sessionName == "" && cookieName != "" {
-		a.setSessionString(sess, sessionKeyNickname, cookieName)
-		sessionName = cookieName
+func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player *game.Player) {
+	if player == nil {
+		return
 	}
-	if sessionName == "" {
-		sessionName = generateNickname()
-		a.setSessionString(sess, sessionKeyNickname, sessionName)
+	nickname := strings.TrimSpace(player.Nickname)
+	if nickname == "" {
+		nickname = generateNickname()
+		player.Nickname = nickname
+		if player.NicknameInput == "" {
+			player.NicknameInput = nickname
+		}
 	}
-	if sessionName != "" && sessionName != cookieName {
-		a.setNicknameCookie(w, r, sessionName)
+	if nickname != a.nicknameFromCookie(r) {
+		a.setNicknameCookie(w, r, nickname)
 	}
 }
 
 func generateNickname() string {
 	var b [3]byte
 	_, _ = rand.Read(b[:])
-	return fmt.Sprintf("Player-%X", b)
+	return fmt.Sprintf("Player%X", b)
 }
 
-func (a *App) setSessionString(sess *jaws.Session, key, value string) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		sess.Set(key, nil)
-		return
-	}
-	sess.Set(key, value)
+func (a *App) setNickname(player *game.Player, nickname string) {
+	nickname = game.NormalizeNickname(nickname)
+	player.Nickname = nickname
+	player.NicknameInput = nickname
 }
 
-func (a *App) nickname(sess *jaws.Session) string { return a.sessionString(sess, sessionKeyNickname) }
-func (a *App) playerID(sess *jaws.Session) string { return a.sessionString(sess, sessionKeyPlayerID) }
-func (a *App) roomCode(sess *jaws.Session) string { return a.sessionString(sess, sessionKeyRoomCode) }
-
-func (a *App) setNickname(sess *jaws.Session, nickname string) {
-	a.setSessionString(sess, sessionKeyNickname, nickname)
-}
-func (a *App) setRoomCode(sess *jaws.Session, roomCode string) {
-	a.setSessionString(sess, sessionKeyRoomCode, strings.ToUpper(roomCode))
-}
-
-func (a *App) ensurePlayerID(sess *jaws.Session) string {
-	if id := a.playerID(sess); id != "" {
-		return id
-	}
-	var raw [8]byte
-	_, _ = rand.Read(raw[:])
-	id := hex.EncodeToString(raw[:])
-	a.setSessionString(sess, sessionKeyPlayerID, id)
-	return id
-}
-
-func (a *App) clearRoom(sess *jaws.Session) {
-	sess.Set(sessionKeyRoomCode, nil)
-}
-
-func (a *App) reconcileSession(sess *jaws.Session) {
-	roomCode := a.roomCode(sess)
-	playerID := a.playerID(sess)
-	if roomCode == "" || playerID == "" {
-		a.clearRoom(sess)
-		return
-	}
-	if !a.Manager.ReconcileMembership(roomCode, playerID) {
-		a.clearRoom(sess)
-	}
-}
-
-func (a *App) createRoom(sess *jaws.Session) (*game.Room, error) {
-	nickname := strings.TrimSpace(a.nickname(sess))
-	if nickname == "" {
-		return nil, game.ErrNeedNickname
-	}
-	playerID := a.ensurePlayerID(sess)
-	room, err := a.Manager.CreateRoom(playerID, nickname, a.Catalog.DefaultDeckIDs())
+func (a *App) createRoom(player *game.Player) (*game.Room, error) {
+	room, err := a.Manager.CreateRoom(player, a.Catalog.DefaultDeckIDs())
 	if err != nil {
 		return nil, err
 	}
-	a.setRoomCode(sess, room.Code())
-	a.DirtyRoom(room)
+	a.Dirty(a.Manager, room, player)
 	return room, nil
 }
 
-func (a *App) joinRoom(sess *jaws.Session, roomCode string) (*game.Room, error) {
-	nickname := strings.TrimSpace(a.nickname(sess))
-	if nickname == "" {
-		return nil, game.ErrNeedNickname
-	}
-	playerID := a.ensurePlayerID(sess)
-	room, err := a.Manager.JoinRoom(roomCode, playerID, nickname)
+func (a *App) joinRoom(player *game.Player, roomCode string) (*game.Room, error) {
+	room, err := a.Manager.JoinRoom(roomCode, player)
 	if err != nil {
 		return nil, err
 	}
-	a.setRoomCode(sess, room.Code())
-	a.DirtyRoom(room)
+	a.Dirty(a.Manager, room, player)
 	return room, nil
 }
 
-func (a *App) leaveRoom(sess *jaws.Session) *game.Room {
-	roomCode := a.roomCode(sess)
-	playerID := a.playerID(sess)
-	if roomCode == "" || playerID == "" {
-		a.clearRoom(sess)
-		return nil
-	}
-	room, _ := a.Manager.LeaveRoom(roomCode, playerID)
-	a.clearRoom(sess)
-	a.DirtyRoom(room)
+func (a *App) leaveRoom(player *game.Player) *game.Room {
+	room, _ := a.Manager.LeaveRoom(player)
+	a.Dirty(a.Manager, room, player)
 	return room
 }
 
@@ -296,6 +298,17 @@ func (a *App) roomURL(code string) string {
 }
 
 func (a *App) RoomURL(code string) string { return a.roomURL(code) }
+
+func stateBadgeClass(state game.RoomState) string {
+	switch state {
+	case game.StateLobby:
+		return "bg-secondary"
+	case game.StatePlaying:
+		return "bg-success"
+	default:
+		return "bg-warning text-dark"
+	}
+}
 
 func requestIsSecure(r *http.Request) bool {
 	if r == nil {

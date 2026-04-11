@@ -1,0 +1,124 @@
+package game
+
+import (
+	"html"
+	"html/template"
+
+	"github.com/linkdata/jaws"
+	"github.com/linkdata/jaws/lib/bind"
+)
+
+func (p *Player) NicknameField() bind.Binder[string] {
+	return bind.New(&p.uiMu, &p.NicknameInput)
+}
+
+func (r *Room) ScoreTargetSlider(player *Player) bind.Binder[int] {
+	return bind.New(&r.mu, &r.targetScore).
+		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) error {
+			if err := r.setTargetScoreLocked(player, value); err != nil {
+				elem.Request.Alert("warning", html.EscapeString(err.Error()))
+				return nil
+			}
+			return nil
+		})
+}
+
+func (r *Room) ScoreTargetAttrs(player *Player) template.HTMLAttr {
+	if r.host == player && r.state == StateLobby {
+		return ""
+	}
+	return `disabled`
+}
+
+func (r *Room) StartGameAttrs(player *Player) template.HTMLAttr {
+	if !r.IsHost(player) {
+		return `hidden`
+	}
+	if !r.CanStart(player) {
+		return `disabled`
+	}
+	return ""
+}
+
+func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
+	return startGameClick{Room: r, Player: player}
+}
+
+func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
+	if !r.CanSubmit(player) || len(player.SelectedCardIDs) != r.NeedPick() {
+		return `disabled`
+	}
+	return ""
+}
+
+func (r *Room) SubmitCardsClick(player *Player) jaws.ClickHandler {
+	return submitCardsClick{Room: r, Player: player}
+}
+
+func (r *Room) JudgeAttrs(player *Player) template.HTMLAttr {
+	if !r.CanJudge(player) || player.SelectedSubmission == nil {
+		return `disabled`
+	}
+	return ""
+}
+
+func (r *Room) JudgeClick(player *Player) jaws.ClickHandler {
+	return judgeClick{Room: r, Player: player}
+}
+
+type startGameClick struct {
+	Room   *Room
+	Player *Player
+}
+
+func (h startGameClick) JawsClick(elem *jaws.Element, _ string) error {
+	if h.Room == nil {
+		return nil
+	}
+	if err := h.Room.Start(h.Player); err != nil {
+		elem.Request.Alert("warning", html.EscapeString(err.Error()))
+		return nil
+	}
+	h.Player.SelectedCardIDs = nil
+	h.Player.SelectedSubmission = nil
+	elem.Dirty(h.Player, h.Room)
+	return nil
+}
+
+type submitCardsClick struct {
+	Room   *Room
+	Player *Player
+}
+
+func (h submitCardsClick) JawsClick(elem *jaws.Element, _ string) error {
+	if h.Room == nil {
+		return nil
+	}
+	selected := append([]string(nil), h.Player.SelectedCardIDs...)
+	if err := h.Room.PlayCards(h.Player, selected); err != nil {
+		elem.Request.Alert("warning", html.EscapeString(err.Error()))
+		return nil
+	}
+	h.Player.SelectedCardIDs = nil
+	elem.Dirty(h.Player, h.Room)
+	return nil
+}
+
+type judgeClick struct {
+	Room   *Room
+	Player *Player
+}
+
+func (h judgeClick) JawsClick(elem *jaws.Element, _ string) error {
+	if h.Room == nil {
+		return nil
+	}
+	selected := h.Player.SelectedSubmission
+	if err := h.Room.Judge(h.Player, selected); err != nil {
+		elem.Request.Alert("warning", html.EscapeString(err.Error()))
+		return nil
+	}
+	h.Player.SelectedSubmission = nil
+	elem.Dirty(h.Player, h.Room)
+	return nil
+}

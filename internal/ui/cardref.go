@@ -11,17 +11,19 @@ import (
 )
 
 type handCardTag struct {
-	Room *game.Room
-	Card *deck.WhiteCard
+	Player *game.Player
+	Room   *game.Room
+	Card   *deck.WhiteCard
 }
 
 type HandCardRef struct {
-	Room *game.Room
-	Card *deck.WhiteCard
+	Player *game.Player
+	Room   *game.Room
+	Card   *deck.WhiteCard
 }
 
 func (r HandCardRef) JawsGetTag(jtag.Context) any {
-	return handCardTag{Room: r.Room, Card: r.Card}
+	return handCardTag{Player: r.Player, Room: r.Room, Card: r.Card}
 }
 
 func (r HandCardRef) String() string {
@@ -32,18 +34,20 @@ func (r HandCardRef) String() string {
 }
 
 type submissionTag struct {
+	Player     *game.Player
 	Room       *game.Room
 	Submission *game.Submission
 }
 
 type SubmissionRef struct {
+	Player       *game.Player
 	Room         *game.Room
 	Submission   *game.Submission
 	RenderedHTML string
 }
 
 func (r SubmissionRef) JawsGetTag(jtag.Context) any {
-	return submissionTag{Room: r.Room, Submission: r.Submission}
+	return submissionTag{Player: r.Player, Room: r.Room, Submission: r.Submission}
 }
 
 func (r SubmissionRef) String() string {

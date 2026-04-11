@@ -2,17 +2,17 @@
 {{with .Dot}}
 <div id="{{$.Jid}}">
   <div class="d-grid mb-3">
-    {{$.Button .CreateRoomAction `class="btn btn-primary"`}}
+    {{$.Button "Create Room" (createRoomClick .) `class="btn btn-primary"`}}
   </div>
-  {{if .RoomSummaries}}
+  {{if rooms}}
   <div class="list-group">
-    {{range .RoomSummaries}}
-    <a href="{{$.Dot.App.RoomURL .Code}}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+    {{range rooms}}
+    <a href="/room/{{.Code}}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
       <span>
         <span class="fw-semibold font-monospace">{{.Code}}</span>
         <small class="text-muted ms-2">{{.HostName}}</small>
       </span>
-      <span class="badge bg-secondary rounded-pill">{{.Players}}</span>
+      <span class="badge bg-secondary rounded-pill">{{.PlayerCount}}</span>
     </a>
     {{end}}
   </div>

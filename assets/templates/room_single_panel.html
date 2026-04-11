@@ -1,18 +1,8 @@
 {{define "room_single_panel.html"}}
 {{with .Dot}}
+{{$requested := roomByCode ($.Initial.PathValue "code")}}
 <div id="{{$.Jid}}" class="py-4">
-  {{if eq .Mode "nickname"}}
-  <div class="card">
-    <div class="card-body">
-      <h5 class="card-title">Join This Room</h5>
-      <p class="card-text text-muted">Set your nickname to take a seat.</p>
-      <div class="input-group mb-3">
-        {{$.Text .Page.NicknameField `class="form-control" placeholder="Nickname"`}}
-        {{$.Button .Page.SaveNameAndJoinAction `class="btn btn-primary"`}}
-      </div>
-    </div>
-  </div>
-  {{else if eq .Mode "missing"}}
+  {{if not $requested}}
   <div class="alert alert-warning">
     <h5 class="alert-heading">Room not found</h5>
     <p class="mb-2">This room no longer exists. It may have been emptied or reset.</p>
@@ -21,8 +11,8 @@
   {{else}}
   <div class="alert alert-info">
     <h5 class="alert-heading">Not seated at this table</h5>
-    {{if eq .Snapshot.State "lobby"}}
-    <p class="mb-2">Reloading should auto-join while the room is in lobby state.</p>
+    {{if eq $requested.State "lobby"}}
+    <p class="mb-2">This room is still in the lobby, but there are no open seats right now.</p>
     {{else}}
     <p class="mb-2">This game is already in progress. Only players already seated can reconnect.</p>
     {{end}}

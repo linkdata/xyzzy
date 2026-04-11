@@ -21,70 +21,62 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-func TestRoomPageScoreTargetSliderRespectsPermissions(t *testing.T) {
+func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
 	hostSess := newTestSession(t, app, handler)
-	app.setNickname(hostSess, "Alice")
-	room, err := app.createRoom(hostSess)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
 	guestSess := newTestSession(t, app, handler)
-	app.setNickname(guestSess, "Bob")
-	if _, err := app.joinRoom(guestSess, room.Code()); err != nil {
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
 
-	guestPage := NewRoomPage(app, guestSess, room.Code())
-	guestSlider := guestPage.ScoreTargetSlider()
+	guestSlider := room.ScoreTargetSlider(guest)
 	if err := guestSlider.JawsSet(newScoreTargetElement(app, guestSlider), 8); err != nil {
 		t.Fatalf("guestSlider.JawsSet() error = %v", err)
 	}
-	if got := room.Snapshot(app.playerID(hostSess)).TargetScore; got != game.ScoreGoal {
+	if got := room.TargetScore(); got != game.ScoreGoal {
 		t.Fatalf("TargetScore after non-host set = %d, want %d", got, game.ScoreGoal)
 	}
-	if guestPage.Alert != game.ErrOnlyHostCanEdit.Error() {
-		t.Fatalf("guest alert = %q, want %q", guestPage.Alert, game.ErrOnlyHostCanEdit.Error())
-	}
 
-	hostPage := NewRoomPage(app, hostSess, room.Code())
-	hostSlider := hostPage.ScoreTargetSlider()
+	hostSlider := room.ScoreTargetSlider(host)
 	if err := hostSlider.JawsSet(newScoreTargetElement(app, hostSlider), 8); err != nil {
 		t.Fatalf("hostSlider.JawsSet() error = %v", err)
 	}
-	if got := room.Snapshot(app.playerID(hostSess)).TargetScore; got != 8 {
+	if got := room.TargetScore(); got != 8 {
 		t.Fatalf("TargetScore after host set = %d, want 8", got)
 	}
-	if hostPage.Alert != "" {
-		t.Fatalf("host alert after successful set = %q, want empty", hostPage.Alert)
-	}
 
-	if err := room.Start(app.playerID(hostSess)); err != nil {
+	if err := room.Start(host); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	lockedSlider := hostPage.ScoreTargetSlider()
+	lockedSlider := room.ScoreTargetSlider(host)
 	if err := lockedSlider.JawsSet(newScoreTargetElement(app, lockedSlider), 10); err != nil {
 		t.Fatalf("lockedSlider.JawsSet() error = %v", err)
 	}
-	if got := room.Snapshot(app.playerID(hostSess)).TargetScore; got != 8 {
+	if got := room.TargetScore(); got != 8 {
 		t.Fatalf("TargetScore after in-game set = %d, want 8", got)
-	}
-	if hostPage.Alert != game.ErrGameInProgress.Error() {
-		t.Fatalf("host alert while game running = %q, want %q", hostPage.Alert, game.ErrGameInProgress.Error())
 	}
 }
 
-func TestRoomPageReceivesLiveTargetScoreUpdates(t *testing.T) {
+func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	h := newLiveHarness(t)
 
 	h.get(t, "/")
 	sess := h.session(t)
-	h.app.setNickname(sess, "Alice")
-	room, err := h.app.createRoom(sess)
+	player := h.app.player(sess, nil)
+	h.app.setNickname(player, "Alice")
+	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
@@ -93,8 +85,7 @@ func TestRoomPageReceivesLiveTargetScoreUpdates(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
-	page := NewRoomPage(h.app, sess, room.Code())
-	slider := page.ScoreTargetSlider()
+	slider := room.ScoreTargetSlider(player)
 	if err := slider.JawsSet(newScoreTargetElement(h.app, slider), 7); err != nil {
 		t.Fatalf("slider.JawsSet() error = %v", err)
 	}
@@ -104,7 +95,7 @@ func TestRoomPageReceivesLiveTargetScoreUpdates(t *testing.T) {
 	if err := readUntilScoreTargetUpdate(ctx, conn, "7"); err != nil {
 		t.Fatalf("readUntilScoreTargetUpdate() error = %v", err)
 	}
-	if got := room.Snapshot(h.app.playerID(sess)).TargetScore; got != 7 {
+	if got := room.TargetScore(); got != 7 {
 		t.Fatalf("TargetScore = %d, want 7", got)
 	}
 }
@@ -166,6 +157,7 @@ func testPlayableApp(t *testing.T) (*App, *http.ServeMux) {
 		t.Fatalf("jaws.New() error = %v", err)
 	}
 	t.Cleanup(jw.Close)
+	go jw.Serve()
 
 	catalog := testPlayableCatalog(t)
 	app := New(jw, catalog, game.NewManagerWithOptions(catalog, game.Options{MinPlayers: 2}))
@@ -183,7 +175,7 @@ func testPlayableCatalog(t *testing.T) *deck.Catalog {
 		"assets/decks/base/deck.json": {Data: []byte(`{"id":"base","name":"Base","enabled_by_default":true}`)},
 	}
 	blackIDs := make([]string, 0, 50)
-	whiteIDs := make([]string, 0, 40)
+	whiteIDs := make([]string, 0, 80)
 	for i := 1; i <= 50; i++ {
 		id := fmt.Sprintf("b%02d", i)
 		blackIDs = append(blackIDs, id)
@@ -191,7 +183,7 @@ func testPlayableCatalog(t *testing.T) *deck.Catalog {
 			Data: []byte(fmt.Sprintf(`{"id":"%s","text":"Black card %d?"}`, id, i)),
 		}
 	}
-	for i := 1; i <= 40; i++ {
+	for i := 1; i <= 80; i++ {
 		id := fmt.Sprintf("w%02d", i)
 		whiteIDs = append(whiteIDs, id)
 		fsys["assets/cards/white/"+id+".json"] = &fstest.MapFile{

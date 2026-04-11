@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/linkdata/jaws"
+	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -28,13 +29,21 @@ type liveHarness struct {
 
 func newLiveHarness(t *testing.T) *liveHarness {
 	t.Helper()
+	return newHarnessWithCatalog(t, testCatalog(t), game.Options{})
+}
 
+func newPlayableLiveHarness(t *testing.T) *liveHarness {
+	t.Helper()
+	return newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{})
+}
+
+func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Options) *liveHarness {
+	t.Helper()
 	jw, err := jaws.New()
 	if err != nil {
 		t.Fatalf("jaws.New() error = %v", err)
 	}
-	catalog := testCatalog(t)
-	app := New(jw, catalog, game.NewManager(catalog))
+	app := New(jw, catalog, game.NewManagerWithOptions(catalog, opts))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)

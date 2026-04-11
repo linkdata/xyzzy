@@ -1,16 +1,16 @@
 {{define "room_summary_panel.html"}}
 {{with .Dot}}
-{{$room := .Snapshot}}
+{{$room := .Room}}
 <div id="{{$.Jid}}">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="fw-bold font-monospace">{{.Page.RoomCode}}</div>
-    <span class="badge {{if eq $room.State "lobby"}}bg-secondary{{else if eq $room.State "playing"}}bg-success{{else}}bg-warning text-dark{{end}}">
+    <div class="fw-bold font-monospace">{{$room.Code}}</div>
+    <span class="badge {{stateBadgeClass $room.State}}">
       {{$room.State}}
     </span>
   </div>
 
   <div class="d-grid mb-3">
-    {{$.Button .Page.LeaveRoomAction `class="btn btn-outline-danger btn-sm"`}}
+    <a class="btn btn-outline-danger btn-sm" href="/">Lobby</a>
   </div>
 
   <div class="list-group list-group-flush">
@@ -18,11 +18,11 @@
     <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
       <span>
         {{.Nickname}}
-        {{if .IsHost}}<span class="badge bg-secondary ms-1">host</span>{{end}}
-        {{if .IsJudge}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
-        {{if .Submitted}}<span class="badge bg-success ms-1">✓</span>{{end}}
+        {{if playerHost $room .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
+        {{if playerJudge $room .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
+        {{if playerSubmitted $room .}}<span class="badge bg-success ms-1">✓</span>{{end}}
       </span>
-      <span class="badge bg-primary rounded-pill">{{.Score}}</span>
+      <span class="badge bg-primary rounded-pill">{{playerScore $room .}}</span>
     </div>
     {{end}}
   </div>

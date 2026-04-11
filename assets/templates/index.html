@@ -12,10 +12,10 @@
   <div class="container-fluid" style="margin-top:4.5rem">
     <div class="row g-3">
       <div class="col-md-3">
-        {{$.Container "sidebar" $.Dot.Sidebar}}
+        {{$.Container "div" (lobbySidebar $.Dot)}}
       </div>
       <div class="col-md-9">
-        {{$.Container "main" $.Dot.Main}}
+        {{$.Container "div" (lobbyMain $.Dot)}}
       </div>
     </div>
   </div>

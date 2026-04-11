@@ -5,67 +5,73 @@ import "testing"
 func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
-	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
-	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
-	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
-	_, _ = mgr.JoinRoom(room.Code(), "p4", "Drew")
-	if err := room.Start("p1"); err != nil {
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	_, _ = mgr.JoinRoom(room.Code(), drew)
+	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	forceRound(t, room, "b2")
 
-	var judgeID string
-	for _, player := range room.Snapshot("p1").Players {
-		if player.IsJudge {
-			judgeID = player.ID
-		}
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
 	}
-	for _, player := range room.Snapshot("p1").Players {
-		if player.ID == judgeID {
+	for _, player := range room.Players() {
+		if player == judge {
 			continue
 		}
-		playerSnap := room.Snapshot(player.ID)
-		cardIDs := []string{playerSnap.Hand[0].ID, playerSnap.Hand[1].ID}
-		if err := room.PlayCards(player.ID, cardIDs); err != nil {
-			t.Fatalf("PlayCards(%s) error = %v", player.ID, err)
+		hand := room.HandFor(player)
+		cardIDs := []string{hand[0].ID, hand[1].ID}
+		if err := room.PlayCards(player, cardIDs); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
-	judgeSnap := room.Snapshot(judgeID)
-	if !judgeSnap.CanJudge || judgeSnap.State != StateJudging || len(judgeSnap.Submissions) != 3 {
-		t.Fatalf("judge snapshot = %#v", judgeSnap)
+
+	if !room.CanJudge(judge) || room.State() != StateJudging || len(room.Submissions()) != 3 {
+		t.Fatalf("judge state did not advance to judging")
 	}
-	if err := room.Judge(judgeID, judgeSnap.Submissions[0].ID); err != nil {
+	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
-	if room.Snapshot("p1").State != StatePlaying {
-		t.Fatalf("expected next round to start, got %s", room.Snapshot("p1").State)
+	if room.State() != StatePlaying {
+		t.Fatalf("expected next round to start, got %s", room.State())
 	}
 }
 
 func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
-	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
-	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
-	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
-	if err := room.Start("p1"); err != nil {
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	forceRound(t, room, "b3")
-	snap := room.Snapshot("p1")
-	if snap.NeedDraw != 1 {
-		t.Fatalf("expected draw=1, got %d", snap.NeedDraw)
+	if room.NeedDraw() != 1 {
+		t.Fatalf("NeedDraw() = %d, want 1", room.NeedDraw())
 	}
-	for _, player := range snap.Players {
-		playerSnap := room.Snapshot(player.ID)
-		if player.IsJudge {
-			if len(playerSnap.Hand) != HandSize {
-				t.Fatalf("judge hand size = %d, want %d", len(playerSnap.Hand), HandSize)
+	for _, player := range room.Players() {
+		hand := room.HandFor(player)
+		if room.IsJudge(player) {
+			if len(hand) != HandSize {
+				t.Fatalf("judge hand size = %d, want %d", len(hand), HandSize)
 			}
 			continue
 		}
-		if len(playerSnap.Hand) != HandSize+1 {
-			t.Fatalf("non-judge hand size = %d, want %d", len(playerSnap.Hand), HandSize+1)
+		if len(hand) != HandSize+1 {
+			t.Fatalf("non-judge hand size = %d, want %d", len(hand), HandSize+1)
 		}
 	}
 }
@@ -73,40 +79,80 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
-	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
-	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
-	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
-	if err := room.Start("p1"); err != nil {
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	mgr.LeaveRoom(room.Code(), "p3")
-	snap := room.Snapshot("p1")
-	if snap.State != StateLobby {
-		t.Fatalf("expected lobby reset, got %s", snap.State)
+
+	mgr.LeaveRoom(casey)
+
+	if room.State() != StateLobby {
+		t.Fatalf("expected lobby reset, got %s", room.State())
 	}
-	if snap.StatusMessage == "" {
+	if room.StatusMessage() == "" {
 		t.Fatal("expected reset message")
+	}
+}
+
+func TestJudgeLeavingResetsToLobbyAndHostLeavingReassigns(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
+	}
+	mgr.LeaveRoom(judge)
+
+	if room.State() != StateLobby {
+		t.Fatalf("expected judge leaving to reset lobby, got %s", room.State())
+	}
+
+	hostBefore := room.Host()
+	if hostBefore == nil {
+		t.Fatal("expected host after judge leave")
+	}
+	mgr.LeaveRoom(hostBefore)
+	if room.Host() == hostBefore {
+		t.Fatal("expected host reassignment")
 	}
 }
 
 func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
-	room, _ := mgr.CreateRoom("p1", "Alice", []string{"base", "expansion"})
-	_, _ = mgr.JoinRoom(room.Code(), "p2", "Bob")
-	_, _ = mgr.JoinRoom(room.Code(), "p3", "Casey")
-	if err := room.Start("p1"); err != nil {
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	var judgeID string
 	var winner *Player
 	room.mu.Lock()
-	if judge := room.judgeLocked(); judge != nil {
-		judgeID = judge.ID
-	}
+	judge := room.judgeLocked()
 	for _, player := range room.players {
-		if player.ID != judgeID {
+		if player != judge {
 			winner = player
 			break
 		}
@@ -118,38 +164,36 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	winner.Score = ScoreGoal - 1
 	room.state = StateJudging
 	room.submissions = []*Submission{{
-		ID:       "w1",
-		PlayerID: winner.ID,
-		CardIDs:  []string{"w1"},
+		ID:      "w1",
+		Player:  winner,
+		CardIDs: []string{"w1"},
 	}}
 	room.mu.Unlock()
 
-	if err := room.Judge(judgeID, "w1"); err != nil {
+	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
-	snap := room.Snapshot("p1")
-	if snap.State != StateLobby {
-		t.Fatalf("expected lobby reset, got %s", snap.State)
+	if room.State() != StateLobby {
+		t.Fatalf("expected lobby reset, got %s", room.State())
 	}
-	if snap.LastGameWinner != winner.Nickname {
-		t.Fatalf("LastGameWinner = %q, want %q", snap.LastGameWinner, winner.Nickname)
+	if room.LastGameWinner() != winner.Nickname {
+		t.Fatalf("LastGameWinner() = %q, want %q", room.LastGameWinner(), winner.Nickname)
 	}
-	if len(snap.LastGameScores) != 3 {
-		t.Fatalf("LastGameScores = %#v", snap.LastGameScores)
+	if len(room.LastGameScores()) != 3 {
+		t.Fatalf("LastGameScores() = %#v", room.LastGameScores())
 	}
-	if !snap.LastGameScores[0].IsWinner || snap.LastGameScores[0].Nickname != winner.Nickname || snap.LastGameScores[0].Score != ScoreGoal {
-		t.Fatalf("unexpected winning score row: %#v", snap.LastGameScores[0])
+	if !room.LastGameScores()[0].IsWinner || room.LastGameScores()[0].Nickname != winner.Nickname || room.LastGameScores()[0].Score != ScoreGoal {
+		t.Fatalf("unexpected winning score row: %#v", room.LastGameScores()[0])
 	}
-	for _, player := range snap.Players {
-		if player.Score != 0 {
-			t.Fatalf("player %s score = %d, want reset to 0", player.Nickname, player.Score)
+	for _, player := range room.Players() {
+		if room.ScoreFor(player) != 0 {
+			t.Fatalf("player %s score = %d, want reset to 0", player.Nickname, room.ScoreFor(player))
 		}
 	}
-	if err := room.Start("p1"); err != nil {
+	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	nextSnap := room.Snapshot("p1")
-	if nextSnap.LastGameWinner != "" || len(nextSnap.LastGameScores) != 0 {
-		t.Fatalf("expected last game results to clear on restart, got %#v", nextSnap.LastGameScores)
+	if room.LastGameWinner() != "" || len(room.LastGameScores()) != 0 {
+		t.Fatalf("expected last game results to clear on restart, got %#v", room.LastGameScores())
 	}
 }

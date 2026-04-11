@@ -10,17 +10,12 @@
     <span class="text-light btn btn-outline-light btn-sm disabled">{{$.Dot.Nickname}}</span>
   </nav>
   <div class="container-fluid" style="margin-top:4.5rem">
-    {{if $.Dot.Alert}}
-    <div class="alert alert-warning alert-dismissible mb-3" role="alert">
-      {{$.Dot.Alert}}
-    </div>
-    {{end}}
     <div class="row g-3">
       <div class="col-md-3">
-        {{$.Container "sidebar" $.Dot.Sidebar}}
+        {{$.Container "div" (roomSidebar $.Dot ($.Initial.PathValue "code"))}}
       </div>
       <div class="col-md-9">
-        {{$.Container "main" $.Dot.Main}}
+        {{$.Container "div" (roomMain $.Dot ($.Initial.PathValue "code"))}}
       </div>
     </div>
   </div>

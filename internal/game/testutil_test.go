@@ -56,6 +56,14 @@ func forceRound(t *testing.T, room *Room, blackID string) {
 	room.advanceRoundLocked()
 }
 
+func testPlayer(name string) *Player {
+	name = NormalizeNickname(name)
+	return &Player{
+		Nickname:      name,
+		NicknameInput: name,
+	}
+}
+
 func itoa(v int) string {
 	if v == 0 {
 		return "0"
