@@ -69,6 +69,39 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	}
 }
 
+func TestRoomScoreTargetSliderAllowsOneInDebug(t *testing.T) {
+	app, mux := testPlayableAppWithOptions(t, game.Options{MinPlayers: 2, Debug: true})
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app, handler)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	slider := room.ScoreTargetSlider(host)
+	if err := slider.JawsSet(newScoreTargetElement(app, slider), 1); err != nil {
+		t.Fatalf("slider.JawsSet() error = %v", err)
+	}
+	if got := room.TargetScore(); got != 1 {
+		t.Fatalf("TargetScore() = %d, want 1", got)
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(hostSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+	if body := roomRec.Body.String(); !strings.Contains(body, `min="1"`) {
+		t.Fatalf("expected debug score slider min=1, got body %s", body)
+	}
+}
+
 func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	h := newLiveHarness(t)
 
@@ -150,6 +183,10 @@ func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want 
 }
 
 func testPlayableApp(t *testing.T) (*App, *http.ServeMux) {
+	return testPlayableAppWithOptions(t, game.Options{MinPlayers: 2})
+}
+
+func testPlayableAppWithOptions(t *testing.T, opts game.Options) (*App, *http.ServeMux) {
 	t.Helper()
 
 	jw, err := jaws.New()
@@ -160,7 +197,7 @@ func testPlayableApp(t *testing.T) (*App, *http.ServeMux) {
 	go jw.Serve()
 
 	catalog := testPlayableCatalog(t)
-	app := New(jw, catalog, game.NewManagerWithOptions(catalog, game.Options{MinPlayers: 2}))
+	app := New(jw, catalog, game.NewManagerWithOptions(catalog, opts))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)

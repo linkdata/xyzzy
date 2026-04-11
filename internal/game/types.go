@@ -10,6 +10,7 @@ import (
 
 type Options struct {
 	MinPlayers int
+	Debug      bool
 }
 
 type RoomState string
@@ -32,6 +33,7 @@ type Room struct {
 	catalog         *deck.Catalog
 	rand            *mathrand.Rand
 	minPlayers      int
+	debug           bool
 	mu              sync.RWMutex
 	host            *Player
 	players         []*Player

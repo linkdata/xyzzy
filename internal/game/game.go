@@ -100,6 +100,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (*Room, er
 		catalog:         m.catalog,
 		rand:            roomRand,
 		minPlayers:      m.opts.MinPlayers,
+		debug:           m.opts.Debug,
 		targetScore:     ScoreGoal,
 		state:           StateLobby,
 		czarIndex:       -1,
@@ -378,6 +379,13 @@ func (r *Room) TargetScore() int {
 	return score
 }
 
+func (r *Room) MinTargetScore() int {
+	r.mu.RLock()
+	minScore := r.minTargetScoreLocked()
+	r.mu.RUnlock()
+	return minScore
+}
+
 func (r *Room) CurrentBlack() *deck.BlackCard {
 	r.mu.RLock()
 	card := r.currentBlackLocked()
@@ -535,6 +543,7 @@ func (r *Room) Start(player *Player) error {
 	r.whiteDraw = idsFromWhite(whiteCards)
 	r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
 	r.rand.Shuffle(len(r.whiteDraw), func(i, j int) { r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] })
+	r.prepareOpeningBlackLocked(blackCards)
 	r.blackDiscard = nil
 	r.whiteDiscard = nil
 	r.submissions = nil
@@ -1065,8 +1074,8 @@ func submissionID(cardIDs []string) string {
 }
 
 func (r *Room) setTargetScoreLocked(player *Player, score int) error {
-	if score < 2 {
-		score = 2
+	if score < r.minTargetScoreLocked() {
+		score = r.minTargetScoreLocked()
 	} else if score > 10 {
 		score = 10
 	}
@@ -1078,6 +1087,42 @@ func (r *Room) setTargetScoreLocked(player *Player, score int) error {
 	}
 	r.targetScore = score
 	return nil
+}
+
+func (r *Room) minTargetScoreLocked() int {
+	if r.debug {
+		return 1
+	}
+	return 2
+}
+
+func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {
+	if !r.debug || len(r.blackDraw) == 0 {
+		return
+	}
+	bestID := ""
+	bestPick := -1
+	bestDraw := -1
+	for _, card := range cards {
+		if card == nil {
+			continue
+		}
+		if card.Pick > bestPick || (card.Pick == bestPick && card.Draw > bestDraw) || (card.Pick == bestPick && card.Draw == bestDraw && (bestID == "" || card.ID < bestID)) {
+			bestID = card.ID
+			bestPick = card.Pick
+			bestDraw = card.Draw
+		}
+	}
+	if bestID == "" {
+		return
+	}
+	for i, id := range r.blackDraw {
+		if id == bestID {
+			last := len(r.blackDraw) - 1
+			r.blackDraw[i], r.blackDraw[last] = r.blackDraw[last], r.blackDraw[i]
+			return
+		}
+	}
 }
 
 func max(a, b int) int {

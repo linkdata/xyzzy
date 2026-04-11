@@ -30,7 +30,7 @@
   {{$scoreTarget := $room.ScoreTargetSlider $.Dot}}
   <div class="mb-3 d-flex align-items-center gap-3">
     <label class="form-label mb-0 text-nowrap">Target score</label>
-    {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) `class="form-range" min="2" max="10" step="1"`}}
+    {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) (printf "class=\"form-range\" min=\"%d\" max=\"10\" step=\"1\"" $room.MinTargetScore)}}
     {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>

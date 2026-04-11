@@ -21,7 +21,7 @@ var (
 	flagUser      = flag.String("user", envOrDefault("WEBSERV_USER", ""), "switch to this user after startup (*nix only)")
 	flagDataDir   = flag.String("datadir", envOrDefault("WEBSERV_DATADIR", "$HOME"), "where to store data files after startup")
 	flagListenURL = flag.String("listenurl", os.Getenv("WEBSERV_LISTENURL"), "specify the external URL clients can reach us at")
-	flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode and allow two-player games")
+	flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode, allow two-player games, allow target score 1, and force the first black card to the highest-pick prompt")
 )
 
 func envOrDefault(envvar, fallback string) string {
@@ -52,6 +52,7 @@ func main() {
 	managerOpts := game.Options{}
 	if *flagDebug {
 		managerOpts.MinPlayers = 2
+		managerOpts.Debug = true
 	}
 	manager := game.NewManagerWithOptions(catalog, managerOpts)
 	app := appui.New(jw, catalog, manager)
