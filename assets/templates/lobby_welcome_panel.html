@@ -1,8 +1,8 @@
 {{define "lobby_welcome_panel.html"}}
 {{with .Dot}}
 <div id="{{$.Jid}}">
-  {{if .Page.Alert}}
-  <div class="alert alert-warning mb-3">{{.Page.Alert}}</div>
+  {{if .Alert}}
+  <div class="alert alert-warning mb-3">{{.Alert}}</div>
   {{end}}
 
   <div class="card mb-4">
@@ -22,12 +22,12 @@
     </div>
   </div>
 
-  {{if .Page.HasCurrentRoom}}
+  {{if .HasCurrentRoom}}
   <div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
-    <span>You are in room <strong>{{.Page.CurrentRoomCode}}</strong>.</span>
+    <span>You are in room <strong>{{.CurrentRoomCode}}</strong>.</span>
     <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-primary" href="{{.Page.CurrentRoomURL}}">Return to Room</a>
-      {{$.Button .Page.LeaveCurrentRoomAction `class="btn btn-sm btn-outline-secondary"`}}
+      <a class="btn btn-sm btn-primary" href="{{.CurrentRoomURL}}">Return to Room</a>
+      {{$.Button .LeaveCurrentRoomAction `class="btn btn-sm btn-outline-secondary"`}}
     </div>
   </div>
   {{end}}
@@ -39,8 +39,8 @@
         This is shown to other players. You can change it at any time while you're not in a room.
       </p>
       <div class="input-group">
-        {{$.Text .Page.NicknameField `class="form-control" placeholder="Enter nickname"`}}
-        {{$.Button .Page.SaveNameAction `class="btn btn-primary"`}}
+        {{$.Text .NicknameField `class="form-control" placeholder="Enter nickname"`}}
+        {{$.Button .SaveNameAction `class="btn btn-primary"`}}
       </div>
     </div>
   </div>

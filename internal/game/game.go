@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
@@ -200,10 +199,6 @@ func (m *Manager) newRoomCodeLocked() (string, error) {
 }
 
 func (r *Room) Code() string { return r.code }
-
-func (r *Room) BindTargetScore() bind.Binder[int] {
-	return bind.New(&r.mu, &r.targetScore)
-}
 
 func (r *Room) SetTargetScore(playerID string, score int) error {
 	if score < 2 {

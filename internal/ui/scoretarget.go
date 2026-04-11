@@ -1,26 +1,26 @@
 package ui
 
 import (
-	"html/template"
-
+	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
+	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type uiScoreTarget struct {
-	bind.Binder[int]
-	ishost bool
-}
-
-func (ui *uiScoreTarget) HostEnabled() template.HTMLAttr {
-	if !ui.ishost {
-		return "disabled"
-	}
-	return ""
-}
-
-func (p *RoomPage) ScoreTargetSlider() *uiScoreTarget {
-	return &uiScoreTarget{
-		ishost: p.Snapshot().IsHost,
-		Binder: p.Room().BindTargetScore(),
-	}
+func (p *RoomPage) ScoreTargetSlider() bind.Binder[int] {
+	value := 0
+	return bind.New(&p.mu, &value).
+		GetLocked(func(bind bind.Binder[int], elem *jaws.Element) int {
+			snap := p.Snapshot()
+			if snap.IsHost && snap.State == game.StateLobby {
+				elem.RemoveAttr("disabled")
+			} else {
+				elem.SetAttr("disabled", "")
+			}
+			return snap.TargetScore
+		}).
+		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) error {
+			return p.withRoomMutation(elem, func(room *game.Room) error {
+				return room.SetTargetScore(p.playerID(), value)
+			}, nil)
+		})
 }

@@ -10,28 +10,22 @@ import (
 )
 
 type LobbyPage struct {
-	App        *App
-	Session    *jaws.Session
-	mu         sync.Mutex
-	NickInput  string
-	JoinInput  string
-	Alert      string
-	buttonText string
+	App       *App
+	Session   *jaws.Session
+	mu        sync.Mutex
+	NickInput string
+	Alert     string
 }
 
 func NewLobbyPage(app *App, sess *jaws.Session) *LobbyPage {
-	page := &LobbyPage{
-		App:        app,
-		Session:    sess,
-		buttonText: "Action",
+	return &LobbyPage{
+		App:       app,
+		Session:   sess,
+		NickInput: app.nickname(sess),
 	}
-	page.NickInput = app.nickname(sess)
-	page.JoinInput = app.roomCode(sess)
-	return page
 }
 
-func (p *LobbyPage) HasNickname() bool { return p.Nickname() != "" }
-func (p *LobbyPage) Nickname() string  { return p.App.nickname(p.Session) }
+func (p *LobbyPage) Nickname() string { return p.App.nickname(p.Session) }
 
 func (p *LobbyPage) CurrentRoomCode() string {
 	p.App.reconcileSession(p.Session)
@@ -46,16 +40,6 @@ func (p *LobbyPage) RoomSummaries() []game.RoomSummary { return p.App.Manager.Ro
 
 func (p *LobbyPage) NicknameField() bind.Binder[string] {
 	return bind.New(&p.mu, &p.NickInput)
-}
-
-func (p *LobbyPage) JoinCodeField() bind.Binder[string] {
-	return bind.New(&p.mu, &p.JoinInput).
-		SetLocked(func(bind bind.Binder[string], elem *jaws.Element, value string) error {
-			p.mu.Lock()
-			p.JoinInput = strings.ToUpper(strings.TrimSpace(value))
-			p.mu.Unlock()
-			return bind.JawsSetLocked(elem, p.JoinInput)
-		})
 }
 
 func (p *LobbyPage) SaveNameAction() bind.Binder[string] {
@@ -96,39 +80,6 @@ func (p *LobbyPage) CreateRoomAction() bind.Binder[string] {
 			p.App.setNickname(p.Session, name)
 		}
 		room, err := p.App.createRoom(p.Session)
-		if err != nil {
-			p.Alert = err.Error()
-			elem.Dirty(p)
-			return nil
-		}
-		elem.Request.Redirect(p.App.roomURL(room.Code()))
-		return nil
-	})
-}
-
-func (p *LobbyPage) JoinRoomAction() bind.Binder[string] {
-	label := "Join Room"
-	return bind.New(&p.mu, &label).Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-		code := strings.ToUpper(strings.TrimSpace(p.JoinInput))
-		if code == "" {
-			p.Alert = "Enter a room code first."
-			elem.Dirty(p)
-			return nil
-		}
-		if p.HasCurrentRoom() {
-			elem.Request.Redirect(p.CurrentRoomURL())
-			return nil
-		}
-		if p.Nickname() == "" {
-			name := strings.TrimSpace(p.NickInput)
-			if name == "" {
-				p.Alert = "Choose a nickname before joining a room."
-				elem.Dirty(p)
-				return nil
-			}
-			p.App.setNickname(p.Session, name)
-		}
-		room, err := p.App.joinRoom(p.Session, code)
 		if err != nil {
 			p.Alert = err.Error()
 			elem.Dirty(p)

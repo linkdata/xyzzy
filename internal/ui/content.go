@@ -7,145 +7,91 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-// LobbySidebar is the reactive left sidebar for the lobby page.
-type LobbySidebar struct {
-	Page *LobbyPage
+type lobbySection struct {
+	Page         *LobbyPage
+	TemplateName string
 }
 
-func (p *LobbyPage) Sidebar() *LobbySidebar {
-	return &LobbySidebar{Page: p}
+type lobbyRenderData struct {
+	*LobbyPage
 }
 
-func (m *LobbySidebar) JawsGetTag(jtag.Context) any {
-	return []any{m.Page, m.Page.App.Manager}
+func (p *LobbyPage) Sidebar() *lobbySection {
+	return &lobbySection{Page: p, TemplateName: "lobby_sidebar.html"}
 }
 
-func (m *LobbySidebar) JawsContains(*jaws.Element) []jaws.UI {
+func (p *LobbyPage) Main() *lobbySection {
+	return &lobbySection{Page: p, TemplateName: "lobby_welcome_panel.html"}
+}
+
+func (s *lobbySection) JawsGetTag(jtag.Context) any {
+	return []any{s.Page, s.Page.App.Manager}
+}
+
+func (s *lobbySection) JawsContains(*jaws.Element) []jaws.UI {
 	return []jaws.UI{
-		jui.NewTemplate("lobby_sidebar.html", &LobbyPanelVM{Page: m.Page}),
+		jui.NewTemplate(s.TemplateName, &lobbyRenderData{LobbyPage: s.Page}),
 	}
 }
 
-// LobbyMain is the reactive main content area for the lobby page.
-type LobbyMain struct {
-	Page *LobbyPage
+type roomSection struct {
+	Page    *RoomPage
+	Sidebar bool
 }
 
-func (p *LobbyPage) Main() *LobbyMain {
-	return &LobbyMain{Page: p}
+func (p *RoomPage) Sidebar() *roomSection {
+	return &roomSection{Page: p, Sidebar: true}
 }
 
-func (m *LobbyMain) JawsGetTag(jtag.Context) any {
-	return []any{m.Page, m.Page.App.Manager}
+func (p *RoomPage) Main() *roomSection {
+	return &roomSection{Page: p}
 }
 
-func (m *LobbyMain) JawsContains(*jaws.Element) []jaws.UI {
-	return []jaws.UI{
-		jui.NewTemplate("lobby_welcome_panel.html", &LobbyPanelVM{Page: m.Page}),
-	}
-}
-
-type LobbyPanelVM struct {
-	Page *LobbyPage
-}
-
-// RoomSidebar is the reactive left sidebar for the room page.
-type RoomSidebar struct {
-	Page *RoomPage
-	Room *game.Room
-}
-
-func (p *RoomPage) Sidebar() *RoomSidebar {
-	return &RoomSidebar{Page: p, Room: p.Room()}
-}
-
-func (m *RoomSidebar) JawsGetTag(jtag.Context) any {
-	tags := []any{m.Page}
-	if m.Room != nil {
-		tags = append(tags, m.Room)
+func (s *roomSection) JawsGetTag(jtag.Context) any {
+	tags := []any{s.Page}
+	if room := s.Page.Room(); room != nil {
+		tags = append(tags, room)
 	}
 	return tags
 }
 
-func (m *RoomSidebar) JawsContains(*jaws.Element) []jaws.UI {
-	snap := m.Page.Snapshot()
-	if !snap.InRoom {
-		return nil
-	}
-	return []jaws.UI{
-		jui.NewTemplate("room_summary_panel.html", &RoomPanelVM{
-			Page:     m.Page,
-			Snapshot: snap,
-		}),
-	}
-}
-
-// RoomMain is the reactive main content area for the room page.
-type RoomMain struct {
-	Page *RoomPage
-	Room *game.Room
-}
-
-func (p *RoomPage) Main() *RoomMain {
-	return &RoomMain{
-		Page: p,
-		Room: p.Room(),
-	}
-}
-
-func (m *RoomMain) JawsGetTag(jtag.Context) any {
-	tags := []any{m.Page}
-	if m.Room != nil {
-		tags = append(tags, m.Room)
-	}
-	return tags
-}
-
-func (m *RoomMain) JawsContains(*jaws.Element) []jaws.UI {
-	snap := m.Page.Snapshot()
-	if m.Page.Nickname() == "" {
+func (s *roomSection) JawsContains(*jaws.Element) []jaws.UI {
+	data := s.Page.RenderData()
+	if s.Sidebar {
+		if !data.Snapshot.InRoom {
+			return nil
+		}
 		return []jaws.UI{
-			jui.NewTemplate("room_single_panel.html", &RoomSinglePanelVM{
-				Page:     m.Page,
-				Snapshot: snap,
-				Mode:     "nickname",
-			}),
+			jui.NewTemplate("room_summary_panel.html", data),
 		}
 	}
-	if !snap.Exists {
-		return []jaws.UI{
-			jui.NewTemplate("room_single_panel.html", &RoomSinglePanelVM{
-				Page:     m.Page,
-				Snapshot: snap,
-				Mode:     "missing",
-			}),
-		}
+	templateName := "room_game_panel.html"
+	if data.Mode != "game" {
+		templateName = "room_single_panel.html"
 	}
-	if !snap.InRoom {
-		return []jaws.UI{
-			jui.NewTemplate("room_single_panel.html", &RoomSinglePanelVM{
-				Page:     m.Page,
-				Snapshot: snap,
-				Mode:     "unavailable",
-			}),
-		}
-	}
-	vm := &RoomPanelVM{
-		Page:     m.Page,
-		Snapshot: snap,
-	}
-	return []jaws.UI{
-		jui.NewTemplate("room_game_panel.html", vm),
-	}
+	return []jaws.UI{jui.NewTemplate(templateName, data)}
 }
 
-type RoomPanelVM struct {
-	Page     *RoomPage
-	Snapshot game.RoomView
-}
-
-type RoomSinglePanelVM struct {
+type RoomRenderData struct {
 	Page     *RoomPage
 	Snapshot game.RoomView
 	Mode     string
+}
+
+func (p *RoomPage) RenderData() *RoomRenderData {
+	snap := p.Snapshot()
+	mode := "game"
+	switch {
+	case p.Nickname() == "":
+		mode = "nickname"
+	case !snap.Exists:
+		mode = "missing"
+	case !snap.InRoom:
+		mode = "unavailable"
+	}
+	return &RoomRenderData{
+		Page:     p,
+		Snapshot: snap,
+		Mode:     mode,
+	}
 }

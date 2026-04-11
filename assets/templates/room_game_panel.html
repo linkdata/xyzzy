@@ -29,14 +29,13 @@
     {{$.Button .Page.StartGameAction `class="btn btn-success"`}}
   </div>
 
-  {{with .Page.ScoreTargetSlider}}
+  {{$scoreTarget := .Page.ScoreTargetSlider}}
   <div class="mb-3 d-flex align-items-center gap-3">
     <label class="form-label mb-0 text-nowrap">Target score</label>
-    {{$.Range . `class="form-range" min="2" max="10" step="1"` .HostEnabled}}
-    {{$.Span . `class="badge bg-secondary text-nowrap"`}}
+    {{$.Range $scoreTarget `class="form-range" min="2" max="10" step="1"`}}
+    {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>
-  {{end}}
 
   <div class="row row-cols-1 row-cols-sm-2 g-2">
     {{range $deck := .Page.App.Catalog.OrderedDecks}}

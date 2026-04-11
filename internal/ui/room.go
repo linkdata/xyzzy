@@ -20,7 +20,6 @@ type RoomPage struct {
 	Alert              string
 	SelectedCardIDs    []string
 	SelectedSubmission string
-	scoreTarget        int
 }
 
 func NewRoomPage(app *App, sess *jaws.Session, roomCode string) *RoomPage {
@@ -33,6 +32,8 @@ func NewRoomPage(app *App, sess *jaws.Session, roomCode string) *RoomPage {
 }
 
 func (p *RoomPage) Nickname() string { return p.App.nickname(p.Session) }
+
+func (p *RoomPage) playerID() string { return p.App.playerID(p.Session) }
 
 func (p *RoomPage) Room() *game.Room { return p.App.Manager.GetRoom(p.RoomCode) }
 
@@ -48,24 +49,52 @@ func (p *RoomPage) NicknameField() bind.Binder[string] {
 	return bind.New(&p.mu, &p.NickInput)
 }
 
+func (p *RoomPage) setAlert(elem *jaws.Element, message string) error {
+	p.Alert = message
+	elem.Dirty(p)
+	return nil
+}
+
+func (p *RoomPage) clearSelections() {
+	p.SelectedCardIDs = nil
+	p.SelectedSubmission = ""
+}
+
+func (p *RoomPage) dirtyRoomAndPage(elem *jaws.Element, room *game.Room) {
+	p.App.DirtyRoom(room)
+	elem.Dirty(p)
+}
+
+func (p *RoomPage) withRoomMutation(elem *jaws.Element, mutate func(*game.Room) error, after func()) error {
+	room := p.Room()
+	if room == nil {
+		return p.setAlert(elem, "Room not found.")
+	}
+	if err := mutate(room); err != nil {
+		return p.setAlert(elem, err.Error())
+	}
+	if after != nil {
+		after()
+	}
+	p.Alert = ""
+	p.dirtyRoomAndPage(elem, room)
+	return nil
+}
+
 func (p *RoomPage) SaveNameAndJoinAction() bind.Binder[string] {
 	label := "Save Nickname and Join"
 	return bind.New(&p.mu, &label).Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
 		name := strings.TrimSpace(p.NickInput)
 		if name == "" {
-			p.Alert = "Enter a nickname first."
-			elem.Dirty(p)
-			return nil
+			return p.setAlert(elem, "Enter a nickname first.")
 		}
 		p.App.setNickname(p.Session, name)
-		if room, err := p.App.joinRoom(p.Session, p.RoomCode); err == nil {
+		room, err := p.App.joinRoom(p.Session, p.RoomCode)
+		if err == nil {
 			elem.Request.Redirect(p.App.roomURL(room.Code()))
 			return nil
-		} else {
-			p.Alert = err.Error()
 		}
-		elem.Dirty(p)
-		return nil
+		return p.setAlert(elem, err.Error())
 	})
 }
 
@@ -86,23 +115,9 @@ func (p *RoomPage) StartGameAction() bind.Binder[string] {
 			return label
 		}).
 		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			room := p.Room()
-			if room == nil {
-				p.Alert = "Room not found."
-				elem.Dirty(p)
-				return nil
-			}
-			if err := room.Start(p.App.playerID(p.Session)); err != nil {
-				p.Alert = err.Error()
-				elem.Dirty(p)
-				return nil
-			}
-			p.SelectedCardIDs = nil
-			p.SelectedSubmission = ""
-			p.Alert = ""
-			p.App.DirtyRoom(room)
-			elem.Dirty(p)
-			return nil
+			return p.withRoomMutation(elem, func(room *game.Room) error {
+				return room.Start(p.playerID())
+			}, p.clearSelections)
 		})
 }
 
@@ -128,21 +143,9 @@ func (p *RoomPage) DeckToggle(deckID string) bind.Binder[bool] {
 			return slicesContains(snap.SelectedDeckIDs, deckID)
 		}).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) error {
-			room := p.Room()
-			if room == nil {
-				p.Alert = "Room not found."
-				elem.Dirty(p)
-				return nil
-			}
-			if err := room.ToggleDeck(p.App.playerID(p.Session), deckID, value); err != nil {
-				p.Alert = err.Error()
-				elem.Dirty(p)
-				return nil
-			}
-			p.Alert = ""
-			p.App.DirtyRoom(room)
-			elem.Dirty(p)
-			return nil
+			return p.withRoomMutation(elem, func(room *game.Room) error {
+				return room.ToggleDeck(p.playerID(), deckID, value)
+			}, nil)
 		})
 }
 
@@ -191,22 +194,12 @@ func (p *RoomPage) SubmitCardsAction() bind.Binder[string] {
 			return label
 		}).
 		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			room := p.Room()
-			if room == nil {
-				p.Alert = "Room not found."
-				elem.Dirty(p)
-				return nil
-			}
-			if err := room.PlayCards(p.App.playerID(p.Session), append([]string(nil), p.SelectedCardIDs...)); err != nil {
-				p.Alert = err.Error()
-				elem.Dirty(p)
-				return nil
-			}
-			p.SelectedCardIDs = nil
-			p.Alert = ""
-			p.App.DirtyRoom(room)
-			elem.Dirty(p)
-			return nil
+			selected := append([]string(nil), p.SelectedCardIDs...)
+			return p.withRoomMutation(elem, func(room *game.Room) error {
+				return room.PlayCards(p.playerID(), selected)
+			}, func() {
+				p.SelectedCardIDs = nil
+			})
 		})
 }
 
@@ -255,11 +248,11 @@ func (p *RoomPage) BlackCardFootnote(card *deck.BlackCard) string {
 }
 
 func (p *RoomPage) WaitingTitle(snap game.RoomView) string {
-	return waitingTitle(snap, p.App.playerID(p.Session))
+	return waitingTitle(snap, p.playerID())
 }
 
 func (p *RoomPage) WaitingDetail(snap game.RoomView) string {
-	return waitingDetail(snap, p.App.playerID(p.Session))
+	return waitingDetail(snap, p.playerID())
 }
 
 func (p *RoomPage) applyCardSelection(cardID string, needPick int) {
@@ -338,22 +331,12 @@ func (p *RoomPage) JudgeAction() bind.Binder[string] {
 			return label
 		}).
 		Clicked(func(bind bind.Binder[string], elem *jaws.Element, _ string) error {
-			room := p.Room()
-			if room == nil {
-				p.Alert = "Room not found."
-				elem.Dirty(p)
-				return nil
-			}
-			if err := room.Judge(p.App.playerID(p.Session), p.SelectedSubmission); err != nil {
-				p.Alert = err.Error()
-				elem.Dirty(p)
-				return nil
-			}
-			p.SelectedSubmission = ""
-			p.Alert = ""
-			p.App.DirtyRoom(room)
-			elem.Dirty(p)
-			return nil
+			selected := p.SelectedSubmission
+			return p.withRoomMutation(elem, func(room *game.Room) error {
+				return room.Judge(p.playerID(), selected)
+			}, func() {
+				p.SelectedSubmission = ""
+			})
 		})
 }
 
