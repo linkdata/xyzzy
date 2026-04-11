@@ -57,53 +57,51 @@ func (a *App) DeckToggle(player *game.Player, deck *deck.Deck) bind.Binder[bool]
 	return taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
 }
 
-func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) bind.Binder[HandCardRef] {
-	ref := HandCardRef{Player: player, Room: player.Room, Card: card}
-	return bind.New(player.UILocker(), &ref).
-		Clicked(func(bind bind.Binder[HandCardRef], elem *jaws.Element, _ string) error {
-			room := player.Room
-			if room == nil || !room.CanSubmit(player) {
-				return nil
-			}
-			card := bind.JawsGet(elem).Card
-			if card == nil {
-				return nil
-			}
-			changed, alert := applyCardSelection(player, card.ID, room.NeedPick())
-			if alert != "" {
-				return errors.New(alert)
-			}
-			if changed {
-				elem.Dirty(player)
-			}
-			return nil
-		})
+type cardActionClick struct {
+	Player *game.Player
+	Card   *deck.WhiteCard
 }
 
-func (a *App) SubmissionAction(player *game.Player, submission *game.Submission) bind.Binder[SubmissionRef] {
-	ref := SubmissionRef{
-		Player:     player,
-		Room:       player.Room,
-		Submission: submission,
+func (h cardActionClick) JawsClick(elem *jaws.Element, _ string) error {
+	room := h.Player.Room
+	if room == nil || !room.CanSubmit(h.Player) || h.Card == nil {
+		return nil
 	}
-	return bind.New(player.UILocker(), &ref).
-		Clicked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element, _ string) error {
-			room := player.Room
-			if room == nil || !room.CanJudge(player) {
-				return nil
-			}
-			submission := bind.JawsGet(elem).Submission
-			if submission == nil {
-				return nil
-			}
-			if player.SelectedSubmission == submission {
-				player.SelectedSubmission = nil
-			} else {
-				player.SelectedSubmission = submission
-			}
-			elem.Dirty(player)
-			return nil
-		})
+	changed, alert := applyCardSelection(h.Player, h.Card.ID, room.NeedPick())
+	if alert != "" {
+		return errors.New(alert)
+	}
+	if changed {
+		elem.Dirty(h.Player)
+	}
+	return nil
+}
+
+func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) jaws.ClickHandler {
+	return cardActionClick{Player: player, Card: card}
+}
+
+type submissionActionClick struct {
+	Player     *game.Player
+	Submission *game.Submission
+}
+
+func (h submissionActionClick) JawsClick(elem *jaws.Element, _ string) error {
+	room := h.Player.Room
+	if room == nil || !room.CanJudge(h.Player) || h.Submission == nil {
+		return nil
+	}
+	if h.Player.SelectedSubmission == h.Submission {
+		h.Player.SelectedSubmission = nil
+	} else {
+		h.Player.SelectedSubmission = h.Submission
+	}
+	elem.Dirty(h.Player)
+	return nil
+}
+
+func (a *App) SubmissionAction(player *game.Player, submission *game.Submission) jaws.ClickHandler {
+	return submissionActionClick{Player: player, Submission: submission}
 }
 
 func (a *App) DeckToggleAttrs(player *game.Player) template.HTMLAttr {

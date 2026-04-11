@@ -2,7 +2,6 @@ package ui
 
 import (
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/linkdata/jaws"
@@ -14,6 +13,7 @@ import (
 )
 
 func TestHandCardRefBinderUsesSemanticTag(t *testing.T) {
+	app, _ := testApp(t)
 	player := &game.Player{}
 	room := &game.Room{}
 	card := &deck.WhiteCard{ID: "w1", Text: "Today on <i>Maury</i>"}
@@ -22,9 +22,10 @@ func TestHandCardRefBinderUsesSemanticTag(t *testing.T) {
 		Room:   room,
 		Card:   card,
 	}
-	binder := bind.New(&sync.Mutex{}, &ref)
+	player.Room = room
+	getter := app.HandCardHTML(player, card)
 
-	tags := jtag.MustTagExpand(nil, binder)
+	tags := jtag.MustTagExpand(nil, getter)
 	if len(tags) != 1 {
 		t.Fatalf("tag count = %d, want 1", len(tags))
 	}
@@ -54,6 +55,7 @@ func TestHandCardHTMLUsesTemplate(t *testing.T) {
 }
 
 func TestSubmissionRefBinderUsesSemanticTag(t *testing.T) {
+	app, _ := testApp(t)
 	player := &game.Player{}
 	room := &game.Room{}
 	submission := &game.Submission{ID: "sub-1"}
@@ -62,9 +64,10 @@ func TestSubmissionRefBinderUsesSemanticTag(t *testing.T) {
 		Room:       room,
 		Submission: submission,
 	}
-	binder := bind.New(&sync.Mutex{}, &ref)
+	player.Room = room
+	getter := app.SubmissionHTML(player, submission)
 
-	tags := jtag.MustTagExpand(nil, binder)
+	tags := jtag.MustTagExpand(nil, getter)
 	if len(tags) != 1 {
 		t.Fatalf("tag count = %d, want 1", len(tags))
 	}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/linkdata/jaws/lib/jtag"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -15,18 +14,10 @@ type HandCardRef struct {
 	Card   *deck.WhiteCard
 }
 
-func (r HandCardRef) JawsGetTag(jtag.Context) any {
-	return r
-}
-
 type SubmissionRef struct {
 	Player     *game.Player
 	Room       *game.Room
 	Submission *game.Submission
-}
-
-func (r SubmissionRef) JawsGetTag(jtag.Context) any {
-	return r
 }
 
 func (r SubmissionRef) GoString() string {
