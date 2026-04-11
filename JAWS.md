@@ -44,6 +44,12 @@ Do not create dummy binders just to catch clicks.
 - Hardcode simple button text in templates.
 - Pass the click handler as a separate template parameter.
 - Only use binders when there is real bound state.
+- If something is only clickable, make it a `jaws.ClickHandler`, not a fake `bind.Binder[T]`.
+
+Examples:
+
+- `StartGameClick`, `SubmitCardsClick`, `JudgeClick`, `CreateRoomClick`, and `SaveNicknameClick` should be plain click handlers.
+- Card-selection and submission-selection buttons should also be plain click handlers. Their semantic tag belongs on the HTML getter that renders the button body, not on a fake action binder.
 
 ## Getter purity
 
@@ -93,6 +99,11 @@ Keep HTML structure in templates, not in Go string concatenation.
 
 Keep text sanitization helpers if needed, but keep DOM structure in templates.
 
+Also:
+
+- For card text specifically, do preprocessing at deck-load time and store safe `template.HTML` on the loaded card structs.
+- Templates should render `.HTML` for cards, not call a formatter on every render.
+
 ## Template rendering helpers
 
 If you need a custom `bind.HTMLGetter` that renders a partial:
@@ -124,6 +135,13 @@ JaWS tags must stay comparable and meaningful.
 - Slices, maps, and other non-comparable values are not good tags.
 
 Prefer tags that describe the semantic UI target, not incidental wrapper objects.
+
+Where possible, attach semantic tags at the actual binder/getter construction site instead of teaching the value type itself about `JawsGetTag()`.
+
+- A plain `bind.New(&x)` defaults to tagging by pointer, so override that only when you need different semantics.
+- `bind.HTMLGetterFunc(..., tags...)` is a good way to attach semantic tags to HTML getters.
+- A small wrapper like `taggedBinder` is appropriate when the underlying binder value is not itself the right semantic tag, like a `bool` deck toggle needing `(room pointer + deck pointer)`.
+- Do not add `JawsGetTag()` to plain comparable data structs just to return themselves. If the value itself is the desired semantic tag, attach it where the binder/getter is built.
 
 ## Tests
 
