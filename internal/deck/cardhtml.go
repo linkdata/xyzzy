@@ -1,4 +1,4 @@
-package ui
+package deck
 
 import (
 	"html"

@@ -9,12 +9,6 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type handCardTag struct {
-	Player *game.Player
-	Room   *game.Room
-	Card   *deck.WhiteCard
-}
-
 type HandCardRef struct {
 	Player *game.Player
 	Room   *game.Room
@@ -22,13 +16,7 @@ type HandCardRef struct {
 }
 
 func (r HandCardRef) JawsGetTag(jtag.Context) any {
-	return handCardTag{Player: r.Player, Room: r.Room, Card: r.Card}
-}
-
-type submissionTag struct {
-	Player     *game.Player
-	Room       *game.Room
-	Submission *game.Submission
+	return r
 }
 
 type SubmissionRef struct {
@@ -38,7 +26,7 @@ type SubmissionRef struct {
 }
 
 func (r SubmissionRef) JawsGetTag(jtag.Context) any {
-	return submissionTag{Player: r.Player, Room: r.Room, Submission: r.Submission}
+	return r
 }
 
 func (r SubmissionRef) GoString() string {

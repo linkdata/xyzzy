@@ -61,7 +61,7 @@
 
   {{if $room.CurrentBlack}}
   <div class="card-face card-face-black mb-4">
-    <div class="card-copy">{{cardhtml $room.CurrentBlack.Text}}</div>
+    <div class="card-copy">{{$room.CurrentBlack.HTML}}</div>
     <div class="card-footer-row">
       <small class="opacity-75">pick {{$room.NeedPick}}{{if gt $room.NeedDraw 0}} · draw {{$room.NeedDraw}}{{end}}</small>
       <small class="opacity-60 fst-italic">{{blackFootnote $room $room.CurrentBlack}}</small>

@@ -40,7 +40,6 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		"cardBody":        a.HandCardHTML,
 		"cardAttrs":       a.HandCardAttrs,
 		"cardClass":       a.HandCardClass,
-		"cardhtml":        formatCardHTML,
 		"createRoomClick": a.CreateRoomClick,
 		"deckToggle":      a.DeckToggle,
 		"deckToggleAttrs": a.DeckToggleAttrs,

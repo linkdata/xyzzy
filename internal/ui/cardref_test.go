@@ -28,7 +28,7 @@ func TestHandCardRefBinderUsesSemanticTag(t *testing.T) {
 	if len(tags) != 1 {
 		t.Fatalf("tag count = %d, want 1", len(tags))
 	}
-	want := handCardTag{Player: player, Room: room, Card: card}
+	want := ref
 	if got := tags[0]; got != want {
 		t.Fatalf("tag = %#v, want %#v", got, want)
 	}
@@ -68,7 +68,7 @@ func TestSubmissionRefBinderUsesSemanticTag(t *testing.T) {
 	if len(tags) != 1 {
 		t.Fatalf("tag count = %d, want 1", len(tags))
 	}
-	want := submissionTag{Player: player, Room: room, Submission: submission}
+	want := ref
 	if got := tags[0]; got != want {
 		t.Fatalf("tag = %#v, want %#v", got, want)
 	}

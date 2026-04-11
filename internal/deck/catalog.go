@@ -47,6 +47,7 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
 			return fmt.Errorf("%s: %w: black card missing id or text", name, ErrInvalidDeck)
 		}
+		card.HTML = formatCardHTML(card.Text)
 		if _, exists := c.BlackCards[card.ID]; exists {
 			return fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
 		}
@@ -63,6 +64,7 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
 			return fmt.Errorf("%s: %w: white card missing id or text", name, ErrInvalidDeck)
 		}
+		card.HTML = formatCardHTML(card.Text)
 		if _, exists := c.WhiteCards[card.ID]; exists {
 			return fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
 		}
