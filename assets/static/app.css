@@ -64,6 +64,24 @@
   opacity: 0.6;
 }
 
+.card-footer-row-white {
+  align-items: end;
+}
+
+.card-footer-row-white .card-footnote {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.card-selection-order {
+  color: var(--card-selected-border);
+  font-family: "Courier New", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
 .card-footer-row {
   display: flex;
   justify-content: space-between;

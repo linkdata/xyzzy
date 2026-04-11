@@ -1,4 +1,9 @@
 {{if .Card}}
 <div class="card-copy">{{.Card.HTML}}</div>
-<div class="card-footnote">{{whiteFootnote .Room .Card}}</div>
+<div class="card-footer-row card-footer-row-white">
+  {{if .SelectionOrder}}
+  <div class="card-selection-order">#{{.SelectionOrder}}</div>
+  {{end}}
+  <div class="card-footnote">{{whiteFootnote .Room .Card}}</div>
+</div>
 {{end}}

@@ -43,6 +43,7 @@ func TestHandCardHTMLUsesTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
+	player.SelectedCardIDs = []string{"w2", "w1"}
 	getter := app.HandCardHTML(player, catalog.WhiteCards["w1"])
 	got := string(getter.JawsGetHTML(newCardHTMLElement(app, getter)))
 	if !strings.Contains(got, `<div class="card-copy">`) {
@@ -50,6 +51,9 @@ func TestHandCardHTMLUsesTemplate(t *testing.T) {
 	}
 	if !strings.Contains(got, "Base · 1") {
 		t.Fatalf("JawsGetHTML() = %q, want user-facing deck name and numeric card id footnote", got)
+	}
+	if !strings.Contains(got, ">#2<") {
+		t.Fatalf("JawsGetHTML() = %q, want selected-card order marker", got)
 	}
 	_ = room
 }
