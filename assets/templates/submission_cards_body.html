@@ -1,0 +1,15 @@
+{{if .Cards}}
+  {{if eq (len .Cards) 1}}
+    {{range .Cards}}
+      {{template "white_card_body.html" .}}
+    {{end}}
+  {{else}}
+  <div class="submission-stack">
+    {{range .Cards}}
+    <div class="submission-card">
+      {{template "white_card_body.html" .}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+{{end}}

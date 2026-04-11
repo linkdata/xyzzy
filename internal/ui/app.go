@@ -37,6 +37,7 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	templates, err := template.New("root").Funcs(template.FuncMap{
 		"blackFootnote":   renderBlackCardFootnote,
 		"cardAction":      a.CardAction,
+		"cardBody":        a.HandCardHTML,
 		"cardAttrs":       a.HandCardAttrs,
 		"cardClass":       a.HandCardClass,
 		"cardhtml":        formatCardHTML,
@@ -67,8 +68,10 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		"submissionAttrs":   a.SubmissionAttrs,
 		"submissionAction":  a.SubmissionAction,
 		"submissionClass":   a.SubmissionClass,
+		"submissionBody":    a.SubmissionHTML,
 		"waitingDetail":     waitingDetail,
 		"waitingTitle":      waitingTitle,
+		"whiteFootnote":     renderWhiteCardFootnote,
 	}).ParseFS(xyzzy.Assets, "assets/templates/*.html")
 	if err != nil {
 		return err

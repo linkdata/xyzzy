@@ -82,10 +82,9 @@ func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) bind.Binder[
 
 func (a *App) SubmissionAction(player *game.Player, submission *game.Submission) bind.Binder[SubmissionRef] {
 	ref := SubmissionRef{
-		Player:       player,
-		Room:         player.Room,
-		Submission:   submission,
-		RenderedHTML: renderSubmissionHTML(player.Room, player.Room.SubmissionCards(submission)),
+		Player:     player,
+		Room:       player.Room,
+		Submission: submission,
 	}
 	return bind.New(player.UILocker(), &ref).
 		Clicked(func(bind bind.Binder[SubmissionRef], elem *jaws.Element, _ string) error {
