@@ -74,35 +74,50 @@
   </div>
   {{end}}
 
-  {{if $room.CanSubmit $.Dot}}
+  {{if eq $room.State "playing"}}
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
-    {{$.Button "Play Selected Cards" ($room.SubmitCardsClick $.Dot) ($room.SubmitCardsAttrs $.Dot) `class="btn btn-primary"`}}
-  </div>
-  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-    {{range $card := $room.HandFor $.Dot}}
-    {{$action := cardAction $.Dot $card}}
-    <div class="col">
-      {{$.Button (cardBody $.Dot $card) $action (cardAttrs $.Dot) (cardClass $.Dot $card)}}
+    {{if $room.CanSubmit $.Dot}}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
+      {{$.Button "Play Selected Cards" ($room.SubmitCardsClick $.Dot) ($room.SubmitCardsAttrs $.Dot) `class="btn btn-primary"`}}
     </div>
-    {{end}}
-  </div>
-
-  {{else if $room.CanJudge $.Dot}}
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">Pick the Winner</h5>
-    {{$.Button "Pick Winner" ($room.JudgeClick $.Dot) ($room.JudgeAttrs $.Dot) `class="btn btn-primary"`}}
-  </div>
-  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-    {{range $submission := $room.Submissions}}
-    {{$action := submissionAction $.Dot $submission}}
-    <div class="col">
-      {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+      {{range $card := $room.HandFor $.Dot}}
+      {{$action := cardAction $.Dot $card}}
+      <div class="col">
+        {{$.Button (cardBody $.Dot $card) $action (cardAttrs $.Dot) (cardClass $.Dot $card)}}
+      </div>
+      {{end}}
     </div>
+
+    {{else}}
+
+    <div class="text-center py-5">
+      <h5>{{waitingTitle $.Dot $room}}</h5>
+      {{$detail := waitingDetail $.Dot $room}}
+      {{if $detail}}<p class="text-muted">{{$detail}}</p>{{end}}
+    </div>
+
     {{end}}
-  </div>
+
+  {{else if eq $room.State "judging"}}
+
+    {{$canJudge := $room.CanJudge $.Dot}}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">{{if $canJudge}}Pick the Winner{{else}}{{waitingTitle $.Dot $room}}{{end}}</h5>
+      {{if $canJudge}}
+      {{$.Button "Pick Winner" ($room.JudgeClick $.Dot) ($room.JudgeAttrs $.Dot) `class="btn btn-primary"`}}
+      {{end}}
+    </div>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+      {{range $submission := $room.Submissions}}
+      {{$action := submissionAction $.Dot $submission}}
+      <div class="col">
+        {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
+      </div>
+      {{end}}
+    </div>
 
   {{else}}
 
