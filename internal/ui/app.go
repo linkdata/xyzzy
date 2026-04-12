@@ -47,6 +47,7 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		"lobbyMain":       a.LobbyMain,
 		"lobbySidebar":    a.LobbySidebar,
 		"orderedDecks":    a.Catalog.OrderedDecks,
+		"onlinePlayers":   a.Jaws.SessionCount,
 		"playerHost":      func(room *game.Room, player *game.Player) bool { return room != nil && room.IsHost(player) },
 		"playerJudge":     func(room *game.Room, player *game.Player) bool { return room != nil && room.IsJudge(player) },
 		"playerScore": func(room *game.Room, player *game.Player) int {

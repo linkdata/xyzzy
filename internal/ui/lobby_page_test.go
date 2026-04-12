@@ -21,8 +21,29 @@ func TestLobbyRenders(t *testing.T) {
 	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, "nickname-section") {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
+	if !strings.Contains(body, "1 online player") {
+		t.Fatalf("expected lobby body to show one online player, got %s", body)
+	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
+	}
+}
+
+func TestLobbyShowsCurrentOnlinePlayerCount(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	req1 := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req1)
+
+	req2 := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+
+	body := rec2.Body.String()
+	if !strings.Contains(body, "2 online players") {
+		t.Fatalf("expected lobby body to show two online players, got %s", body)
 	}
 }
 
