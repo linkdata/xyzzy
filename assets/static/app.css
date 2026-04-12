@@ -13,6 +13,7 @@
   --card-white-bg: #fff;
   --card-white-fg: #181512;
   --card-selected-border: #a52f28;
+  --card-winning-border: #d69200;
   --card-radius: 16px;
 }
 
@@ -95,6 +96,12 @@
   box-shadow: 0 0 0 3px rgba(165,47,40,.15);
 }
 
+.is-winning {
+  border-color: var(--card-winning-border) !important;
+  box-shadow: 0 0 0 3px rgba(214,146,0,.18);
+  background: linear-gradient(180deg, #fffdf4 0%, #fff2c9 100%);
+}
+
 .submission-stack {
   display: grid;
   gap: 10px;
@@ -108,4 +115,13 @@
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+.room-player-winner {
+  background: rgba(255, 193, 7, 0.18);
+  border-radius: 10px;
+}
+
+.review-countdown-button {
+  min-width: 12rem;
 }

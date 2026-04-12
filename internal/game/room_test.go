@@ -1,6 +1,9 @@
 package game
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	catalog := testCatalog(t)
@@ -37,11 +40,21 @@ func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	if !room.CanJudge(judge) || room.State() != StateJudging || len(room.Submissions()) != 3 {
 		t.Fatalf("judge state did not advance to judging")
 	}
-	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
+	winningSubmission := room.Submissions()[0]
+	if err := room.Judge(judge, winningSubmission); err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
+	if room.State() != StateReview {
+		t.Fatalf("expected round review state, got %s", room.State())
+	}
+	if !room.IsRoundWinner(winningSubmission.Player) || !room.IsWinningSubmission(winningSubmission) {
+		t.Fatal("expected winning player and submission to be marked during round review")
+	}
+	if err := room.ProceedReview(judge); err != nil {
+		t.Fatalf("ProceedReview() error = %v", err)
+	}
 	if room.State() != StatePlaying {
-		t.Fatalf("expected next round to start, got %s", room.State())
+		t.Fatalf("expected next round to start after proceed, got %s", room.State())
 	}
 }
 
@@ -193,12 +206,63 @@ func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
 	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
+	if room.State() != StateReview {
+		t.Fatalf("expected review state after judging, got %s", room.State())
+	}
+	if err := room.ProceedReview(judge); err != nil {
+		t.Fatalf("ProceedReview() error = %v", err)
+	}
 	if room.State() != StatePlaying {
-		t.Fatalf("expected next round after judging, got %s", room.State())
+		t.Fatalf("expected next round after proceed, got %s", room.State())
 	}
 	if !room.CanSubmit(drew) {
 		t.Fatal("joined player should be active next round")
 	}
+}
+
+func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room.reviewDelay = 10 * time.Millisecond
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
+	}
+	for _, player := range room.Players() {
+		if player == judge {
+			continue
+		}
+		hand := room.HandFor(player)
+		if err := room.PlayCards(player, []string{hand[0].ID}); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if room.State() != StateReview {
+		t.Fatalf("expected review state after judge pick, got %s", room.State())
+	}
+
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if room.State() == StatePlaying {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("expected review timer to auto-advance, got %s", room.State())
 }
 
 func TestJoinDuringGameRequiresEnoughCardsForAnotherPlayer(t *testing.T) {
@@ -296,8 +360,14 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
+	if room.State() != StateReview {
+		t.Fatalf("expected review state before lobby reset, got %s", room.State())
+	}
+	if err := room.ProceedReview(judge); err != nil {
+		t.Fatalf("ProceedReview() error = %v", err)
+	}
 	if room.State() != StateLobby {
-		t.Fatalf("expected lobby reset, got %s", room.State())
+		t.Fatalf("expected lobby reset after proceed, got %s", room.State())
 	}
 	if room.LastGameWinner() != winner.Nickname {
 		t.Fatalf("LastGameWinner() = %q, want %q", room.LastGameWinner(), winner.Nickname)

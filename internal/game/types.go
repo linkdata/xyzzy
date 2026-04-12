@@ -3,6 +3,7 @@ package game
 import (
 	mathrand "math/rand"
 	"sync"
+	"time"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -19,6 +20,7 @@ const (
 	StateLobby   RoomState = "lobby"
 	StatePlaying RoomState = "playing"
 	StateJudging RoomState = "judging"
+	StateReview  RoomState = "results"
 )
 
 type Manager struct {
@@ -26,34 +28,42 @@ type Manager struct {
 	rooms   map[string]*Room
 	catalog *deck.Catalog
 	opts    Options
+	dirty   func(...any)
 }
 
 type Room struct {
-	manager         *Manager
-	code            string
-	catalog         *deck.Catalog
-	rand            *mathrand.Rand
-	minPlayers      int
-	debug           bool
-	mu              sync.RWMutex
-	host            *Player
-	players         []*Player
-	selectedDeckIDs []string
-	private         bool
-	targetScore     int
-	state           RoomState
-	round           int
-	czarIndex       int
-	currentBlackID  string
-	lastWinnerName  string
-	lastGameWinner  string
-	lastGameScores  []FinalScore
-	statusMessage   string
-	blackDraw       []string
-	blackDiscard    []string
-	whiteDraw       []string
-	whiteDiscard    []string
-	submissions     []*Submission
+	manager          *Manager
+	code             string
+	catalog          *deck.Catalog
+	rand             *mathrand.Rand
+	minPlayers       int
+	debug            bool
+	mu               sync.RWMutex
+	host             *Player
+	players          []*Player
+	selectedDeckIDs  []string
+	private          bool
+	targetScore      int
+	state            RoomState
+	round            int
+	czarIndex        int
+	currentBlackID   string
+	lastWinnerName   string
+	lastGameWinner   string
+	lastGameScores   []FinalScore
+	statusMessage    string
+	blackDraw        []string
+	blackDiscard     []string
+	whiteDraw        []string
+	whiteDiscard     []string
+	submissions      []*Submission
+	reviewDelay      time.Duration
+	reviewTimer      *time.Timer
+	reviewDeadline   time.Time
+	reviewWinner     *Player
+	reviewSubmission *Submission
+	reviewGameWinner bool
+	reviewToken      uint64
 }
 
 type Player struct {

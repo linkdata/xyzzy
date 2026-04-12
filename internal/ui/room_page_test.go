@@ -260,6 +260,69 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	}
 }
 
+func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app, handler)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app, handler)
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !room.IsJudge(host) {
+		t.Fatal("expected host to be judge for the opening round")
+	}
+
+	hand := room.HandFor(guest)
+	if err := room.PlayCards(guest, []string{hand[0].ID}); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	if room.State() != game.StateJudging {
+		t.Fatalf("State() = %s, want %s", room.State(), game.StateJudging)
+	}
+	if err := room.Judge(host, room.Submissions()[0]); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if room.State() != game.StateReview {
+		t.Fatalf("State() = %s, want %s", room.State(), game.StateReview)
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(hostSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Bob won the round!") {
+		t.Fatalf("expected round winner title, got %s", body)
+	}
+	if !strings.Contains(body, "review-countdown-button") || !strings.Contains(body, "data-review-deadline=") {
+		t.Fatalf("expected review proceed button with countdown data, got %s", body)
+	}
+	if !strings.Contains(body, "room-player-winner") || !strings.Contains(body, "winner</span>") {
+		t.Fatalf("expected sidebar winner highlight, got %s", body)
+	}
+	if !strings.Contains(body, "is-winning") {
+		t.Fatalf("expected winning submission highlight, got %s", body)
+	}
+}
+
 func TestMissingRoomRendersMissingPanel(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)

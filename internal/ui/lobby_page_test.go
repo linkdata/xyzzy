@@ -2,7 +2,9 @@ package ui
 
 import (
 	"encoding/base64"
+	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -141,6 +143,81 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	}
 	if player.Room != nil {
 		t.Fatal("expected player to be in lobby")
+	}
+}
+
+func TestCreateRoomRouteRedirectsToRoom(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected JaWS session")
+	}
+
+	createReq := httptest.NewRequest(http.MethodGet, "http://example.test/create-room", nil)
+	createReq.AddCookie(sess.Cookie())
+	createRec := httptest.NewRecorder()
+	handler.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusSeeOther {
+		t.Fatalf("ServeHTTP() status = %d, want %d", createRec.Code, http.StatusSeeOther)
+	}
+	location := createRec.Header().Get("Location")
+	if !strings.HasPrefix(location, "/room/") {
+		t.Fatalf("Location = %q, want /room/<code>", location)
+	}
+
+	player := app.player(sess, createReq)
+	if player.Room == nil {
+		t.Fatal("expected player to be seated in created room")
+	}
+	if got := app.Manager.Room(player.Room.Code()); got != player.Room {
+		t.Fatalf("Manager.Room(%q) = %v, want created room", player.Room.Code(), got)
+	}
+	if location != "/room/"+player.Room.Code() {
+		t.Fatalf("Location = %q, want %q", location, "/room/"+player.Room.Code())
+	}
+}
+
+func TestCreateRoomRouteFollowRedirectShowsRoomPage(t *testing.T) {
+	app, mux := testApp(t)
+	server := httptest.NewServer(app.Middleware(mux))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookiejar.New() error = %v", err)
+	}
+	client := &http.Client{Jar: jar}
+
+	resp, err := client.Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	resp.Body.Close()
+
+	resp, err = client.Get(server.URL + "/create-room")
+	if err != nil {
+		t.Fatalf("GET /create-room error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("final status = %d body=%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(resp.Request.URL.Path, "/room/") {
+		t.Fatalf("final URL path = %q, want /room/<code>", resp.Request.URL.Path)
+	}
+	if !strings.Contains(string(body), "Card Packs") {
+		t.Fatalf("expected room page body after redirect, got %s", body)
 	}
 }
 

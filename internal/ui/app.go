@@ -30,6 +30,9 @@ type App struct {
 }
 
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
+	if manager != nil && jw != nil {
+		manager.SetDirty(jw.Dirty)
+	}
 	return &App{Jaws: jw, Catalog: catalog, Manager: manager}
 }
 
@@ -40,7 +43,6 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		"cardBody":        a.HandCardHTML,
 		"cardAttrs":       a.HandCardAttrs,
 		"cardClass":       a.HandCardClass,
-		"createRoomClick": a.CreateRoomClick,
 		"deckToggle":      a.DeckToggle,
 		"deckToggleAttrs": a.DeckToggleAttrs,
 		"join":            strings.Join,
@@ -81,12 +83,13 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 	}
 	if err := a.Jaws.Setup(mux.Handle, "/static",
 		jawsboot.Setup,
-		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
+		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css", "app.js"),
 	); err != nil {
 		return err
 	}
 	mux.Handle("GET /jaws/", a.Jaws)
 	mux.Handle("GET /", http.HandlerFunc(a.serveLobby))
+	mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
 	mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
 	return nil
 }
@@ -128,6 +131,24 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
+	sess := a.session(r)
+	player := a.player(sess, r)
+	a.cleanupExpired()
+	if player.Room != nil {
+		http.Redirect(w, r, a.roomURL(player.Room.Code()), http.StatusSeeOther)
+		return
+	}
+	room, err := a.createRoom(player)
+	if err != nil {
+		a.Jaws.Log(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	a.syncNicknameCookie(w, r, player)
+	http.Redirect(w, r, a.roomURL(room.Code()), http.StatusSeeOther)
 }
 
 func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) error {
@@ -264,7 +285,7 @@ func (a *App) createRoom(player *game.Player) (*game.Room, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.Jaws.Dirty(a.Manager, room, player)
+	a.Jaws.Dirty(a.Manager, room)
 	return room, nil
 }
 
@@ -299,6 +320,8 @@ func stateBadgeClass(state game.RoomState) string {
 		return "bg-secondary"
 	case game.StatePlaying:
 		return "bg-success"
+	case game.StateReview:
+		return "bg-info text-dark"
 	default:
 		return "bg-warning text-dark"
 	}

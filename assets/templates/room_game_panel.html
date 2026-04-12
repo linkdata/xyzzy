@@ -114,6 +114,27 @@
       {{range $submission := $room.Submissions}}
       {{$action := submissionAction $.Dot $submission}}
       <div class="col">
+      {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
+      </div>
+      {{end}}
+    </div>
+
+  {{else if eq $room.State "results"}}
+
+    {{$canProceed := $room.CanProceed $.Dot}}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h5 class="mb-0">{{$room.ReviewTitle}}</h5>
+        {{if not $canProceed}}<small class="text-muted">{{$room.ReviewWaitingText}}</small>{{end}}
+      </div>
+      {{if $canProceed}}
+      {{$.Button ($room.ReviewProceedLabel) ($room.ProceedReviewClick $.Dot) ($room.ProceedReviewAttrs $.Dot)}}
+      {{end}}
+    </div>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+      {{range $submission := $room.Submissions}}
+      {{$action := submissionAction $.Dot $submission}}
+      <div class="col">
         {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
       </div>
       {{end}}

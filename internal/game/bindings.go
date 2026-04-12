@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"html/template"
 
 	"github.com/linkdata/jaws"
@@ -82,6 +83,21 @@ func (r *Room) JudgeClick(player *Player) jaws.ClickHandler {
 	return judgeClick{Room: r, Player: player}
 }
 
+func (r *Room) ProceedReviewAttrs(player *Player) template.HTMLAttr {
+	if !r.CanProceed(player) {
+		return `hidden`
+	}
+	return template.HTMLAttr(fmt.Sprintf(
+		`class="btn btn-primary review-countdown-button" data-review-deadline="%d" data-review-label="%s"`,
+		r.ReviewDeadlineUnixMilli(),
+		r.ReviewButtonBase(),
+	))
+}
+
+func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
+	return proceedReviewClick{Room: r, Player: player}
+}
+
 type startGameClick struct {
 	Room   *Room
 	Player *Player
@@ -133,5 +149,21 @@ func (h judgeClick) JawsClick(elem *jaws.Element, _ string) error {
 	}
 	h.Player.SelectedSubmission = nil
 	elem.Dirty(h.Player, h.Room)
+	return nil
+}
+
+type proceedReviewClick struct {
+	Room   *Room
+	Player *Player
+}
+
+func (h proceedReviewClick) JawsClick(elem *jaws.Element, _ string) error {
+	if h.Room == nil {
+		return nil
+	}
+	if err := h.Room.ProceedReview(h.Player); err != nil {
+		return err
+	}
+	elem.Dirty(h.Room)
 	return nil
 }

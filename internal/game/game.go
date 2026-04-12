@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/linkdata/xyzzy/internal/deck"
 )
@@ -18,6 +19,7 @@ const (
 	MaxPlayers             = 10
 	HandSize               = 10
 	ScoreGoal              = 5
+	ReviewDelay            = 5 * time.Second
 	MinBlackCards          = 50
 	MinWhiteCardsPerPlayer = 20
 	roomCodeLength         = 6
@@ -43,6 +45,7 @@ var (
 	ErrAlreadySubmitted    = errors.New("cards already submitted")
 	ErrSubmissionNotFound  = errors.New("submission not found")
 	ErrNotJudge            = errors.New("only the judge can pick a winner")
+	ErrReviewNotReady      = errors.New("round result is not ready")
 )
 
 func NewManager(catalog *deck.Catalog) *Manager {
@@ -57,6 +60,21 @@ func NewManagerWithOptions(catalog *deck.Catalog, opts Options) *Manager {
 		rooms:   make(map[string]*Room),
 		catalog: catalog,
 		opts:    opts,
+	}
+}
+
+func (m *Manager) SetDirty(fn func(...any)) {
+	m.mu.Lock()
+	m.dirty = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) notify(tags ...any) {
+	m.mu.RLock()
+	dirty := m.dirty
+	m.mu.RUnlock()
+	if dirty != nil {
+		dirty(tags...)
 	}
 }
 
@@ -102,6 +120,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (*Room, er
 		rand:            roomRand,
 		minPlayers:      m.opts.MinPlayers,
 		debug:           m.opts.Debug,
+		reviewDelay:     ReviewDelay,
 		targetScore:     ScoreGoal,
 		state:           StateLobby,
 		czarIndex:       -1,
@@ -341,6 +360,13 @@ func (r *Room) CanJudge(player *Player) bool {
 	return ok
 }
 
+func (r *Room) CanProceed(player *Player) bool {
+	r.mu.RLock()
+	ok := player != nil && r.state == StateReview && r.judgeLocked() == player
+	r.mu.RUnlock()
+	return ok
+}
+
 func (r *Room) SelectedDecks() []*deck.Deck {
 	r.mu.RLock()
 	decks := make([]*deck.Deck, 0, len(r.selectedDeckIDs))
@@ -504,6 +530,92 @@ func (r *Room) LastGameScores() []FinalScore {
 	return scores
 }
 
+func (r *Room) ReviewTitle() string {
+	r.mu.RLock()
+	title := ""
+	if r.state == StateReview && r.reviewWinner != nil {
+		if r.reviewGameWinner {
+			title = fmt.Sprintf("%s won the game!", r.reviewWinner.Nickname)
+		} else {
+			title = fmt.Sprintf("%s won the round!", r.reviewWinner.Nickname)
+		}
+	}
+	r.mu.RUnlock()
+	return title
+}
+
+func (r *Room) ReviewCountdown() int {
+	r.mu.RLock()
+	deadline := r.reviewDeadline
+	state := r.state
+	r.mu.RUnlock()
+	if state != StateReview || deadline.IsZero() {
+		return 0
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return 0
+	}
+	return int((remaining + time.Second - time.Nanosecond) / time.Second)
+}
+
+func (r *Room) ReviewDeadlineUnixMilli() int64 {
+	r.mu.RLock()
+	deadline := r.reviewDeadline
+	r.mu.RUnlock()
+	if deadline.IsZero() {
+		return 0
+	}
+	return deadline.UnixMilli()
+}
+
+func (r *Room) ReviewButtonBase() string {
+	r.mu.RLock()
+	base := r.reviewButtonBaseLocked()
+	r.mu.RUnlock()
+	return base
+}
+
+func (r *Room) ReviewProceedLabel() string {
+	base := r.ReviewButtonBase()
+	countdown := r.ReviewCountdown()
+	if countdown <= 0 {
+		return base
+	}
+	return fmt.Sprintf("%s (%d)", base, countdown)
+}
+
+func (r *Room) ReviewWaitingText() string {
+	base := r.ReviewButtonBase()
+	countdown := r.ReviewCountdown()
+	switch {
+	case base == "":
+		return ""
+	case countdown <= 0 && base == "Back to Lobby":
+		return "Returning to the lobby."
+	case countdown <= 0:
+		return "Advancing to the next round."
+	case base == "Back to Lobby":
+		return fmt.Sprintf("Returning to the lobby in %d seconds.", countdown)
+	default:
+		return fmt.Sprintf("Next round in %d seconds.", countdown)
+	}
+}
+
+func (r *Room) IsRoundWinner(player *Player) bool {
+	r.mu.RLock()
+	ok := r.state == StateReview && player != nil && r.reviewWinner == player
+	r.mu.RUnlock()
+	return ok
+}
+
+func (r *Room) IsWinningSubmission(submission *Submission) bool {
+	r.mu.RLock()
+	ok := r.state == StateReview && submission != nil && r.reviewSubmission == submission
+	r.mu.RUnlock()
+	return ok
+}
+
 func (r *Room) SetPrivate(player *Player, private bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -585,6 +697,7 @@ func (r *Room) Start(player *Player) error {
 	r.blackDiscard = nil
 	r.whiteDiscard = nil
 	r.submissions = nil
+	r.clearReviewLocked()
 	r.currentBlackID = ""
 	r.lastWinnerName = ""
 	r.lastGameWinner = ""
@@ -681,13 +794,25 @@ func (r *Room) Judge(player *Player, submission *Submission) error {
 	}
 	winner.Score++
 	r.lastWinnerName = winner.Nickname
-	if winner.Score >= r.targetScore {
+	gameWinner := winner.Score >= r.targetScore
+	if gameWinner {
 		r.captureLastGameLocked(winner)
-		r.resetToLobbyLocked(fmt.Sprintf("%s won the game. Room reset to the lobby.", winner.Nickname))
-		return nil
 	}
 	r.statusMessage = fmt.Sprintf("%s won the round.", winner.Nickname)
-	r.advanceRoundLocked()
+	r.beginReviewLocked(winner, submission, gameWinner)
+	return nil
+}
+
+func (r *Room) ProceedReview(player *Player) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.state != StateReview {
+		return ErrReviewNotReady
+	}
+	if r.judgeLocked() != player {
+		return ErrNotJudge
+	}
+	r.finishReviewLocked()
 	return nil
 }
 
@@ -858,6 +983,7 @@ func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) bool {
 }
 
 func (r *Room) resetToLobbyLocked(message string) {
+	r.clearReviewLocked()
 	r.state = StateLobby
 	r.round = 0
 	r.czarIndex = -1
@@ -901,6 +1027,7 @@ func (r *Room) captureLastGameLocked(winner *Player) {
 }
 
 func (r *Room) advanceRoundLocked() {
+	r.clearReviewLocked()
 	if r.currentBlackID != "" {
 		r.blackDiscard = append(r.blackDiscard, r.currentBlackID)
 	}
@@ -940,6 +1067,71 @@ func (r *Room) advanceRoundLocked() {
 	if judge != nil {
 		r.statusMessage = fmt.Sprintf("%s is the judge for round %d.", judge.Nickname, r.round)
 	}
+}
+
+func (r *Room) beginReviewLocked(winner *Player, submission *Submission, gameWinner bool) {
+	r.clearReviewLocked()
+	r.state = StateReview
+	r.reviewWinner = winner
+	r.reviewSubmission = submission
+	r.reviewGameWinner = gameWinner
+	delay := r.reviewDelay
+	if delay <= 0 {
+		delay = ReviewDelay
+	}
+	r.reviewDeadline = time.Now().Add(delay)
+	token := r.reviewToken
+	r.reviewTimer = time.AfterFunc(delay, func() {
+		r.autoProceedReview(token)
+	})
+}
+
+func (r *Room) finishReviewLocked() {
+	winnerName := ""
+	if r.reviewWinner != nil {
+		winnerName = r.reviewWinner.Nickname
+	}
+	if r.reviewGameWinner {
+		r.resetToLobbyLocked(fmt.Sprintf("%s won the game. Room reset to the lobby.", winnerName))
+		return
+	}
+	r.advanceRoundLocked()
+}
+
+func (r *Room) autoProceedReview(token uint64) {
+	r.mu.Lock()
+	if r.state != StateReview || r.reviewToken != token {
+		r.mu.Unlock()
+		return
+	}
+	r.finishReviewLocked()
+	manager := r.manager
+	r.mu.Unlock()
+	if manager != nil {
+		manager.notify(r)
+	}
+}
+
+func (r *Room) clearReviewLocked() {
+	if r.reviewTimer != nil {
+		r.reviewTimer.Stop()
+		r.reviewTimer = nil
+	}
+	r.reviewToken++
+	r.reviewDeadline = time.Time{}
+	r.reviewWinner = nil
+	r.reviewSubmission = nil
+	r.reviewGameWinner = false
+}
+
+func (r *Room) reviewButtonBaseLocked() string {
+	if r.state != StateReview {
+		return ""
+	}
+	if r.reviewGameWinner {
+		return "Back to Lobby"
+	}
+	return "Next Round"
 }
 
 func (r *Room) drawWhiteLocked() string {

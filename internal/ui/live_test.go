@@ -3,6 +3,8 @@ package ui
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -160,6 +162,35 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	}
 	if !strings.Contains(showMsg, "Bob") {
 		t.Fatalf("expected room reappearance update to mention host name, got %s", showMsg)
+	}
+}
+
+func TestCreateRoomWhileLobbyIsLiveStillOpensRoomPage(t *testing.T) {
+	h := newLiveHarness(t)
+
+	html := h.get(t, "/")
+	conn, cancel := h.connect(t, html)
+	defer cancel()
+	_ = conn
+
+	resp, err := h.client.Get(h.server.URL + "/create-room")
+	if err != nil {
+		t.Fatalf("GET /create-room error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("final status = %d body=%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(resp.Request.URL.Path, "/room/") {
+		t.Fatalf("final URL path = %q, want /room/<code>", resp.Request.URL.Path)
+	}
+	if !strings.Contains(string(body), "Card Packs") {
+		t.Fatalf("expected room page body after redirect, got %s", body)
 	}
 }
 

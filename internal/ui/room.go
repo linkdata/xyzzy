@@ -138,6 +138,9 @@ func (a *App) SubmissionAttrs(player *game.Player) template.HTMLAttr {
 
 func (a *App) SubmissionClass(player *game.Player, submission *game.Submission) template.HTMLAttr {
 	class := `class="card-face card-face-white w-100 text-start`
+	if room := player.Room; room != nil && room.IsWinningSubmission(submission) {
+		class += ` is-winning`
+	}
 	if player.SelectedSubmission == submission {
 		class += ` is-selected`
 	}

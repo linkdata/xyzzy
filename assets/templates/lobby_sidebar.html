@@ -1,7 +1,7 @@
 {{with .Dot}}
 <div id="{{$.Jid}}">
   <div class="d-grid mb-3">
-    {{$.Button "Create Room" (createRoomClick .) `class="btn btn-primary"`}}
+    <a href="/create-room" class="btn btn-primary">Create Room</a>
   </div>
   {{if publicRooms}}
   <div class="list-group">
