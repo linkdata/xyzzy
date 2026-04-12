@@ -79,6 +79,55 @@ func TestDebugStartUsesHighestPickBlackCardFirst(t *testing.T) {
 	}
 }
 
+func TestRoomPrivacyLifecycleAndPublicRooms(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManagerWithOptions(catalog, Options{MinPlayers: 2})
+	host := testPlayer("Alice")
+	guest := testPlayer("Bob")
+
+	room, err := mgr.CreateRoom(host, catalog.DefaultDeckIDs())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	if room.IsPrivate() {
+		t.Fatal("new room should be public by default")
+	}
+	if got := mgr.PublicRooms(); len(got) != 1 || got[0] != room {
+		t.Fatalf("PublicRooms() = %#v, want [%p]", got, room)
+	}
+
+	if err := room.SetPrivate(host, true); err != nil {
+		t.Fatalf("SetPrivate(host, true) error = %v", err)
+	}
+	if !room.IsPrivate() {
+		t.Fatal("room should be private after host toggle")
+	}
+	if got := mgr.PublicRooms(); len(got) != 0 {
+		t.Fatalf("PublicRooms() = %#v, want []", got)
+	}
+
+	if _, err := mgr.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom(private room) error = %v", err)
+	}
+	if err := room.SetPrivate(guest, false); err != ErrOnlyHostCanEdit {
+		t.Fatalf("SetPrivate(guest, false) error = %v, want %v", err, ErrOnlyHostCanEdit)
+	}
+
+	if err := room.SetPrivate(host, false); err != nil {
+		t.Fatalf("SetPrivate(host, false) error = %v", err)
+	}
+	if got := mgr.PublicRooms(); len(got) != 1 || got[0] != room {
+		t.Fatalf("PublicRooms() = %#v, want [%p]", got, room)
+	}
+
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := room.SetPrivate(host, true); err != ErrGameInProgress {
+		t.Fatalf("SetPrivate(host, true) after start error = %v, want %v", err, ErrGameInProgress)
+	}
+}
+
 func TestNicknameSanitizationAndConflictSuffixing(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)

@@ -16,23 +16,28 @@
   </div>
   {{end}}
 
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h5 class="mb-0">Card Packs</h5>
-      <small class="text-muted">
-        {{$room.BlackCount}} black / {{$room.WhiteCount}} white selected
-        (need ≥50 black, ≥{{$room.RequiredWhite}} white)
-      </small>
-    </div>
-    {{$.Button "Start Game" ($room.StartGameClick $.Dot) ($room.StartGameAttrs $.Dot) `class="btn btn-success"`}}
+  <div class="mb-3">
+    <h5 class="mb-0">Card Packs</h5>
+    <small class="text-muted">
+      {{$room.BlackCount}} black / {{$room.WhiteCount}} white selected
+      (need ≥50 black, ≥{{$room.RequiredWhite}} white)
+    </small>
   </div>
 
+  {{$privateToggle := $room.PrivateToggle $.Dot}}
   {{$scoreTarget := $room.ScoreTargetSlider $.Dot}}
-  <div class="mb-3 d-flex align-items-center gap-3">
-    <label class="form-label mb-0 text-nowrap">Target score</label>
-    {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) (printf "class=\"form-range\" min=\"%d\" max=\"10\" step=\"1\"" $room.MinTargetScore)}}
-    {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
-    <span class="text-muted small">pts</span>
+  <div class="input-group mb-3 private-game-group">
+    <div class="input-group-text gap-2">
+      {{$.Checkbox $privateToggle ($room.PrivateToggleAttrs $.Dot) `class="form-check-input private-toggle-checkbox mt-0 me-1"`}}
+      <span>Private game</span>
+    </div>
+    <div class="form-control d-flex align-items-center gap-3">
+      <label class="mb-0 text-nowrap">Target score</label>
+      {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) (printf "class=\"form-range flex-grow-1 mb-0\" min=\"%d\" max=\"10\" step=\"1\"" $room.MinTargetScore)}}
+      {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
+      <span class="text-muted small">pts</span>
+    </div>
+    {{$.Button "Start Game" ($room.StartGameClick $.Dot) ($room.StartGameAttrs $.Dot) `class="btn btn-success"`}}
   </div>
 
   <div class="row row-cols-1 row-cols-sm-2 g-2">

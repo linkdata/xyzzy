@@ -29,7 +29,7 @@ var (
 	ErrRoomFull            = errors.New("room is full")
 	ErrGameInProgress      = errors.New("game already in progress")
 	ErrAlreadyInRoom       = errors.New("player is already in a room")
-	ErrOnlyHostCanEdit     = errors.New("only the host can change deck selection")
+	ErrOnlyHostCanEdit     = errors.New("only the host can change lobby settings")
 	ErrDecksLocked         = errors.New("deck selection is locked after the game starts")
 	ErrUnknownDeck         = errors.New("unknown deck")
 	ErrNotEnoughBlackCards = errors.New("selected decks need at least 50 unique black cards")
@@ -96,6 +96,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (*Room, er
 		return nil, err
 	}
 	room := &Room{
+		manager:         m,
 		code:            code,
 		catalog:         m.catalog,
 		rand:            roomRand,
@@ -133,6 +134,17 @@ func (m *Manager) Rooms() []*Room {
 	m.mu.RUnlock()
 	slices.SortFunc(rooms, func(a, b *Room) int { return strings.Compare(a.code, b.code) })
 	return rooms
+}
+
+func (m *Manager) PublicRooms() []*Room {
+	rooms := m.Rooms()
+	public := rooms[:0]
+	for _, room := range rooms {
+		if !room.IsPrivate() {
+			public = append(public, room)
+		}
+	}
+	return public
 }
 
 func (m *Manager) JoinRoom(code string, player *Player) (*Room, error) {
@@ -379,6 +391,13 @@ func (r *Room) TargetScore() int {
 	return score
 }
 
+func (r *Room) IsPrivate() bool {
+	r.mu.RLock()
+	private := r.private
+	r.mu.RUnlock()
+	return private
+}
+
 func (r *Room) MinTargetScore() int {
 	r.mu.RLock()
 	minScore := r.minTargetScoreLocked()
@@ -483,6 +502,12 @@ func (r *Room) LastGameScores() []FinalScore {
 	scores := append([]FinalScore(nil), r.lastGameScores...)
 	r.mu.RUnlock()
 	return scores
+}
+
+func (r *Room) SetPrivate(player *Player, private bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.setPrivateLocked(player, private)
 }
 
 func (r *Room) SetTargetScore(player *Player, score int) error {
@@ -1086,6 +1111,17 @@ func (r *Room) setTargetScoreLocked(player *Player, score int) error {
 		return ErrGameInProgress
 	}
 	r.targetScore = score
+	return nil
+}
+
+func (r *Room) setPrivateLocked(player *Player, private bool) error {
+	if r.host != player {
+		return ErrOnlyHostCanEdit
+	}
+	if r.state != StateLobby {
+		return ErrGameInProgress
+	}
+	r.private = private
 	return nil
 }
 

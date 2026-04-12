@@ -21,6 +21,24 @@ func (r *Room) ScoreTargetSlider(player *Player) bind.Binder[int] {
 		})
 }
 
+func (r *Room) PrivateToggle(player *Player) bind.Binder[bool] {
+	return bind.New(&r.mu, &r.private).
+		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) error {
+			if err := r.setPrivateLocked(player, value); err != nil {
+				return err
+			}
+			elem.Dirty(r.manager, r)
+			return nil
+		})
+}
+
+func (r *Room) PrivateToggleAttrs(player *Player) template.HTMLAttr {
+	if r.host == player && r.state == StateLobby {
+		return ""
+	}
+	return `disabled`
+}
+
 func (r *Room) ScoreTargetAttrs(player *Player) template.HTMLAttr {
 	if r.host == player && r.state == StateLobby {
 		return ""

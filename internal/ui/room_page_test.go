@@ -3,6 +3,7 @@ package ui
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,6 +39,17 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	body := roomRec.Body.String()
 	if !strings.Contains(body, room.Code()) || !strings.Contains(body, "Card Packs") {
 		t.Fatalf("unexpected room body: %s", body)
+	}
+	if !strings.Contains(body, "Private game") || !strings.Contains(body, "private-game-group") {
+		t.Fatalf("expected lobby controls to include private-game input group: %s", body)
+	}
+	privateToggle := regexp.MustCompile(`<input[^>]*class="form-check-input private-toggle-checkbox mt-0 me-1"[^>]*>`)
+	match := privateToggle.FindString(body)
+	if match == "" || strings.Contains(match, `checked`) {
+		t.Fatalf("expected private checkbox to render unchecked by default, got %q", match)
+	}
+	if !(strings.Contains(body, "Target score") && strings.Contains(body, "Start Game")) {
+		t.Fatalf("expected unified lobby controls to include target score and start button: %s", body)
 	}
 }
 
@@ -83,6 +95,53 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	body := roomRec.Body.String()
 	if !strings.Contains(body, "Card Packs") {
 		t.Fatalf("expected joined room body, got %s", body)
+	}
+}
+
+func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostRec := httptest.NewRecorder()
+	handler.ServeHTTP(hostRec, hostReq)
+	hostSess := app.Jaws.GetSession(hostReq)
+	if hostSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	host := app.player(hostSess, hostReq)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+	if err := room.SetPrivate(host, true); err != nil {
+		t.Fatalf("SetPrivate() error = %v", err)
+	}
+
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinRec := httptest.NewRecorder()
+	handler.ServeHTTP(joinRec, joinReq)
+	joinSess := app.Jaws.GetSession(joinReq)
+	if joinSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	guest := app.player(joinSess, joinReq)
+	app.setNickname(guest, "Bob")
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(joinSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+	if guest.Room != room {
+		t.Fatal("expected guest to auto-join private room by direct URL")
+	}
+	if body := roomRec.Body.String(); !strings.Contains(body, "Card Packs") {
+		t.Fatalf("expected private room body, got %s", body)
 	}
 }
 

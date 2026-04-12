@@ -29,6 +29,7 @@ type Manager struct {
 }
 
 type Room struct {
+	manager         *Manager
 	code            string
 	catalog         *deck.Catalog
 	rand            *mathrand.Rand
@@ -38,6 +39,7 @@ type Room struct {
 	host            *Player
 	players         []*Player
 	selectedDeckIDs []string
+	private         bool
 	targetScore     int
 	state           RoomState
 	round           int

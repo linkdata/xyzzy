@@ -58,10 +58,10 @@ func (a *App) SetupRoutes(mux *http.ServeMux) error {
 		"playerSubmitted": func(room *game.Room, player *game.Player) bool {
 			return room != nil && room.SubmittedBy(player)
 		},
+		"publicRooms":       a.Manager.PublicRooms,
 		"roomByCode":        a.Manager.Room,
 		"roomMain":          a.RoomMain,
 		"roomSidebar":       a.RoomSidebar,
-		"rooms":             a.Manager.Rooms,
 		"saveNicknameClick": a.SaveNicknameClick,
 		"stateBadgeClass":   stateBadgeClass,
 		"submissionAttrs":   a.SubmissionAttrs,
