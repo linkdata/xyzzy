@@ -20,18 +20,5 @@
       </div>
     </div>
   </div>
-
-  <div class="card" id="nickname-section">
-    <div class="card-body">
-      <h5 class="card-title">Your Nickname</h5>
-      <p class="card-text text-muted small">
-        This is shown to other players. Nicknames are sanitized to letters and numbers, then made unique when you join a room.
-      </p>
-      <div class="input-group">
-        {{$.Text .NicknameField `class="form-control" placeholder="Enter nickname"`}}
-        {{$.Button "Save Nickname" (saveNicknameClick .) `class="btn btn-primary"`}}
-      </div>
-    </div>
-  </div>
 </div>
 {{end}}

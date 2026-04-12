@@ -510,6 +510,19 @@ func (r *Room) SetPrivate(player *Player, private bool) error {
 	return r.setPrivateLocked(player, private)
 }
 
+func (r *Room) SetNickname(player *Player, nickname string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current := r.playerLocked(player)
+	if current == nil {
+		return
+	}
+	current.Nickname = NormalizeNickname(nickname)
+	current.NicknameInput = current.Nickname
+	current.Nickname = r.uniqueNicknameLocked(current)
+	current.NicknameInput = current.Nickname
+}
+
 func (r *Room) SetTargetScore(player *Player, score int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

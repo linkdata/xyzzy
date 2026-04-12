@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/linkdata/xyzzy/internal/game"
 )
 
 func TestLobbyRenders(t *testing.T) {
@@ -18,8 +20,11 @@ func TestLobbyRenders(t *testing.T) {
 		t.Fatalf("ServeHTTP() status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, "nickname-section") {
+	if !strings.Contains(body, "Pretend You're Xyzzy") || !strings.Contains(body, `data-bs-target="#nicknameModal"`) {
 		t.Fatalf("unexpected lobby body: %s", body)
+	}
+	if !strings.Contains(body, `id="nicknameModal"`) || !strings.Contains(body, "Change Nickname") {
+		t.Fatalf("expected lobby body to include nickname modal, got %s", body)
 	}
 	if !strings.Contains(body, "1 online player") {
 		t.Fatalf("expected lobby body to show one online player, got %s", body)
@@ -136,5 +141,27 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	}
 	if player.Room != nil {
 		t.Fatal("expected player to be in lobby")
+	}
+}
+
+func TestSetNicknameInRoomKeepsNicknameUnique(t *testing.T) {
+	app, _ := testApp(t)
+	host := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}
+	room, err := app.Manager.CreateRoom(host, app.Catalog.DefaultDeckIDs())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	guest := &game.Player{Nickname: "Bob", NicknameInput: "Bob"}
+	if _, err := app.Manager.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+
+	app.setNickname(guest, "Alice")
+
+	if got := guest.Nickname; got != "Alice-2" {
+		t.Fatalf("guest nickname = %q, want %q", got, "Alice-2")
+	}
+	if got := guest.NicknameInput; got != "Alice-2" {
+		t.Fatalf("guest nickname input = %q, want %q", got, "Alice-2")
 	}
 }

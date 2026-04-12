@@ -54,6 +54,9 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	if !strings.Contains(body, `row row-cols-1 row-cols-md-3 g-2`) {
 		t.Fatalf("expected deck selection grid to render three columns at the normal breakpoint: %s", body)
 	}
+	if !strings.Contains(body, `data-bs-target="#nicknameModal"`) || !strings.Contains(body, `id="nicknameModal"`) {
+		t.Fatalf("expected room body to include nickname modal trigger and dialog: %s", body)
+	}
 }
 
 func TestRoomAutoJoinsLobbyRoom(t *testing.T) {

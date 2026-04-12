@@ -1,0 +1,19 @@
+<div class="modal fade" id="nicknameModal" tabindex="-1" aria-labelledby="nicknameModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="nicknameModalLabel">Change Nickname</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">
+          This is shown to other players. Nicknames are sanitized to letters and numbers, then made unique when you join a room.
+        </p>
+        <div class="input-group">
+          {{$.Text $.Dot.NicknameField `class="form-control" placeholder="Enter nickname"`}}
+          {{$.Button "Save Nickname" (saveNicknameClick $.Dot) `class="btn btn-primary"`}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

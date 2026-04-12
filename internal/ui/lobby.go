@@ -12,7 +12,14 @@ type saveNicknameClick struct {
 
 func (h saveNicknameClick) JawsClick(elem *jaws.Element, _ string) error {
 	h.App.setNickname(h.Player, h.Player.NicknameInput)
-	elem.Request.Redirect("/")
+	h.App.Jaws.Dirty(h.App.Manager, h.Player, h.Player.Room)
+	redirectURL := "/"
+	if initial := elem.Request.Initial(); initial != nil && initial.URL != nil {
+		if current := initial.URL.RequestURI(); current != "" {
+			redirectURL = current
+		}
+	}
+	elem.Request.Redirect(redirectURL)
 	return nil
 }
 

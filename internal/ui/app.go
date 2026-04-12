@@ -247,7 +247,14 @@ func generateNickname() string {
 }
 
 func (a *App) setNickname(player *game.Player, nickname string) {
+	if player == nil {
+		return
+	}
 	nickname = game.NormalizeNickname(nickname)
+	if room := player.Room; room != nil {
+		room.SetNickname(player, nickname)
+		return
+	}
 	player.Nickname = nickname
 	player.NicknameInput = nickname
 }
