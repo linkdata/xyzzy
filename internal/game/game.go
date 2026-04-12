@@ -309,7 +309,7 @@ func (r *Room) IsJudge(player *Player) bool {
 
 func (r *Room) CanJoin(player *Player) bool {
 	r.mu.RLock()
-	canJoin := player != nil && player.Room == nil && r.state == StateLobby && len(r.players) < MaxPlayers
+	canJoin := r.canJoinLocked(player) == nil
 	r.mu.RUnlock()
 	return canJoin
 }
@@ -684,17 +684,15 @@ func (r *Room) join(player *Player) error {
 	if r.playerLocked(player) != nil {
 		return nil
 	}
-	if len(r.players) >= MaxPlayers {
-		return ErrRoomFull
-	}
-	if r.state != StateLobby {
-		return ErrGameInProgress
+	if err := r.canJoinLocked(player); err != nil {
+		return err
 	}
 	r.seatLocked(player)
 	r.players = append(r.players, player)
 	if r.host == nil {
 		r.host = player
 	}
+	r.dealJoinedPlayerLocked(player)
 	r.statusMessage = fmt.Sprintf("%s joined the room.", player.Nickname)
 	return nil
 }
@@ -776,6 +774,48 @@ func (r *Room) seatLocked(player *Player) {
 	player.Submitted = nil
 	player.SelectedCardIDs = nil
 	player.SelectedSubmission = nil
+}
+
+func (r *Room) canJoinLocked(player *Player) error {
+	if player == nil {
+		return ErrRoomNotFound
+	}
+	if player.Room != nil {
+		return ErrAlreadyInRoom
+	}
+	if len(r.players) >= MaxPlayers {
+		return ErrRoomFull
+	}
+	if r.state == StateLobby {
+		return nil
+	}
+	_, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
+	if err != nil {
+		return err
+	}
+	if whiteCount < MinWhiteCardsPerPlayer*(len(r.players)+1) {
+		return ErrNotEnoughWhiteCards
+	}
+	return nil
+}
+
+func (r *Room) dealJoinedPlayerLocked(player *Player) {
+	if player == nil || r.state == StateLobby {
+		return
+	}
+	for len(player.Hand) < HandSize {
+		player.Hand = append(player.Hand, r.drawWhiteLocked())
+	}
+	if r.state != StatePlaying {
+		return
+	}
+	black := r.currentBlackLocked()
+	if black == nil {
+		return
+	}
+	for i := 0; i < black.Draw; i++ {
+		player.Hand = append(player.Hand, r.drawWhiteLocked())
+	}
 }
 
 func (r *Room) uniqueNicknameLocked(player *Player) string {

@@ -51,6 +51,9 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	if !(strings.Contains(body, "Target score") && strings.Contains(body, "Start Game")) {
 		t.Fatalf("expected unified lobby controls to include target score and start button: %s", body)
 	}
+	if !strings.Contains(body, `row row-cols-1 row-cols-md-3 g-2`) {
+		t.Fatalf("expected deck selection grid to render three columns at the normal breakpoint: %s", body)
+	}
 }
 
 func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
@@ -142,6 +145,61 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	}
 	if body := roomRec.Body.String(); !strings.Contains(body, "Card Packs") {
 		t.Fatalf("expected private room body, got %s", body)
+	}
+}
+
+func TestRoomAutoJoinsGameInProgress(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostRec := httptest.NewRecorder()
+	handler.ServeHTTP(hostRec, hostReq)
+	hostSess := app.Jaws.GetSession(hostReq)
+	if hostSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	host := app.player(hostSess, hostReq)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guest1Sess := newTestSession(t, app, handler)
+	guest1 := app.player(guest1Sess, nil)
+	app.setNickname(guest1, "Bob")
+	if _, err := app.joinRoom(guest1, room.Code()); err != nil {
+		t.Fatalf("JoinRoom(guest1) error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinRec := httptest.NewRecorder()
+	handler.ServeHTTP(joinRec, joinReq)
+	joinSess := app.Jaws.GetSession(joinReq)
+	if joinSess == nil {
+		t.Fatal("expected JaWS session")
+	}
+	guest := app.player(joinSess, joinReq)
+	app.setNickname(guest, "Drew")
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(joinSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+	if guest.Room != room {
+		t.Fatal("expected guest to auto-join game in progress")
+	}
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Your Hand") {
+		t.Fatalf("expected in-progress room body for joined player, got %s", body)
 	}
 }
 

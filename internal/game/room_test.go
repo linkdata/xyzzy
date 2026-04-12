@@ -100,6 +100,129 @@ func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	}
 }
 
+func TestJoinDuringPlayingDealsCurrentRoundHandAndAllowsSubmission(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	forceRound(t, room, "b3")
+
+	if _, err := mgr.JoinRoom(room.Code(), drew); err != nil {
+		t.Fatalf("JoinRoom() during playing error = %v", err)
+	}
+	if drew.Room != room {
+		t.Fatal("expected joining player to be seated in playing room")
+	}
+	if got := len(room.HandFor(drew)); got != HandSize+1 {
+		t.Fatalf("joined player hand size = %d, want %d", got, HandSize+1)
+	}
+	if !room.CanSubmit(drew) {
+		t.Fatal("expected joined player to be able to submit in the current round")
+	}
+
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
+	}
+	for _, player := range room.Players() {
+		if player == judge {
+			continue
+		}
+		hand := room.HandFor(player)
+		cardIDs := []string{hand[0].ID}
+		if err := room.PlayCards(player, cardIDs); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if room.State() != StateJudging || len(room.Submissions()) != len(room.Players())-1 {
+		t.Fatalf("expected joined player submission to count toward judging transition")
+	}
+}
+
+func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
+	}
+	for _, player := range room.Players() {
+		if player == judge {
+			continue
+		}
+		hand := room.HandFor(player)
+		if err := room.PlayCards(player, []string{hand[0].ID}); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if room.State() != StateJudging {
+		t.Fatalf("expected judging state, got %s", room.State())
+	}
+
+	if _, err := mgr.JoinRoom(room.Code(), drew); err != nil {
+		t.Fatalf("JoinRoom() during judging error = %v", err)
+	}
+	if got := len(room.HandFor(drew)); got != HandSize {
+		t.Fatalf("joined player hand size during judging = %d, want %d", got, HandSize)
+	}
+	if room.CanSubmit(drew) {
+		t.Fatal("joined player should wait until the next round during judging")
+	}
+
+	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if room.State() != StatePlaying {
+		t.Fatalf("expected next round after judging, got %s", room.State())
+	}
+	if !room.CanSubmit(drew) {
+		t.Fatal("joined player should be active next round")
+	}
+}
+
+func TestJoinDuringGameRequiresEnoughCardsForAnotherPlayer(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if room.CanJoin(drew) {
+		t.Fatal("expected in-progress room with too few white cards to reject another player")
+	}
+	if _, err := mgr.JoinRoom(room.Code(), drew); err != ErrNotEnoughWhiteCards {
+		t.Fatalf("JoinRoom() error = %v, want %v", err, ErrNotEnoughWhiteCards)
+	}
+}
+
 func TestJudgeLeavingResetsToLobbyAndHostLeavingReassigns(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
