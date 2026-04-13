@@ -106,7 +106,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 		a.leaveRoom(player)
 	}
 	a.syncNicknameCookie(w, r, player)
-	if err := a.renderTemplate(w, r, "index.html", player); err != nil {
+	if err := a.renderTemplate(w, r, "index.html", makeTemplateDot(player)); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -127,7 +127,7 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.syncNicknameCookie(w, r, player)
-	if err := a.renderTemplate(w, r, "room.html", player); err != nil {
+	if err := a.renderTemplate(w, r, "room.html", makeTemplateDot(player)); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -154,6 +154,13 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) error {
 	req := a.Jaws.NewRequest(r)
 	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
+}
+
+func makeTemplateDot(player *game.Player) templateDot {
+	if player == nil {
+		return templateDot{}
+	}
+	return templateDot{Player: player, Room: player.Room}
 }
 
 func (a *App) session(r *http.Request) *jaws.Session {

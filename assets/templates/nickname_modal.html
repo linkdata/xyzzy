@@ -1,3 +1,4 @@
+{{with .Dot}}
 <div class="modal fade" id="nicknameModal" tabindex="-1" aria-labelledby="nicknameModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -10,10 +11,11 @@
           This is shown to other players. Nicknames are sanitized to letters and numbers, then made unique when you join a room.
         </p>
         <div class="input-group">
-          {{$.Text $.Dot.NicknameField `class="form-control" placeholder="Enter nickname"`}}
-          {{$.Button "Save Nickname" (saveNicknameClick $.Dot) `class="btn btn-primary"`}}
+          {{$.Text .NicknameField `class="form-control" placeholder="Enter nickname"`}}
+          {{$.Button "Save Nickname" (saveNicknameClick .Player) `class="btn btn-primary"`}}
         </div>
       </div>
     </div>
   </div>
 </div>
+{{end}}

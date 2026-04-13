@@ -2,24 +2,26 @@
 <html lang="en">
 <head>{{template "head.html" $}}</head>
 <body>
+{{with .Dot}}
 <div id="jaws-alerts" class="position-fixed start-50 translate-middle-x" style="top:4rem;z-index:1060;min-width:320px"></div>
 <form autocomplete="off">
   <nav class="navbar navbar-dark bg-dark fixed-top px-3">
     <a class="navbar-brand fw-bold" href="/">Pretend You're Xyzzy</a>
-    <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#nicknameModal">{{$.Dot.Nickname}}</button>
+    <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#nicknameModal">{{.Nickname}}</button>
   </nav>
   <div class="container-fluid" style="margin-top:4.5rem">
     <div class="row g-3">
       <div class="col-md-3">
-        {{$.Container "div" (lobbySidebar $.Dot)}}
+        {{$.Container "div" (lobbySidebar .Player)}}
       </div>
       <div class="col-md-9">
-        {{$.Container "div" (lobbyMain $.Dot)}}
+        {{$.Container "div" (lobbyMain .Player)}}
       </div>
     </div>
   </div>
   {{template "nickname_modal.html" $}}
-  {{$.TailHTML}}
 </form>
+{{end}}
+{{$.TailHTML}}
 </body>
 </html>
