@@ -1,7 +1,8 @@
 package ui
 
 import (
-	"fmt"
+	"slices"
+
 	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/jaws/lib/jtag"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -22,37 +23,18 @@ type roomDeckTag struct {
 	Deck *deck.Deck
 }
 
-func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool, alert string) {
-	if slicesContains(player.SelectedCards, card) {
-		player.SelectedCards = deleteCard(player.SelectedCards, card)
-		return true, ""
+func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool) {
+	if idx := slices.Index(player.SelectedCards, card); idx >= 0 {
+		player.SelectedCards = slices.Delete(player.SelectedCards, idx, idx+1)
+		return true
 	}
 	if needPick == 1 {
 		player.SelectedCards = []*deck.WhiteCard{card}
-		return true, ""
+		return true
 	}
 	if len(player.SelectedCards) >= needPick {
-		return false, fmt.Sprintf("Select exactly %d cards.", needPick)
+		return false
 	}
 	player.SelectedCards = append(player.SelectedCards, card)
-	return true, ""
-}
-
-func slicesContains(values []*deck.WhiteCard, target *deck.WhiteCard) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-func deleteCard(values []*deck.WhiteCard, target *deck.WhiteCard) []*deck.WhiteCard {
-	out := values[:0]
-	for _, value := range values {
-		if value != target {
-			out = append(out, value)
-		}
-	}
-	return out
+	return true
 }

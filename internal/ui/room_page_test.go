@@ -205,6 +205,9 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	if !strings.Contains(body, "Your Hand") {
 		t.Fatalf("expected in-progress room body for joined player, got %s", body)
 	}
+	if strings.Contains(body, `<button class="card-face card-face-white`) {
+		t.Fatalf("expected hand cards to render as clickable template elements instead of buttons, got %s", body)
+	}
 }
 
 func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
@@ -393,13 +396,13 @@ func TestApplyCardSelectionReplacesSinglePickSelection(t *testing.T) {
 	w2 := &deck.WhiteCard{ID: "w2"}
 	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1}}
 
-	changed, alert := applyCardSelection(player, w2, 1)
+	changed := applyCardSelection(player, w2, 1)
 
 	if len(player.SelectedCards) != 1 || player.SelectedCards[0] != w2 {
 		t.Fatalf("SelectedCards = %v, want [w2]", player.SelectedCards)
 	}
-	if !changed || alert != "" {
-		t.Fatalf("applyCardSelection() = (%v, %q), want (true, \"\")", changed, alert)
+	if !changed {
+		t.Fatalf("applyCardSelection() = (%v), want (true)", changed)
 	}
 }
 
@@ -409,12 +412,12 @@ func TestApplyCardSelectionKeepsMultiPickLimit(t *testing.T) {
 	w3 := &deck.WhiteCard{ID: "w3"}
 	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1, w2}}
 
-	changed, alert := applyCardSelection(player, w3, 2)
+	changed := applyCardSelection(player, w3, 2)
 
 	if len(player.SelectedCards) != 2 || player.SelectedCards[0] != w1 || player.SelectedCards[1] != w2 {
 		t.Fatalf("SelectedCards = %v, want unchanged", player.SelectedCards)
 	}
-	if changed || alert == "" {
-		t.Fatalf("applyCardSelection() = (%v, %q), want validation message without mutation", changed, alert)
+	if changed {
+		t.Fatalf("applyCardSelection() = (%v), want no mutation", changed)
 	}
 }
