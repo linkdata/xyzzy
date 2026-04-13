@@ -13,9 +13,9 @@
 
   <div class="list-group list-group-flush">
     {{range .Room.Players}}
-    <div class="list-group-item px-0 d-flex justify-content-between align-items-center{{if $.Dot.IsRoundWinner .}} list-group-item-warning room-player-winner{{end}}">
+    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
       <span>
-        {{.Nickname}}
+        <span{{if $.Dot.IsRoundWinner .}} class="room-player-winner"{{end}}>{{.Nickname}}</span>
         {{if $.Dot.PlayerHost .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
         {{if $.Dot.PlayerJudge .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
         {{if $.Dot.IsRoundWinner .}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}

@@ -118,8 +118,11 @@
 }
 
 .room-player-winner {
-  background: rgba(255, 193, 7, 0.18);
-  border-radius: 10px;
+  display: inline-block;
+  padding: 0.08em 0.35em;
+  line-height: 1.2;
+  border-radius: 8px;
+  background: rgba(255, 193, 7, 0.28);
 }
 
 .review-countdown-button {
