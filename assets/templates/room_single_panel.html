@@ -1,6 +1,6 @@
 {{with .Dot}}
 <div id="{{$.Jid}}" class="py-4">
-  {{with roomByCode ($.Initial.PathValue "code")}}
+  {{with .RoomByCode ($.Initial.PathValue "code")}}
   <div class="alert alert-info">
     <h5 class="alert-heading">Not seated at this table</h5>
     {{if eq .State "lobby"}}

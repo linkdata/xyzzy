@@ -15,7 +15,7 @@
         <li>Returning to the lobby leaves your current room immediately.</li>
       </ul>
       <div class="mt-3 text-end">
-        {{with onlinePlayers}}
+        {{with .OnlinePlayers}}
         <small class="text-muted">{{.}} online player{{if ne . 1}}s{{end}}</small>
         {{end}}
       </div>

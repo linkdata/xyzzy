@@ -16,6 +16,13 @@ type whiteCardView struct {
 	SelectionOrder int
 }
 
+func (v whiteCardView) WhiteFootnote() string {
+	if v.Room == nil || v.Card == nil {
+		return ""
+	}
+	return cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card.ID), v.Card.ID)
+}
+
 type submissionCardsView struct {
 	Cards []whiteCardView
 }

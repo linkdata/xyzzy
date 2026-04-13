@@ -1,17 +1,182 @@
 package ui
 
 import (
+	"errors"
 	"html/template"
+	"sync"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
+	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
 type templateDot struct {
+	App *App
 	*game.Player
 	*game.Room
+}
+
+func (d templateDot) OnlinePlayers() int {
+	return d.App.Jaws.SessionCount()
+}
+
+func (d templateDot) PublicRooms() []*game.Room {
+	return d.App.Manager.PublicRooms()
+}
+
+func (d templateDot) RoomByCode(code string) *game.Room {
+	return d.App.Manager.Room(code)
+}
+
+func (d templateDot) LobbySidebar() jaws.Container {
+	return &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar}
+}
+
+func (d templateDot) LobbyMain() jaws.Container {
+	return &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain}
+}
+
+func (d templateDot) RoomSidebar(code string) jaws.Container {
+	return &section{
+		App:           d.App,
+		Player:        d.Player,
+		RequestedCode: normalizeRoomCode(code),
+		Kind:          sectionRoomSidebar,
+	}
+}
+
+func (d templateDot) RoomMain(code string) jaws.Container {
+	return &section{
+		App:           d.App,
+		Player:        d.Player,
+		RequestedCode: normalizeRoomCode(code),
+		Kind:          sectionRoomMain,
+	}
+}
+
+func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
+	return jui.Clickable("Save Nickname", func(elem *jaws.Element, name string) error {
+		d.App.setNickname(d.Player, d.Player.NicknameInput)
+		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room)
+		redirectURL := "/"
+		if initial := elem.Request.Initial(); initial != nil && initial.URL != nil {
+			if current := initial.URL.RequestURI(); current != "" {
+				redirectURL = current
+			}
+		}
+		elem.Request.Redirect(redirectURL)
+		return nil
+	})
+}
+
+func (d templateDot) OrderedDecks() []*deck.Deck {
+	return d.App.Catalog.OrderedDecks()
+}
+
+func (d templateDot) DeckToggle(deck *deck.Deck) bind.Binder[bool] {
+	value := false
+	room := d.Player.Room
+	binder := bind.New(&sync.Mutex{}, &value).
+		GetLocked(func(bind bind.Binder[bool], elem *jaws.Element) bool {
+			return room != nil && room.DeckEnabled(deck)
+		}).
+		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) error {
+			if room == nil {
+				return game.ErrRoomNotFound
+			}
+			if err := room.SetDeckEnabled(d.Player, deck, value); err != nil {
+				return err
+			}
+			elem.Dirty(d.Player, room)
+			return nil
+		})
+	return taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
+}
+
+func (d templateDot) DeckToggleAttrs() template.HTMLAttr {
+	room := d.Player.Room
+	if room == nil || !room.IsHost(d.Player) || room.State() != game.StateLobby {
+		return `disabled`
+	}
+	return ""
+}
+
+func (d templateDot) CardAction(card *deck.WhiteCard) jaws.ClickHandler {
+	return jui.Clickable("Select Card", func(elem *jaws.Element, name string) error {
+		room := d.Player.Room
+		if room == nil || !room.CanSubmit(d.Player) || card == nil {
+			return nil
+		}
+		changed, alert := applyCardSelection(d.Player, card.ID, room.NeedPick())
+		if alert != "" {
+			return errors.New(alert)
+		}
+		if changed {
+			elem.Dirty(d.Player)
+		}
+		return nil
+	})
+}
+
+func (d templateDot) CardBody(card *deck.WhiteCard) bind.HTMLGetter {
+	return d.App.HandCardHTML(d.Player, card)
+}
+
+func (d templateDot) CardAttrs() template.HTMLAttr {
+	room := d.Player.Room
+	if room == nil || !room.CanSubmit(d.Player) {
+		return `disabled`
+	}
+	return ""
+}
+
+func (d templateDot) CardClass(card *deck.WhiteCard) template.HTMLAttr {
+	class := `class="card-face card-face-white w-100 text-start`
+	if card != nil && slicesContains(d.Player.SelectedCardIDs, card.ID) {
+		class += ` is-selected`
+	}
+	return template.HTMLAttr(class + `"`)
+}
+
+func (d templateDot) SubmissionAction(submission *game.Submission) jaws.ClickHandler {
+	return jui.Clickable("Select Submission", func(elem *jaws.Element, name string) error {
+		room := d.Player.Room
+		if room == nil || !room.CanJudge(d.Player) || submission == nil {
+			return nil
+		}
+		if d.Player.SelectedSubmission == submission {
+			d.Player.SelectedSubmission = nil
+		} else {
+			d.Player.SelectedSubmission = submission
+		}
+		elem.Dirty(d.Player)
+		return nil
+	})
+}
+
+func (d templateDot) SubmissionBody(submission *game.Submission) bind.HTMLGetter {
+	return d.App.SubmissionHTML(d.Player, submission)
+}
+
+func (d templateDot) SubmissionAttrs() template.HTMLAttr {
+	room := d.Player.Room
+	if room == nil || !room.CanJudge(d.Player) {
+		return `disabled`
+	}
+	return ""
+}
+
+func (d templateDot) SubmissionClass(submission *game.Submission) template.HTMLAttr {
+	class := `class="card-face card-face-white w-100 text-start`
+	if room := d.Player.Room; room != nil && room.IsWinningSubmission(submission) {
+		class += ` is-winning`
+	}
+	if d.Player.SelectedSubmission == submission {
+		class += ` is-selected`
+	}
+	return template.HTMLAttr(class + `"`)
 }
 
 func (d templateDot) PrivateToggle() bind.Binder[bool] {
@@ -76,4 +241,80 @@ func (d templateDot) ProceedReviewClick() jaws.ClickHandler {
 
 func (d templateDot) ProceedReviewAttrs() template.HTMLAttr {
 	return d.Room.ProceedReviewAttrs(d.Player)
+}
+
+func (d templateDot) WaitingTitle() string {
+	if d.Room == nil {
+		return "Waiting"
+	}
+	switch d.Room.State() {
+	case game.StateJudging:
+		if judge := d.Room.JudgeName(); judge != "" {
+			return judge + " is picking the winner"
+		}
+		return "Waiting for the judge"
+	case game.StatePlaying:
+		if d.Room.IsJudge(d.Player) {
+			return "Waiting for answers"
+		}
+		return "Waiting for the rest of the table"
+	default:
+		return "Waiting"
+	}
+}
+
+func (d templateDot) WaitingDetail() string {
+	if d.Room == nil || d.Room.State() != game.StatePlaying {
+		return ""
+	}
+	if d.Room.IsJudge(d.Player) {
+		return "You'll choose the winner once every answer is in."
+	}
+	if d.Room.SubmittedBy(d.Player) {
+		return "Your cards are in."
+	}
+	return ""
+}
+
+func (d templateDot) BlackFootnote(card *deck.BlackCard) string {
+	if d.Room == nil || card == nil {
+		return ""
+	}
+	return cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card.ID), card.ID)
+}
+
+func (d templateDot) StateBadgeClass() string {
+	state := game.StateLobby
+	if d.Room != nil {
+		state = d.Room.State()
+	}
+	switch state {
+	case game.StateLobby:
+		return "bg-secondary"
+	case game.StatePlaying:
+		return "bg-success"
+	case game.StateReview:
+		return "bg-info text-dark"
+	default:
+		return "bg-warning text-dark"
+	}
+}
+
+func (d templateDot) PlayerHost(player *game.Player) bool {
+	return d.Room != nil && d.Room.IsHost(player)
+}
+
+func (d templateDot) PlayerJudge(player *game.Player) bool {
+	return d.Room != nil && d.Room.IsJudge(player)
+}
+
+func (d templateDot) PlayerScore(player *game.Player) int {
+	if d.Room == nil {
+		return 0
+	}
+	return d.Room.ScoreFor(player)
+}
+
+func (d templateDot) PlayerSubmitted(player *game.Player) bool {
+	return d.Room != nil && d.Room.SubmittedBy(player)
 }

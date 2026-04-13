@@ -37,44 +37,7 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 }
 
 func (a *App) SetupRoutes(mux *http.ServeMux) error {
-	templates, err := template.New("root").Funcs(template.FuncMap{
-		"blackFootnote":   renderBlackCardFootnote,
-		"cardAction":      a.CardAction,
-		"cardBody":        a.HandCardHTML,
-		"cardAttrs":       a.HandCardAttrs,
-		"cardClass":       a.HandCardClass,
-		"deckToggle":      a.DeckToggle,
-		"deckToggleAttrs": a.DeckToggleAttrs,
-		"join":            strings.Join,
-		"lobbyMain":       a.LobbyMain,
-		"lobbySidebar":    a.LobbySidebar,
-		"orderedDecks":    a.Catalog.OrderedDecks,
-		"onlinePlayers":   a.Jaws.SessionCount,
-		"playerHost":      func(room *game.Room, player *game.Player) bool { return room != nil && room.IsHost(player) },
-		"playerJudge":     func(room *game.Room, player *game.Player) bool { return room != nil && room.IsJudge(player) },
-		"playerScore": func(room *game.Room, player *game.Player) int {
-			if room == nil {
-				return 0
-			}
-			return room.ScoreFor(player)
-		},
-		"playerSubmitted": func(room *game.Room, player *game.Player) bool {
-			return room != nil && room.SubmittedBy(player)
-		},
-		"publicRooms":       a.Manager.PublicRooms,
-		"roomByCode":        a.Manager.Room,
-		"roomMain":          a.RoomMain,
-		"roomSidebar":       a.RoomSidebar,
-		"saveNicknameClick": a.SaveNicknameClick,
-		"stateBadgeClass":   stateBadgeClass,
-		"submissionAttrs":   a.SubmissionAttrs,
-		"submissionAction":  a.SubmissionAction,
-		"submissionClass":   a.SubmissionClass,
-		"submissionBody":    a.SubmissionHTML,
-		"waitingDetail":     waitingDetail,
-		"waitingTitle":      waitingTitle,
-		"whiteFootnote":     renderWhiteCardFootnote,
-	}).ParseFS(xyzzy.Assets, "assets/templates/*.html")
+	templates, err := template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html")
 	if err != nil {
 		return err
 	}
@@ -106,7 +69,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 		a.leaveRoom(player)
 	}
 	a.syncNicknameCookie(w, r, player)
-	if err := a.renderTemplate(w, r, "index.html", makeTemplateDot(player)); err != nil {
+	if err := a.renderTemplate(w, r, "index.html", a.makeTemplateDot(player)); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -127,7 +90,7 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.syncNicknameCookie(w, r, player)
-	if err := a.renderTemplate(w, r, "room.html", makeTemplateDot(player)); err != nil {
+	if err := a.renderTemplate(w, r, "room.html", a.makeTemplateDot(player)); err != nil {
 		a.Jaws.Log(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -156,11 +119,11 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
 }
 
-func makeTemplateDot(player *game.Player) templateDot {
+func (a *App) makeTemplateDot(player *game.Player) templateDot {
 	if player == nil {
-		return templateDot{}
+		return templateDot{App: a}
 	}
-	return templateDot{Player: player, Room: player.Room}
+	return templateDot{App: a, Player: player, Room: player.Room}
 }
 
 func (a *App) session(r *http.Request) *jaws.Session {
@@ -320,19 +283,6 @@ func (a *App) roomURL(code string) string {
 }
 
 func (a *App) RoomURL(code string) string { return a.roomURL(code) }
-
-func stateBadgeClass(state game.RoomState) string {
-	switch state {
-	case game.StateLobby:
-		return "bg-secondary"
-	case game.StatePlaying:
-		return "bg-success"
-	case game.StateReview:
-		return "bg-info text-dark"
-	default:
-		return "bg-warning text-dark"
-	}
-}
 
 func requestIsSecure(r *http.Request) bool {
 	if r == nil {

@@ -27,20 +27,6 @@ func (r SubmissionRef) GoString() string {
 	return fmt.Sprintf("SubmissionRef{%q}", r.Submission.ID)
 }
 
-func renderWhiteCardFootnote(room *game.Room, card *deck.WhiteCard) string {
-	if room == nil || card == nil {
-		return ""
-	}
-	return cardFootnote(room.FirstSelectedDeckNameForWhiteCard(card.ID), card.ID)
-}
-
-func renderBlackCardFootnote(room *game.Room, card *deck.BlackCard) string {
-	if room == nil || card == nil {
-		return ""
-	}
-	return cardFootnote(room.FirstSelectedDeckNameForBlackCard(card.ID), card.ID)
-}
-
 func cardFootnote(deckName, cardID string) string {
 	number := cardIDDigits(cardID)
 	if deckName == "" {

@@ -29,22 +29,6 @@ type templateFrame struct {
 	jui.Template
 }
 
-func (a *App) LobbySidebar(player *game.Player) jaws.Container {
-	return &section{App: a, Player: player, Kind: sectionLobbySidebar}
-}
-
-func (a *App) LobbyMain(player *game.Player) jaws.Container {
-	return &section{App: a, Player: player, Kind: sectionLobbyMain}
-}
-
-func (a *App) RoomSidebar(player *game.Player, roomCode string) jaws.Container {
-	return &section{App: a, Player: player, RequestedCode: normalizeRoomCode(roomCode), Kind: sectionRoomSidebar}
-}
-
-func (a *App) RoomMain(player *game.Player, roomCode string) jaws.Container {
-	return &section{App: a, Player: player, RequestedCode: normalizeRoomCode(roomCode), Kind: sectionRoomMain}
-}
-
 func (s *section) JawsGetTag(jtag.Context) any {
 	tags := []any{s.Player}
 	switch s.Kind {
@@ -59,7 +43,7 @@ func (s *section) JawsGetTag(jtag.Context) any {
 }
 
 func (s *section) JawsContains(*jaws.Element) []jaws.UI {
-	dot := templateDot{Player: s.Player, Room: s.currentRoom()}
+	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
 		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}

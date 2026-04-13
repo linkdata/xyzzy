@@ -3,9 +3,9 @@
   <div class="d-grid mb-3">
     <a href="/create-room" class="btn btn-primary">Create Room</a>
   </div>
-  {{if publicRooms}}
+  {{if .PublicRooms}}
   <div class="list-group">
-    {{range publicRooms}}
+    {{range .PublicRooms}}
     <a href="/room/{{.Code}}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
       <span>
         <span class="fw-semibold font-monospace">{{.Code}}</span>

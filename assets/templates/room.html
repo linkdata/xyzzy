@@ -12,10 +12,10 @@
   <div class="container-fluid" style="margin-top:4.5rem">
     <div class="row g-3">
       <div class="col-md-3">
-        {{$.Container "div" (roomSidebar .Player ($.Initial.PathValue "code"))}}
+        {{$.Container "div" (.RoomSidebar ($.Initial.PathValue "code"))}}
       </div>
       <div class="col-md-9">
-        {{$.Container "div" (roomMain .Player ($.Initial.PathValue "code"))}}
+        {{$.Container "div" (.RoomMain ($.Initial.PathValue "code"))}}
       </div>
     </div>
   </div>
