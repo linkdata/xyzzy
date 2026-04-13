@@ -59,22 +59,23 @@ func (s *section) JawsGetTag(jtag.Context) any {
 }
 
 func (s *section) JawsContains(*jaws.Element) []jaws.UI {
+	dot := templateDot{Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", s.Player)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
 	case sectionLobbyMain:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", s.Player)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
 	case sectionRoomSidebar:
 		if s.currentRoom() == nil {
 			return nil
 		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", s.Player)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
 	default:
 		templateName := "room_single_panel.html"
 		if s.currentRoom() != nil {
 			templateName = "room_game_panel.html"
 		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, s.Player)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
 	}
 }
 
