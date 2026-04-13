@@ -1,166 +1,99 @@
 # JaWS Notes For Future Work
 
-Read this before changing the JaWS-driven UI in this repo.
+Read this before changing JaWS-driven UI code.
 
 ## Core mindset
 
-JaWS is not asking for an MVC layer.
+JaWS does not require an MVC layer.
 
-- Prefer direct binding to the real model data and the real mutex that protects it.
-- Do not invent page/view-model/read-model wrappers unless JaWS itself needs one.
-- In this repo, the important domain objects are `*game.Player`, `*game.Room`, `*deck.Deck`, `*deck.WhiteCard`, `*game.Submission`, and `*jaws.Session`.
+- Keep data flow direct between domain state and UI bindings.
+- Add abstraction only when it clearly improves correctness, reuse, or readability.
+- Prefer small composable helpers over deep wrapper hierarchies.
 
-The earlier mistakes here came from trying to wrap JaWS into a more familiar framework shape. That made the code larger, less direct, and less correct.
+## Sessions and state ownership
 
-## Sessions and players
-
-Use JaWS sessions as player lifetime.
-
-- Store `*game.Player` directly in the JaWS session.
-- Treat one JaWS session as one player.
-- Let session expiry drive periodic cleanup of disconnected players.
-- Keep the nickname cookie only as a seed when a new player object has to be created after session expiry.
-
-Do not bring back `player_id`, `room_code`, or other redundant session keys.
+- Keep session data minimal and authoritative.
+- Avoid duplicating the same state in multiple session keys.
+- Let server-side state ownership remain clear: each mutable value should have one source of truth.
 
 ## Binding rules
 
-Bind UI elements directly to real state.
-
-- If a value lives on `*game.Room`, its binder should usually also live on `*game.Room`.
-- Use the actual room lock for room-owned state: `bind.New(&r.mu, &r.someField)`.
-- Do not use fake mutexes or temporary locals just to get a binder-shaped object.
-
-Examples:
-
-- Score target slider should bind directly to `&room.targetScore`.
-- Deck toggles should tag with a comparable value like `(room pointer + deck pointer)`.
-- Hand-card and submission actions should tag with semantic comparable values using the actual player/room/card/submission pointers.
+- Bind to real state and the lock that protects it.
+- Use binders for values that are truly stateful and synchronized.
+- If a value is computed and has no addressable field, a local/computed binder is acceptable when scoped tightly and tagged meaningfully.
 
 ## Buttons and click handlers
 
-Do not create dummy binders just to catch clicks.
-
-- Hardcode simple button text in templates.
-- Pass the click handler as a separate template parameter.
-- Only use binders when there is real bound state.
-- If something is only clickable, make it a `jaws.ClickHandler`, not a fake `bind.Binder[T]`.
-
-Examples:
-
-- `StartGameClick`, `SubmitCardsClick`, `JudgeClick`, `CreateRoomClick`, and `SaveNicknameClick` should be plain click handlers.
-- Card-selection and submission-selection buttons should also be plain click handlers. Their semantic tag belongs on the HTML getter that renders the button body, not on a fake action binder.
+- For simple buttons, prefer `ui.Clickable()`.
+- Use plain click handlers for click-only interactions.
+- Use binders only when the element has real bound value state (not just clicks).
+- Keep button label/content concerns separate from click behavior.
 
 ## Getter purity
 
 Treat getters as pure reads.
 
-- Do not mutate attributes, classes, or other UI state inside `JawsGet`, `JawsGetLocked`, or `JawsGetHTML`.
-- Do not call `SetAttr`, `RemoveAttr`, `SetClass`, `RemoveClass`, or `Dirty` from getters.
-- Do not hide validation or side effects in getter paths.
-
-If an element needs to start disabled, hidden, or selected:
-
-- Compute that in a helper that returns `template.HTMLAttr`.
-- Use that helper in the template at initial render time.
+- Do not mutate UI state from `JawsGet*` paths.
+- Do not trigger side effects (`Dirty`, alerting, writes) from getters.
+- Compute initial attrs/classes in dedicated helpers and render them declaratively.
 
 ## Error handling
 
-JaWS handlers should return errors.
-
-- Do not manually call `Request.Alert(err)` in event handlers when a plain returned error will do.
-- JaWS already turns returned handler errors into alerts.
-- The same rule applies to setter hooks used by bound inputs.
-
-Use manual `Request.Alert(...)` only when you truly need request-specific alert behavior outside the normal handler error flow.
+- Return errors from handlers/setter hooks and let JaWS surface them.
+- Use manual request alerts only when custom alert behavior is actually needed.
 
 ## Dirtying
 
-Be precise about what you dirty.
+- Dirty only tags whose rendered output depends on changed state.
+- Avoid broad dirtying as a shortcut.
+- Prefer request-scoped dirtying in element/request flows.
+- Use app-level dirtying for cross-request broadcasts.
 
-- Dirty only the tags whose rendered output actually depends on the changed state.
-- Do not dirty unrelated tags as a convenience shortcut.
-- JaWS already discards `nil` tags in `Jaws.Dirty(...)`; do not wrap it just to nil-filter.
-- Prefer `Request.Dirty(...)` when already inside a request/element path.
-- Use `Jaws.Dirty(...)` for broader app-level broadcasts like room creation/removal or session cleanup.
+## Templates and partials
 
-Example:
-
-- Score target changes should rely on the direct target-score binding and should not dirty unrelated player state.
-
-## Templates over manual HTML
-
-Keep HTML structure in templates, not in Go string concatenation.
-
-- Do not hand-build card or submission markup in Go.
-- Use JaWS-aware template-backed HTML getters when button bodies or inner HTML need structured markup.
-- Keep partials in their own files.
-- Remove redundant `{{define ...}}` wrappers when the file itself is the template body.
-
-Keep text sanitization helpers if needed, but keep DOM structure in templates.
-
-Also:
-
-- For card text specifically, do preprocessing at deck-load time and store safe `template.HTML` on the loaded card structs.
-- Templates should render `.HTML` for cards, not call a formatter on every render.
+- Keep HTML structure in templates, not string concatenation in Go.
+- Keep partials small and focused.
+- Render pre-sanitized safe HTML fields directly when available.
 
 ## Template rendering helpers
 
-If you need a custom `bind.HTMLGetter` that renders a partial:
+When creating custom `bind.HTMLGetter` helpers:
 
-- Render the named template with the dot shape that template actually expects.
-- Do not wrap dot in `ui.With` unless the template needs JaWS helper fields like `$.Button`, `$.Container`, `$.Initial`, etc.
-- For simple partials like a white-card body, pass the raw view struct directly.
+- Render templates with the dot shape the template expects.
+- Pass raw dot data unless JaWS helper fields (`$.Button`, `$.Container`, `$.Initial`, etc.) are needed.
+- Keep helper code small and deterministic.
 
 ## Container identity and rerendering
 
-JaWS container updates reuse child elements by UI identity.
+JaWS container updates reuse child elements by identity.
 
-This matters a lot.
-
-- `ContainerHelper.UpdateContainer()` pools existing child elements by `elem.Ui()`.
-- If the same child UI value appears again, JaWS may reuse the old child element instead of rerendering it.
-- A tiny wrapper type can be necessary when you intentionally want the container to treat each child as a fresh renderable instance.
-
-In this repo, `templateFrame` in `internal/ui/content.go` currently exists for exactly that reason. Removing it caused live-update tests to fail because child templates stopped being rerendered as expected.
-
-Do not delete that wrapper again unless you also redesign how those sections update.
+- Be explicit about child UI identity.
+- If updates stop rerendering as expected, inspect identity reuse first.
+- Wrapper types are valid when you need distinct UI identities.
 
 ## Comparable tags
 
-JaWS tags must stay comparable and meaningful.
+Tags should be comparable and semantically meaningful.
 
-- Pointers are good tags.
-- Small structs containing pointers are good tags.
-- Slices, maps, and other non-comparable values are not good tags.
+- Prefer pointers or small structs of comparable fields.
+- Avoid slices/maps/non-comparable tag values.
+- Attach semantic tags where binders/getters are built.
 
-Prefer tags that describe the semantic UI target, not incidental wrapper objects.
+## Nil checks and invariants
 
-Where possible, attach semantic tags at the actual binder/getter construction site instead of teaching the value type itself about `JawsGetTag()`.
-
-- A plain `bind.New(&x)` defaults to tagging by pointer, so override that only when you need different semantics.
-- `bind.HTMLGetterFunc(..., tags...)` is a good way to attach semantic tags to HTML getters.
-- A small wrapper like `taggedBinder` is appropriate when the underlying binder value is not itself the right semantic tag, like a `bool` deck toggle needing `(room pointer + deck pointer)`.
-- Do not add `JawsGetTag()` to plain comparable data structs just to return themselves. If the value itself is the desired semantic tag, attach it where the binder/getter is built.
+- Keep nil checks at real boundaries (request parsing, optional external input, integration seams).
+- Avoid defensive nil checks in internal flows where invariants already guarantee non-nil values.
+- Prefer invariant-driven code paths over silent fallback behavior for impossible states.
 
 ## Tests
 
-When testing JaWS bindings:
-
-- Start the JaWS server in harnesses that rely on request/update behavior.
-- Use real JaWS elements when calling `JawsSet`, `JawsClick`, or `JawsGetHTML`.
-- Keep live-update tests around when changing container identity, dirtying, or tag behavior.
-
-If a cleanup "should not matter" but breaks live updates, inspect JaWS element identity and tag reuse before assuming the tests are wrong.
+- Use real JaWS requests/elements for binder/click/getter behavior tests.
+- Keep live-update tests for identity/tag/dirty behavior.
+- When a cleanup breaks updates, verify identity and tag semantics before changing tests.
 
 ## Anti-patterns to avoid
 
-Do not reintroduce these:
-
-- Page/view-model layers around direct room/player state.
-- Fake binders with fake mutexes and throwaway locals.
-- Persisted alert strings for normal handler failures.
-- UI mutations inside getters.
-- Manually concatenated HTML for cards/submissions.
-- Thin wrappers around `Jaws.Dirty(...)` that add no real behavior.
-- Session indirection that duplicates what JaWS sessions already provide.
+- Fake binders created only to fit an API shape.
+- UI mutations hidden in getters.
+- Broad `Dirty(...)` calls that mask dependency mistakes.
+- Template helper sprawl when direct method calls or focused helpers are cleaner.
