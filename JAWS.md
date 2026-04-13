@@ -1,106 +1,109 @@
-# JaWS Notes For Future Work
+# Skill: Build Applications With JaWS
 
-Read this before changing JaWS-driven UI code.
+Use this as an AI execution guide when implementing or refactoring server-driven UI built on `github.com/linkdata/jaws`.
 
-## Core mindset
+Verified against JaWS `v0.304.1` source and docs.
 
-JaWS does not require an MVC layer.
+## When to apply this skill
 
-- Keep data flow direct between domain state and UI bindings.
-- Add abstraction only when it clearly improves correctness, reuse, or readability.
-- Prefer small composable helpers over deep wrapper hierarchies.
+Apply these rules whenever work involves any of the following:
+- Go code that creates JaWS `UI` values, binders, handlers, requests, or sessions
+- Go templates rendered through `ui.Template` / `$.Template`
+- Event handling, dirtying, tag identity, or dynamic container updates
 
-## Sessions and state ownership
+## Primary objective
 
-- Keep session data minimal and authoritative.
-- Avoid duplicating the same state in multiple session keys.
-- Let server-side state ownership remain clear: each mutable value should have one source of truth.
+Keep browser behavior thin and deterministic while preserving server-side truth, stable identity, and predictable rerenders.
 
-## Binding rules
+## Hard framework constraints
 
-- Bind to real state and the lock that protects it.
-- Use binders for values that are truly stateful and synchronized.
-- If a value is computed and has no addressable field, a local/computed binder is acceptable when scoped tightly and tagged meaningfully.
+- Every JaWS `UI` value must be comparable.
+- `Container.JawsContains` must return hashable `UI` items, and the returned slice must not be mutated after return.
+- Treat `*ui.Container` / `*ui.Tbody` / `ContainerHelper` widgets as render-scoped; construct fresh per render, do not cache across requests.
 
-## Buttons and click handlers
+## Template-dot and tag rules
 
-- For simple buttons, prefer `ui.Clickable()`.
-- Use plain click handlers for click-only interactions.
-- Use binders only when the element has real bound value state (not just clicks).
-- Keep button label/content concerns separate from click behavior.
+- `ui.Template` expands `Dot` into tags via `jtag.TagExpand`; the root dot is part of identity/tag behavior.
+- Prefer comparable root dots (pointers or small comparable structs).
+- If root dot is non-comparable, implement `JawsGetTag(jtag.Context) any` and return a comparable tag.
+- Do not use plain `string`, numeric, `bool`, `template.HTML`, or `template.HTMLAttr` as tags; these are illegal tag types.
+- If you need string-like semantic tags, use `jtag.Tag("...")` or a comparable typed struct/pointer.
 
-## Getter purity
+## `$.Template(...)` parameter semantics
 
-Treat getters as pure reads.
+JaWS parses template params as:
+- HTML attrs: `string`, `[]string`, `template.HTMLAttr`, `[]template.HTMLAttr`
+- handlers: `EventFn`, `EventHandler`, `ClickHandler`
+- tags: everything else (plus comparable handlers are auto-tagged)
 
-- Do not mutate UI state from `JawsGet*` paths.
-- Do not trigger side effects (`Dirty`, alerting, writes) from getters.
-- Compute initial attrs/classes in dedicated helpers and render them declaratively.
+Implications:
+- Non-comparable handlers are not auto-tagged unless they implement `TagGetter`.
+- Pass explicit tags when dirty targeting depends on them.
+- Include wrapper markup attributes via `{{$.Attrs}}`.
 
-## Error handling
+## Event handling model
 
-- Return errors from handlers/setter hooks and let JaWS surface them.
-- Use manual request alerts only when custom alert behavior is actually needed.
+On incoming events, JaWS dispatches in this order:
+1. UI object (`elem.Ui()`), `JawsClick` first for click events, then `JawsEvent`
+2. Additional handlers attached to the element, in registration order
 
-## Dirtying
+Use `jaws.ErrEventUnhandled` to intentionally fall through to the next handler.
 
-- Dirty only tags whose rendered output depends on changed state.
-- Avoid broad dirtying as a shortcut.
-- Prefer request-scoped dirtying in element/request flows.
-- Use app-level dirtying for cross-request broadcasts.
+## Clickable template pattern
 
-## Templates and partials
+For clickable content rendering:
+- Prefer a template dot with `JawsClick` over passing redundant explicit click handlers.
+- Use explicit click handler params only when dot-owned handling is not viable.
+- Wrapper template root should include `id="{{$.Jid}}" {{$.Attrs}}`.
+- Add interaction semantics where needed, for example `role="button" tabindex="0"`.
+- Keep body partials presentational; attach behavior at wrapper/dot level.
 
-- Keep HTML structure in templates, not string concatenation in Go.
-- Keep partials small and focused.
-- Render pre-sanitized safe HTML fields directly when available.
+## Rendering and update rules
 
-## Prefer direct `$.Template(...)` rendering
+- Keep HTML structure in templates; avoid manual HTML string assembly in Go.
+- When using HTML getters, keep getter paths pure reads.
+- Use `JawsUpdate` for incremental updates when a custom widget needs it.
+- `Element.SetAttr/RemoveAttr/SetClass/RemoveClass/SetInner/SetValue/Append/Order/Remove/Replace` are update-time operations; call them only from render/update processing.
 
-- Prefer `$.Template("...", dot, ...)` over `bind.HTMLGetter` wrappers for rendering card/content bodies.
-- Keep the root template dot comparable when it is used as identity/tag (pointer-only structs are ideal).
-- For list rendering, range directly over view slices (`HandCardViews`, `SubmissionViews`) instead of ranging domain objects and constructing views inline per row.
-- Put computed child lists on view methods (`Cards()`) rather than non-comparable slice fields on the root dot.
+## Dirtying rules
 
-## Clickable template wrappers
+- Prefer `Request.Dirty(...)` when in request context.
+- Avoid `Jaws.Dirty(...)` unless necessary; its tag expansion runs with nil request context.
+- Dirty only precise tags whose output depends on the changed state.
 
-- For clickable template content, render a wrapper template (not `$.Button` with HTML getter content).
-- Wrapper templates must include `id="{{$.Jid}}" {{$.Attrs}}` so JaWS can attach identity, attrs, classes, handlers, and dirty updates correctly.
-- Keep interaction semantics explicit on wrapper markup (for example `role="button"` and `tabindex="0"` where keyboard/click behavior is expected).
-- Prefer view-dot click handling (`JawsClick`) for template items instead of passing redundant explicit click handlers in `$.Template(...)`.
-- Pass explicit click handlers to `$.Template(...)` only when the dot cannot own that behavior.
+## HTML safety rules
 
-## Container identity and rerendering
+`bind.MakeHTMLGetter` behavior is type-dependent:
+- `string` is used as raw HTML and is not escaped.
+- `template.HTML` is trusted as-is.
+- `Getter[string]`, `Binder[string]`, `fmt.Stringer`, and formatter-based paths are escaped.
 
-JaWS container updates reuse child elements by identity.
+Guideline:
+- Never pass untrusted input as plain `string` to HTML-producing helpers.
 
-- Be explicit about child UI identity.
-- If updates stop rerendering as expected, inspect identity reuse first.
-- Wrapper types are valid when you need distinct UI identities.
+## Request/session integration rules
 
-## Comparable tags
+- Ensure pages include both `HeadHTML` and `TailHTML` in layout flow.
+- `TailHTML` helps apply queued attr/class updates immediately and reduce initial flicker.
+- Register JaWS `/jaws/*` routes correctly and pair request creation with `UseRequest` handling.
+- Session storage is server-side and IP-bound; treat `Request.Get/Set` as session-backed convenience helpers.
 
-Tags should be comparable and semantically meaningful.
+## Runtime/lifecycle cautions
 
-- Prefer pointers or small structs of comparable fields.
-- Avoid slices/maps/non-comparable tag values.
-- Attach semantic tags where binders/getters are built.
+- Start JaWS processing loop (`Serve`/`ServeWithTimeout`) before relying on broadcast-driven APIs.
+- `Broadcast`-driven helpers (including session reload/close flows) may block before the serve loop is running.
 
-## Nil checks and invariants
+## Testing checklist
 
-- Keep nil checks at real boundaries (request parsing, optional external input, integration seams).
-- Avoid defensive nil checks in internal flows where invariants already guarantee non-nil values.
-- Prefer invariant-driven code paths over silent fallback behavior for impossible states.
+- Use real JaWS requests/elements for render/click/update tests.
+- Add regression tests for click dispatch when moving handlers between params and dot `JawsClick`.
+- For container regressions, verify identity reuse, append/remove/order behavior, and stale-element cleanup.
+- If rerendering fails, inspect tag comparability and dirty-target coverage before broadening dirty scope.
 
-## Tests
+## Anti-patterns
 
-- Use real JaWS requests/elements for binder/click/getter behavior tests.
-- Keep live-update tests for identity/tag/dirty behavior.
-- When a cleanup breaks updates, verify identity and tag semantics before changing tests.
-
-## Anti-patterns to avoid
-
-- Fake binders created only to fit an API shape.
-- UI mutations hidden in getters.
-- Broad `Dirty(...)` calls that mask dependency mistakes.
-- Template helper sprawl when direct method calls or focused helpers are cleaner.
+- Repo-specific abstractions that hide JaWS contracts instead of modeling them.
+- Fake binders or fake tags created only to satisfy an API shape.
+- Hidden mutations in getter paths.
+- Broad `Dirty(...)` calls used to mask incorrect dependency targeting.
+- Passing explicit template click handlers when dot-owned `JawsClick` already covers behavior.
