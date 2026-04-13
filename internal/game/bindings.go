@@ -15,22 +15,18 @@ func (p *Player) NicknameField() bind.Binder[string] {
 
 func (r *Room) ScoreTargetSlider(player *Player) bind.Binder[int] {
 	return bind.New(&r.mu, &r.targetScore).
-		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) error {
-			if err := r.setTargetScoreLocked(player, value); err != nil {
-				return err
-			}
-			return nil
+		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) (err error) {
+			return r.setTargetScoreLocked(player, value)
 		})
 }
 
 func (r *Room) PrivateToggle(player *Player) bind.Binder[bool] {
 	return bind.New(&r.mu, &r.private).
-		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) error {
-			if err := r.setPrivateLocked(player, value); err != nil {
-				return err
+		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
+			if err = r.setPrivateLocked(player, value); err == nil {
+				elem.Dirty(r.manager, r)
 			}
-			elem.Dirty(r.manager, r)
-			return nil
+			return
 		})
 }
 
@@ -42,7 +38,7 @@ func (r *Room) PrivateToggleAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) ScoreTargetAttrs(player *Player) template.HTMLAttr {
-	if r.host == player && r.state == StateLobby {
+	if r.IsHost(player) && r.state == StateLobby {
 		return ""
 	}
 	return `disabled`
@@ -66,17 +62,13 @@ func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) SubmitCardsClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) error {
-		if r == nil {
-			return nil
-		}
+	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) (err error) {
 		selected := append([]string(nil), player.SelectedCardIDs...)
-		if err := r.PlayCards(player, selected); err != nil {
-			return err
+		if err = r.PlayCards(player, selected); err == nil {
+			player.SelectedCardIDs = nil
+			elem.Dirty(player, r)
 		}
-		player.SelectedCardIDs = nil
-		elem.Dirty(player, r)
-		return nil
+		return
 	})
 }
 
@@ -88,16 +80,12 @@ func (r *Room) JudgeAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) JudgeClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) error {
-		if r == nil {
-			return nil
-		}
+	return ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) (err error) {
 		selected := player.SelectedSubmission
-		if err := r.Judge(player, selected); err != nil {
-			return err
+		if err = r.Judge(player, selected); err == nil {
+			player.SelectedSubmission = nil
+			elem.Dirty(player, r)
 		}
-		player.SelectedSubmission = nil
-		elem.Dirty(player, r)
 		return nil
 	})
 }
@@ -114,15 +102,11 @@ func (r *Room) ProceedReviewAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("", func(elem *jaws.Element, name string) error {
-		if r == nil {
-			return nil
+	return ui.Clickable("", func(elem *jaws.Element, name string) (err error) {
+		if err = r.ProceedReview(player); err == nil {
+			elem.Dirty(r)
 		}
-		if err := r.ProceedReview(player); err != nil {
-			return err
-		}
-		elem.Dirty(r)
-		return nil
+		return
 	})
 }
 
