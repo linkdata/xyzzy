@@ -6,6 +6,7 @@ import (
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
+	"github.com/linkdata/jaws/lib/ui"
 )
 
 func (p *Player) NicknameField() bind.Binder[string] {
@@ -57,10 +58,6 @@ func (r *Room) StartGameAttrs(player *Player) template.HTMLAttr {
 	return ""
 }
 
-func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
-	return startGameClick{Room: r, Player: player}
-}
-
 func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
 	if !r.CanSubmit(player) || len(player.SelectedCardIDs) != r.NeedPick() {
 		return `disabled`
@@ -98,22 +95,15 @@ func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
 	return proceedReviewClick{Room: r, Player: player}
 }
 
-type startGameClick struct {
-	Room   *Room
-	Player *Player
-}
-
-func (h startGameClick) JawsClick(elem *jaws.Element, _ string) error {
-	if h.Room == nil {
-		return nil
-	}
-	if err := h.Room.Start(h.Player); err != nil {
-		return err
-	}
-	h.Player.SelectedCardIDs = nil
-	h.Player.SelectedSubmission = nil
-	elem.Dirty(h.Player, h.Room)
-	return nil
+func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
+	return ui.Clickable("Start Game", func(elem *jaws.Element, name string) (err error) {
+		if err = r.Start(player); err == nil {
+			player.SelectedCardIDs = nil
+			player.SelectedSubmission = nil
+			elem.Dirty(player, r)
+		}
+		return
+	})
 }
 
 type submitCardsClick struct {
