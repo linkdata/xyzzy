@@ -1,10 +1,9 @@
 {{with .Dot}}
-{{$room := .Room}}
 <div id="{{$.Jid}}">
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="fw-bold font-monospace">{{$room.Code}}</div>
-    <span class="badge {{stateBadgeClass $room.State}}">
-      {{$room.State}}
+    <div class="fw-bold font-monospace">{{.Room.Code}}</div>
+    <span class="badge {{stateBadgeClass .Room.State}}">
+      {{.Room.State}}
     </span>
   </div>
 
@@ -13,16 +12,16 @@
   </div>
 
   <div class="list-group list-group-flush">
-    {{range $room.Players}}
-    <div class="list-group-item px-0 d-flex justify-content-between align-items-center{{if $room.IsRoundWinner .}} list-group-item-warning room-player-winner{{end}}">
+    {{range .Room.Players}}
+    <div class="list-group-item px-0 d-flex justify-content-between align-items-center{{if $.Dot.Room.IsRoundWinner .}} list-group-item-warning room-player-winner{{end}}">
       <span>
         {{.Nickname}}
-        {{if playerHost $room .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
-        {{if playerJudge $room .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
-        {{if $room.IsRoundWinner .}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
-        {{if playerSubmitted $room .}}<span class="badge bg-success ms-1">✓</span>{{end}}
+        {{if playerHost $.Dot.Room .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
+        {{if playerJudge $.Dot.Room .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
+        {{if $.Dot.Room.IsRoundWinner .}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
+        {{if playerSubmitted $.Dot.Room .}}<span class="badge bg-success ms-1">✓</span>{{end}}
       </span>
-      <span class="badge bg-primary rounded-pill">{{playerScore $room .}}</span>
+      <span class="badge bg-primary rounded-pill">{{playerScore $.Dot.Room .}}</span>
     </div>
     {{end}}
   </div>

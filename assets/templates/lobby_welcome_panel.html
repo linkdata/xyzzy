@@ -1,5 +1,4 @@
 {{with .Dot}}
-{{$online := onlinePlayers}}
 <div id="{{$.Jid}}">
   <div class="card mb-4">
     <div class="card-body">
@@ -16,7 +15,9 @@
         <li>Returning to the lobby leaves your current room immediately.</li>
       </ul>
       <div class="mt-3 text-end">
-        <small class="text-muted">{{$online}} online player{{if ne $online 1}}s{{end}}</small>
+        {{with onlinePlayers}}
+        <small class="text-muted">{{.}} online player{{if ne . 1}}s{{end}}</small>
+        {{end}}
       </div>
     </div>
   </div>

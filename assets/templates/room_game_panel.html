@@ -1,13 +1,12 @@
 {{with .Dot}}
-{{$room := .Room}}
 <div id="{{$.Jid}}">
-{{if eq $room.State "lobby"}}
+{{if eq .Room.State "lobby"}}
 
-  {{if $room.LastGameWinner}}
+  {{if .Room.LastGameWinner}}
   <div class="alert alert-warning mb-3">
-    <strong>{{$room.LastGameWinner}}</strong> won the last game!
+    <strong>{{.Room.LastGameWinner}}</strong> won the last game!
     <div class="mt-2">
-      {{range $room.LastGameScores}}
+      {{range .Room.LastGameScores}}
       <span class="badge {{if .IsWinner}}bg-warning text-dark{{else}}bg-secondary{{end}} me-1">
         {{.Nickname}} {{.Score}}
       </span>
@@ -19,40 +18,38 @@
   <div class="mb-3">
     <h5 class="mb-0">Card Packs</h5>
     <small class="text-muted">
-      {{$room.BlackCount}} black / {{$room.WhiteCount}} white selected
-      (need ≥50 black, ≥{{$room.RequiredWhite}} white)
+      {{.Room.BlackCount}} black / {{.Room.WhiteCount}} white selected
+      (need ≥50 black, ≥{{.Room.RequiredWhite}} white)
     </small>
   </div>
 
-  {{$privateToggle := $room.PrivateToggle $.Dot}}
-  {{$scoreTarget := $room.ScoreTargetSlider $.Dot}}
   <div class="input-group mb-3 private-game-group">
     <div class="input-group-text gap-2">
-      {{$.Checkbox $privateToggle ($room.PrivateToggleAttrs $.Dot) `class="form-check-input private-toggle-checkbox mt-0 me-1"`}}
+      {{$.Checkbox (.Room.PrivateToggle .) (.Room.PrivateToggleAttrs .) `class="form-check-input private-toggle-checkbox mt-0 me-1"`}}
       <span>Private game</span>
     </div>
     <div class="form-control d-flex align-items-center gap-3">
       <label class="mb-0 text-nowrap">Target score</label>
-      {{$.Range $scoreTarget ($room.ScoreTargetAttrs $.Dot) (printf "class=\"form-range flex-grow-1 mb-0\" min=\"%d\" max=\"10\" step=\"1\"" $room.MinTargetScore)}}
-      {{$.Span $scoreTarget `class="badge bg-secondary text-nowrap"`}}
+      {{$.Range (.Room.ScoreTargetSlider .) (.Room.ScoreTargetAttrs .) (printf "class=\"form-range flex-grow-1 mb-0\" min=\"%d\" max=\"10\" step=\"1\"" .Room.MinTargetScore)}}
+      {{$.Span (.Room.ScoreTargetSlider .) `class="badge bg-secondary text-nowrap"`}}
       <span class="text-muted small">pts</span>
     </div>
-    {{$.Button ($room.StartGameClick $.Dot) ($room.StartGameAttrs $.Dot) `class="btn btn-success"`}}
+    {{$.Button (.Room.StartGameClick .) (.Room.StartGameAttrs .) `class="btn btn-success"`}}
   </div>
 
   <div class="row row-cols-1 row-cols-md-3 g-2">
-    {{range $deck := orderedDecks}}
+    {{range orderedDecks}}
     <div class="col">
       <label class="card h-100 cursor-pointer">
         <div class="card-body d-flex gap-2 align-items-start py-2">
-          {{$.Checkbox (deckToggle $.Dot $deck) (deckToggleAttrs $.Dot) `class="form-check-input flex-shrink-0 mt-1"`}}
+          {{$.Checkbox (deckToggle $.Dot .) (deckToggleAttrs $.Dot) `class="form-check-input flex-shrink-0 mt-1"`}}
           <div>
-            <div class="fw-semibold">{{$deck.Name}}</div>
+            <div class="fw-semibold">{{.Name}}</div>
             <small class="text-muted">
-              {{if and $deck.Description (ne $deck.Description $deck.Name)}}
-              {{$deck.Description}}
+              {{if and .Description (ne .Description .Name)}}
+              {{.Description}}
               {{else}}
-              {{len $deck.BlackIDs}} black / {{len $deck.WhiteIDs}} white
+              {{len .BlackIDs}} black / {{len .WhiteIDs}} white
               {{end}}
             </small>
           </div>
@@ -64,29 +61,28 @@
 
 {{else}}
 
-  {{if $room.CurrentBlack}}
+  {{if .Room.CurrentBlack}}
   <div class="card-face card-face-black mb-4">
-    <div class="card-copy">{{$room.CurrentBlack.HTML}}</div>
+    <div class="card-copy">{{.Room.CurrentBlack.HTML}}</div>
     <div class="card-footer-row">
-      <small class="opacity-75">pick {{$room.NeedPick}}{{if gt $room.NeedDraw 0}} · draw {{$room.NeedDraw}}{{end}}</small>
-      <small class="opacity-60 fst-italic">{{blackFootnote $room $room.CurrentBlack}}</small>
+      <small class="opacity-75">pick {{.Room.NeedPick}}{{if gt .Room.NeedDraw 0}} · draw {{.Room.NeedDraw}}{{end}}</small>
+      <small class="opacity-60 fst-italic">{{blackFootnote .Room .Room.CurrentBlack}}</small>
     </div>
   </div>
   {{end}}
 
-  {{if eq $room.State "playing"}}
+  {{if eq .Room.State "playing"}}
 
-    {{if $room.CanSubmit $.Dot}}
+    {{if .Room.CanSubmit .}}
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
-      {{$.Button "Play Selected Cards" ($room.SubmitCardsClick $.Dot) ($room.SubmitCardsAttrs $.Dot) `class="btn btn-primary"`}}
+      <h5 class="mb-0">Your Hand — pick {{.Room.NeedPick}}</h5>
+      {{$.Button "Play Selected Cards" (.Room.SubmitCardsClick .) (.Room.SubmitCardsAttrs .) `class="btn btn-primary"`}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range $card := $room.HandFor $.Dot}}
-      {{$action := cardAction $.Dot $card}}
+      {{range .Room.HandFor .}}
       <div class="col">
-        {{$.Button (cardBody $.Dot $card) $action (cardAttrs $.Dot) (cardClass $.Dot $card)}}
+        {{$.Button (cardBody $.Dot .) (cardAction $.Dot .) (cardAttrs $.Dot) (cardClass $.Dot .)}}
       </div>
       {{end}}
     </div>
@@ -94,48 +90,45 @@
     {{else}}
 
     <div class="text-center py-5">
-      <h5>{{waitingTitle $.Dot $room}}</h5>
-      {{$detail := waitingDetail $.Dot $room}}
-      {{if $detail}}<p class="text-muted">{{$detail}}</p>{{end}}
+      <h5>{{waitingTitle . .Room}}</h5>
+      {{with waitingDetail . .Room}}<p class="text-muted">{{.}}</p>{{end}}
     </div>
 
     {{end}}
 
-  {{else if eq $room.State "judging"}}
+  {{else if eq .Room.State "judging"}}
 
-    {{$canJudge := $room.CanJudge $.Dot}}
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="mb-0">{{if $canJudge}}Pick the Winner{{else}}{{waitingTitle $.Dot $room}}{{end}}</h5>
-      {{if $canJudge}}
-      {{$.Button "Pick Winner" ($room.JudgeClick $.Dot) ($room.JudgeAttrs $.Dot) `class="btn btn-primary"`}}
+      {{if .Room.CanJudge .}}
+      <h5 class="mb-0">Pick the Winner</h5>
+      {{$.Button "Pick Winner" (.Room.JudgeClick .) (.Room.JudgeAttrs .) `class="btn btn-primary"`}}
+      {{else}}
+      <h5 class="mb-0">{{waitingTitle . .Room}}</h5>
       {{end}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range $submission := $room.Submissions}}
-      {{$action := submissionAction $.Dot $submission}}
+      {{range .Room.Submissions}}
       <div class="col">
-      {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
+      {{$.Button (submissionBody $.Dot .) (submissionAction $.Dot .) (submissionAttrs $.Dot) (submissionClass $.Dot .)}}
       </div>
       {{end}}
     </div>
 
-  {{else if eq $room.State "results"}}
+  {{else if eq .Room.State "results"}}
 
-    {{$canProceed := $room.CanProceed $.Dot}}
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h5 class="mb-0">{{$room.ReviewTitle}}</h5>
-        {{if not $canProceed}}<small class="text-muted">{{$room.ReviewWaitingText}}</small>{{end}}
+        <h5 class="mb-0">{{.Room.ReviewTitle}}</h5>
+        {{if not (.Room.CanProceed .)}}<small class="text-muted">{{.Room.ReviewWaitingText}}</small>{{end}}
       </div>
-      {{if $canProceed}}
-      {{$.Button ($room.ReviewProceedLabel) ($room.ProceedReviewClick $.Dot) ($room.ProceedReviewAttrs $.Dot)}}
+      {{if .Room.CanProceed .}}
+      {{$.Button (.Room.ReviewProceedLabel) (.Room.ProceedReviewClick .) (.Room.ProceedReviewAttrs .)}}
       {{end}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range $submission := $room.Submissions}}
-      {{$action := submissionAction $.Dot $submission}}
+      {{range .Room.Submissions}}
       <div class="col">
-        {{$.Button (submissionBody $.Dot $submission) $action (submissionAttrs $.Dot) (submissionClass $.Dot $submission)}}
+        {{$.Button (submissionBody $.Dot .) (submissionAction $.Dot .) (submissionAttrs $.Dot) (submissionClass $.Dot .)}}
       </div>
       {{end}}
     </div>
@@ -143,9 +136,8 @@
   {{else}}
 
   <div class="text-center py-5">
-    <h5>{{waitingTitle $.Dot $room}}</h5>
-    {{$detail := waitingDetail $.Dot $room}}
-    {{if $detail}}<p class="text-muted">{{$detail}}</p>{{end}}
+    <h5>{{waitingTitle . .Room}}</h5>
+    {{with waitingDetail . .Room}}<p class="text-muted">{{.}}</p>{{end}}
   </div>
 
   {{end}}

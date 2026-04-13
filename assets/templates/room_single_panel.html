@@ -1,20 +1,19 @@
 {{with .Dot}}
-{{$requested := roomByCode ($.Initial.PathValue "code")}}
 <div id="{{$.Jid}}" class="py-4">
-  {{if not $requested}}
-  <div class="alert alert-warning">
-    <h5 class="alert-heading">Room not found</h5>
-    <p class="mb-2">This room no longer exists. It may have been emptied or reset.</p>
-    <a class="btn btn-sm btn-secondary" href="/">Back to Lobby</a>
-  </div>
-  {{else}}
+  {{with roomByCode ($.Initial.PathValue "code")}}
   <div class="alert alert-info">
     <h5 class="alert-heading">Not seated at this table</h5>
-    {{if eq $requested.State "lobby"}}
+    {{if eq .State "lobby"}}
     <p class="mb-2">This room is still in the lobby, but there are no open seats right now.</p>
     {{else}}
     <p class="mb-2">This game is in progress, but this table cannot seat another player right now.</p>
     {{end}}
+    <a class="btn btn-sm btn-secondary" href="/">Back to Lobby</a>
+  </div>
+  {{else}}
+  <div class="alert alert-warning">
+    <h5 class="alert-heading">Room not found</h5>
+    <p class="mb-2">This room no longer exists. It may have been emptied or reset.</p>
     <a class="btn btn-sm btn-secondary" href="/">Back to Lobby</a>
   </div>
   {{end}}
