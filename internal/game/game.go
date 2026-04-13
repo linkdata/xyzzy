@@ -29,6 +29,7 @@ const (
 var (
 	ErrRoomNotFound        = errors.New("room not found")
 	ErrRoomFull            = errors.New("room is full")
+	ErrBannedFromRoom      = errors.New("player is banned from this room")
 	ErrGameInProgress      = errors.New("game already in progress")
 	ErrAlreadyInRoom       = errors.New("player is already in a room")
 	ErrOnlyHostCanEdit     = errors.New("only the host can change lobby settings")
@@ -283,6 +284,46 @@ func (r *Room) PlayerCount() int {
 	count := len(r.players)
 	r.mu.RUnlock()
 	return count
+}
+
+func (r *Room) IsBanned(player *Player) bool {
+	r.mu.RLock()
+	banned := r.bannedIndexLocked(player) >= 0
+	r.mu.RUnlock()
+	return banned
+}
+
+func (r *Room) SidebarPlayers() []RoomPlayer {
+	r.mu.RLock()
+	rows := make([]RoomPlayer, 0, len(r.players)+len(r.bannedPlayers))
+	judge := r.judgeLocked()
+	for _, player := range r.players {
+		rows = append(rows, RoomPlayer{
+			Player:      player,
+			Nickname:    player.Nickname,
+			Score:       player.Score,
+			Host:        r.host == player,
+			Judge:       r.state != StateLobby && judge == player,
+			RoundWinner: r.state == StateReview && r.reviewWinner == player,
+			Submitted:   len(player.Submitted) > 0,
+		})
+	}
+	for _, banned := range r.bannedPlayers {
+		if banned == nil || banned.Player == nil {
+			continue
+		}
+		if r.playerLocked(banned.Player) != nil {
+			continue
+		}
+		rows = append(rows, RoomPlayer{
+			Player:   banned.Player,
+			Nickname: banned.Nickname,
+			Score:    banned.Score,
+			Banned:   true,
+		})
+	}
+	r.mu.RUnlock()
+	return rows
 }
 
 func (r *Room) ScoreFor(player *Player) int {
@@ -666,6 +707,40 @@ func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) err
 	return nil
 }
 
+func (r *Room) ToggleBan(host *Player, target *Player) error {
+	if target == nil {
+		return ErrOnlyHostCanEdit
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.host != host || target == host {
+		return ErrOnlyHostCanEdit
+	}
+	if idx := r.bannedIndexLocked(target); idx >= 0 {
+		name := r.bannedPlayers[idx].Nickname
+		r.bannedPlayers = append(r.bannedPlayers[:idx], r.bannedPlayers[idx+1:]...)
+		r.statusMessage = fmt.Sprintf("%s was unbanned.", name)
+		return nil
+	}
+	name := target.Nickname
+	score := target.Score
+	if current := r.playerLocked(target); current != nil {
+		name = current.Nickname
+		score = current.Score
+	}
+	r.bannedPlayers = append(r.bannedPlayers, &bannedPlayer{
+		Player:   target,
+		Nickname: name,
+		Score:    score,
+	})
+	if current := r.playerLocked(target); current != nil {
+		_ = r.leaveLocked(current, fmt.Sprintf("%s was kicked and banned from the room.", name))
+	} else {
+		r.statusMessage = fmt.Sprintf("%s was banned from the room.", name)
+	}
+	return nil
+}
+
 func (r *Room) Start(player *Player) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -840,6 +915,10 @@ func (r *Room) join(player *Player) error {
 func (r *Room) leave(player *Player) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.leaveLocked(player, "")
+}
+
+func (r *Room) leaveLocked(player *Player, forcedMessage string) bool {
 	current := r.playerLocked(player)
 	if current == nil {
 		return len(r.players) == 0
@@ -862,6 +941,10 @@ func (r *Room) leave(player *Player) bool {
 	current.SelectedSubmission = nil
 	r.players = append(r.players[:idx], r.players[idx+1:]...)
 	r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) bool { return sub.Player == current })
+	defaultMessage := forcedMessage
+	if defaultMessage == "" {
+		defaultMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+	}
 	if r.host == current {
 		if len(r.players) > 0 {
 			r.host = r.players[0]
@@ -885,10 +968,10 @@ func (r *Room) leave(player *Player) bool {
 				r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
 			}
 		default:
-			r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+			r.statusMessage = defaultMessage
 		}
 	} else {
-		r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+		r.statusMessage = defaultMessage
 	}
 	return false
 }
@@ -922,6 +1005,9 @@ func (r *Room) canJoinLocked(player *Player) error {
 	}
 	if player.Room != nil {
 		return ErrAlreadyInRoom
+	}
+	if r.bannedIndexLocked(player) >= 0 {
+		return ErrBannedFromRoom
 	}
 	if len(r.players) >= MaxPlayers {
 		return ErrRoomFull
@@ -1178,6 +1264,15 @@ func (r *Room) playerLocked(player *Player) *Player {
 		}
 	}
 	return nil
+}
+
+func (r *Room) bannedIndexLocked(player *Player) int {
+	for i, banned := range r.bannedPlayers {
+		if banned != nil && banned.Player == player {
+			return i
+		}
+	}
+	return -1
 }
 
 func (r *Room) selectedDeckNamesLocked() []string {

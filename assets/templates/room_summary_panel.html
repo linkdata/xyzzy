@@ -12,16 +12,22 @@
   </div>
 
   <div class="list-group list-group-flush">
-    {{range .Room.Players}}
+    {{range .SidebarPlayers}}
     <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-      <span>
-        <span{{if $.Dot.IsRoundWinner .}} class="room-player-winner"{{end}}>{{.Nickname}}</span>
-        {{if $.Dot.PlayerHost .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
-        {{if $.Dot.PlayerJudge .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
-        {{if $.Dot.IsRoundWinner .}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
-        {{if $.Dot.PlayerSubmitted .}}<span class="badge bg-success ms-1">✓</span>{{end}}
+      <span{{if .Banned}} class="room-player-banned"{{end}}>
+        <span{{if .RoundWinner}} class="room-player-winner"{{end}}>{{.Nickname}}</span>
+        {{if .Host}}<span class="badge bg-secondary ms-1">host</span>{{end}}
+        {{if .Judge}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
+        {{if .RoundWinner}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
+        {{if .Submitted}}<span class="badge bg-success ms-1">✓</span>{{end}}
+        {{if .Banned}}<span class="badge bg-danger-subtle text-danger-emphasis ms-1">banned</span>{{end}}
       </span>
-      <span class="badge bg-primary rounded-pill">{{$.Dot.PlayerScore .}}</span>
+      <span class="d-flex align-items-center gap-2">
+        <span class="badge bg-primary rounded-pill">{{.Score}}</span>
+        {{if $.Dot.PlayerBanToggleVisible .}}
+        {{$.Button ($.Dot.PlayerBanToggleIcon .) ($.Dot.PlayerBanToggleClick .) ($.Dot.PlayerBanToggleAttrs .)}}
+        {{end}}
+      </span>
     </div>
     {{end}}
   </div>

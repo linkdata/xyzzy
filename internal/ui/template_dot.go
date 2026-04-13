@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"html/template"
 	"slices"
 	"strings"
@@ -282,18 +283,31 @@ func (d templateDot) StateBadgeClass() string {
 	}
 }
 
-func (d templateDot) PlayerHost(player *game.Player) bool {
-	return d.Room.IsHost(player)
+func (d templateDot) SidebarPlayers() []game.RoomPlayer {
+	return d.Room.SidebarPlayers()
 }
 
-func (d templateDot) PlayerJudge(player *game.Player) bool {
-	return d.Room.IsJudge(player)
+func (d templateDot) PlayerBanToggleVisible(row game.RoomPlayer) bool {
+	return d.Room.IsHost(d.Player) && row.Player != nil && row.Player != d.Player
 }
 
-func (d templateDot) PlayerScore(player *game.Player) int {
-	return d.Room.ScoreFor(player)
+func (d templateDot) PlayerBanToggleClick(row game.RoomPlayer) jaws.ClickHandler {
+	return d.Room.ToggleBanClick(d.Player, row.Player)
 }
 
-func (d templateDot) PlayerSubmitted(player *game.Player) bool {
-	return d.Room.SubmittedBy(player)
+func (d templateDot) PlayerBanToggleIcon(row game.RoomPlayer) string {
+	if row.Banned {
+		return "↺"
+	}
+	return "✕"
+}
+
+func (d templateDot) PlayerBanToggleAttrs(row game.RoomPlayer) template.HTMLAttr {
+	title := "Kick and ban player"
+	style := "btn-outline-danger"
+	if row.Banned {
+		title = "Unban player"
+		style = "btn-outline-success"
+	}
+	return template.HTMLAttr(fmt.Sprintf(`class="btn btn-sm %s room-ban-toggle" title="%s" aria-label="%s"`, style, title, title))
 }

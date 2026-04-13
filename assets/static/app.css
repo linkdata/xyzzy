@@ -125,6 +125,18 @@
   background: rgba(255, 193, 7, 0.28);
 }
 
+.room-player-banned {
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+.room-ban-toggle {
+  min-width: 1.55rem;
+  padding: 0.05rem 0.32rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
 .review-countdown-button {
   min-width: 12rem;
 }

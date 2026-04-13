@@ -406,6 +406,71 @@ func TestJudgeLeavingResetsToLobbyAndHostLeavingReassigns(t *testing.T) {
 	}
 }
 
+func TestToggleBanKicksAndBlocksRejoinUntilUnbanned(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+
+	if err := room.ToggleBan(alice, bob); err != nil {
+		t.Fatalf("ToggleBan(host, bob) error = %v", err)
+	}
+	if bob.Room != nil {
+		t.Fatal("expected banned player to be removed from the room")
+	}
+	if !room.IsBanned(bob) {
+		t.Fatal("expected player to be marked as banned")
+	}
+	sidebar := room.SidebarPlayers()
+	foundBanned := false
+	for _, row := range sidebar {
+		if row.Player == bob && row.Banned {
+			foundBanned = true
+			break
+		}
+	}
+	if !foundBanned {
+		t.Fatalf("expected sidebar rows to include banned player, got %#v", sidebar)
+	}
+	if _, err := mgr.JoinRoom(room.Code(), bob); err != ErrBannedFromRoom {
+		t.Fatalf("JoinRoom() error = %v, want %v", err, ErrBannedFromRoom)
+	}
+
+	if err := room.ToggleBan(alice, bob); err != nil {
+		t.Fatalf("ToggleBan(host, bob) unban error = %v", err)
+	}
+	if room.IsBanned(bob) {
+		t.Fatal("expected player to be unbanned")
+	}
+	if _, err := mgr.JoinRoom(room.Code(), bob); err != nil {
+		t.Fatalf("JoinRoom() after unban error = %v", err)
+	}
+}
+
+func TestToggleBanRequiresHost(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+
+	if err := room.ToggleBan(bob, casey); err != ErrOnlyHostCanEdit {
+		t.Fatalf("ToggleBan(non-host, casey) error = %v, want %v", err, ErrOnlyHostCanEdit)
+	}
+	if room.IsBanned(casey) {
+		t.Fatal("did not expect non-host action to ban a player")
+	}
+}
+
 func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)

@@ -467,6 +467,69 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 	}
 }
 
+func TestRoomSidebarShowsBannedPlayersAndHostBanToggle(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app, handler)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app, handler)
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom(guest) error = %v", err)
+	}
+
+	viewerSess := newTestSession(t, app, handler)
+	viewer := app.player(viewerSess, nil)
+	app.setNickname(viewer, "Casey")
+	if _, err := app.joinRoom(viewer, room.Code()); err != nil {
+		t.Fatalf("joinRoom(viewer) error = %v", err)
+	}
+
+	if err := room.ToggleBan(host, guest); err != nil {
+		t.Fatalf("ToggleBan(host, guest) error = %v", err)
+	}
+	if guest.Room != nil {
+		t.Fatal("expected banned player to be kicked from room")
+	}
+
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	hostReq.SetPathValue("code", room.Code())
+	hostReq.AddCookie(hostSess.Cookie())
+	hostRec := httptest.NewRecorder()
+	handler.ServeHTTP(hostRec, hostReq)
+	if hostRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP(host) status = %d", hostRec.Code)
+	}
+	hostBody := hostRec.Body.String()
+	if !strings.Contains(hostBody, "room-player-banned") || !strings.Contains(hostBody, "banned</span>") {
+		t.Fatalf("expected banned player strikeout row in sidebar, got %s", hostBody)
+	}
+	if !strings.Contains(hostBody, "room-ban-toggle") {
+		t.Fatalf("expected host ban/unban icon button in sidebar, got %s", hostBody)
+	}
+
+	viewerReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	viewerReq.SetPathValue("code", room.Code())
+	viewerReq.AddCookie(viewerSess.Cookie())
+	viewerRec := httptest.NewRecorder()
+	handler.ServeHTTP(viewerRec, viewerReq)
+	if viewerRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP(viewer) status = %d", viewerRec.Code)
+	}
+	viewerBody := viewerRec.Body.String()
+	if strings.Contains(viewerBody, "room-ban-toggle") {
+		t.Fatalf("did not expect non-host sidebar to show ban/unban controls, got %s", viewerBody)
+	}
+}
+
 func TestMissingRoomRendersMissingPanel(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)

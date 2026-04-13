@@ -121,3 +121,12 @@ func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
 		return
 	})
 }
+
+func (r *Room) ToggleBanClick(host *Player, target *Player) jaws.ClickHandler {
+	return ui.Clickable("Toggle Ban", func(elem *jaws.Element, name string) (err error) {
+		if err = r.ToggleBan(host, target); err == nil {
+			elem.Dirty(r.manager, r, host, target)
+		}
+		return
+	})
+}

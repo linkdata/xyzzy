@@ -41,6 +41,7 @@ type Room struct {
 	mu               sync.RWMutex
 	host             *Player
 	players          []*Player
+	bannedPlayers    []*bannedPlayer
 	selectedDeckIDs  []string
 	private          bool
 	targetScore      int
@@ -88,9 +89,26 @@ type Submission struct {
 	Cards  []*deck.WhiteCard
 }
 
+type RoomPlayer struct {
+	Player      *Player
+	Nickname    string
+	Score       int
+	Banned      bool
+	Host        bool
+	Judge       bool
+	RoundWinner bool
+	Submitted   bool
+}
+
 type FinalScore struct {
 	Player   *Player
 	Nickname string
 	Score    int
 	IsWinner bool
+}
+
+type bannedPlayer struct {
+	Player   *Player
+	Nickname string
+	Score    int
 }
