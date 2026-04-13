@@ -66,7 +66,18 @@ func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) SubmitCardsClick(player *Player) jaws.ClickHandler {
-	return submitCardsClick{Room: r, Player: player}
+	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) error {
+		if r == nil {
+			return nil
+		}
+		selected := append([]string(nil), player.SelectedCardIDs...)
+		if err := r.PlayCards(player, selected); err != nil {
+			return err
+		}
+		player.SelectedCardIDs = nil
+		elem.Dirty(player, r)
+		return nil
+	})
 }
 
 func (r *Room) JudgeAttrs(player *Player) template.HTMLAttr {
@@ -77,7 +88,18 @@ func (r *Room) JudgeAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) JudgeClick(player *Player) jaws.ClickHandler {
-	return judgeClick{Room: r, Player: player}
+	return ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) error {
+		if r == nil {
+			return nil
+		}
+		selected := player.SelectedSubmission
+		if err := r.Judge(player, selected); err != nil {
+			return err
+		}
+		player.SelectedSubmission = nil
+		elem.Dirty(player, r)
+		return nil
+	})
 }
 
 func (r *Room) ProceedReviewAttrs(player *Player) template.HTMLAttr {
@@ -92,7 +114,16 @@ func (r *Room) ProceedReviewAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
-	return proceedReviewClick{Room: r, Player: player}
+	return ui.Clickable("", func(elem *jaws.Element, name string) error {
+		if r == nil {
+			return nil
+		}
+		if err := r.ProceedReview(player); err != nil {
+			return err
+		}
+		elem.Dirty(r)
+		return nil
+	})
 }
 
 func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
@@ -104,56 +135,4 @@ func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
 		}
 		return
 	})
-}
-
-type submitCardsClick struct {
-	Room   *Room
-	Player *Player
-}
-
-func (h submitCardsClick) JawsClick(elem *jaws.Element, _ string) error {
-	if h.Room == nil {
-		return nil
-	}
-	selected := append([]string(nil), h.Player.SelectedCardIDs...)
-	if err := h.Room.PlayCards(h.Player, selected); err != nil {
-		return err
-	}
-	h.Player.SelectedCardIDs = nil
-	elem.Dirty(h.Player, h.Room)
-	return nil
-}
-
-type judgeClick struct {
-	Room   *Room
-	Player *Player
-}
-
-func (h judgeClick) JawsClick(elem *jaws.Element, _ string) error {
-	if h.Room == nil {
-		return nil
-	}
-	selected := h.Player.SelectedSubmission
-	if err := h.Room.Judge(h.Player, selected); err != nil {
-		return err
-	}
-	h.Player.SelectedSubmission = nil
-	elem.Dirty(h.Player, h.Room)
-	return nil
-}
-
-type proceedReviewClick struct {
-	Room   *Room
-	Player *Player
-}
-
-func (h proceedReviewClick) JawsClick(elem *jaws.Element, _ string) error {
-	if h.Room == nil {
-		return nil
-	}
-	if err := h.Room.ProceedReview(h.Player); err != nil {
-		return err
-	}
-	elem.Dirty(h.Room)
-	return nil
 }

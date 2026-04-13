@@ -9,6 +9,7 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/jaws/lib/jtag"
+	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -57,51 +58,37 @@ func (a *App) DeckToggle(player *game.Player, deck *deck.Deck) bind.Binder[bool]
 	return taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
 }
 
-type cardActionClick struct {
-	Player *game.Player
-	Card   *deck.WhiteCard
-}
-
-func (h cardActionClick) JawsClick(elem *jaws.Element, _ string) error {
-	room := h.Player.Room
-	if room == nil || !room.CanSubmit(h.Player) || h.Card == nil {
-		return nil
-	}
-	changed, alert := applyCardSelection(h.Player, h.Card.ID, room.NeedPick())
-	if alert != "" {
-		return errors.New(alert)
-	}
-	if changed {
-		elem.Dirty(h.Player)
-	}
-	return nil
-}
-
 func (a *App) CardAction(player *game.Player, card *deck.WhiteCard) jaws.ClickHandler {
-	return cardActionClick{Player: player, Card: card}
-}
-
-type submissionActionClick struct {
-	Player     *game.Player
-	Submission *game.Submission
-}
-
-func (h submissionActionClick) JawsClick(elem *jaws.Element, _ string) error {
-	room := h.Player.Room
-	if room == nil || !room.CanJudge(h.Player) || h.Submission == nil {
+	return jui.Clickable("Select Card", func(elem *jaws.Element, name string) error {
+		room := player.Room
+		if room == nil || !room.CanSubmit(player) || card == nil {
+			return nil
+		}
+		changed, alert := applyCardSelection(player, card.ID, room.NeedPick())
+		if alert != "" {
+			return errors.New(alert)
+		}
+		if changed {
+			elem.Dirty(player)
+		}
 		return nil
-	}
-	if h.Player.SelectedSubmission == h.Submission {
-		h.Player.SelectedSubmission = nil
-	} else {
-		h.Player.SelectedSubmission = h.Submission
-	}
-	elem.Dirty(h.Player)
-	return nil
+	})
 }
 
 func (a *App) SubmissionAction(player *game.Player, submission *game.Submission) jaws.ClickHandler {
-	return submissionActionClick{Player: player, Submission: submission}
+	return jui.Clickable("Select Submission", func(elem *jaws.Element, name string) error {
+		room := player.Room
+		if room == nil || !room.CanJudge(player) || submission == nil {
+			return nil
+		}
+		if player.SelectedSubmission == submission {
+			player.SelectedSubmission = nil
+		} else {
+			player.SelectedSubmission = submission
+		}
+		elem.Dirty(player)
+		return nil
+	})
 }
 
 func (a *App) DeckToggleAttrs(player *game.Player) template.HTMLAttr {
