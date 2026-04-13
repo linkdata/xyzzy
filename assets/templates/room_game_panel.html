@@ -80,9 +80,9 @@
       {{$.Button "Play Selected Cards" .SubmitCardsClick .SubmitCardsAttrs `class="btn btn-primary"`}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range .HandFor}}
+      {{range .HandCardViews}}
       <div class="col">
-        {{$.Template "hand_card_clickable.html" ($.Dot.HandCardView .) $.Dot.CardAttrs ($.Dot.CardClass .)}}
+        {{$.Template "hand_card_clickable.html" . $.Dot.CardAttrs ($.Dot.CardClass .Card)}}
       </div>
       {{end}}
     </div>
@@ -107,9 +107,9 @@
       {{end}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range .Room.Submissions}}
+      {{range .SubmissionViews}}
       <div class="col">
-      {{$.Button ($.Dot.SubmissionBody .) ($.Dot.SubmissionAction .) $.Dot.SubmissionAttrs ($.Dot.SubmissionClass .)}}
+        {{$.Template "submission_clickable.html" . $.Dot.SubmissionAttrs ($.Dot.SubmissionClass .Submission)}}
       </div>
       {{end}}
     </div>
@@ -126,9 +126,9 @@
       {{end}}
     </div>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-      {{range .Room.Submissions}}
+      {{range .SubmissionViews}}
       <div class="col">
-        {{$.Button ($.Dot.SubmissionBody .) ($.Dot.SubmissionAction .) $.Dot.SubmissionAttrs ($.Dot.SubmissionClass .)}}
+        {{$.Template "submission_clickable.html" . $.Dot.SubmissionAttrs ($.Dot.SubmissionClass .Submission)}}
       </div>
       {{end}}
     </div>

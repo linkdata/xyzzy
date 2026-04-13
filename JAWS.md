@@ -55,13 +55,20 @@ Treat getters as pure reads.
 - Keep partials small and focused.
 - Render pre-sanitized safe HTML fields directly when available.
 
-## Template rendering helpers
+## Prefer direct `$.Template(...)` rendering
 
-When creating custom `bind.HTMLGetter` helpers:
+- Prefer `$.Template("...", dot, ...)` over `bind.HTMLGetter` wrappers for rendering card/content bodies.
+- Keep the root template dot comparable when it is used as identity/tag (pointer-only structs are ideal).
+- For list rendering, range directly over view slices (`HandCardViews`, `SubmissionViews`) instead of ranging domain objects and constructing views inline per row.
+- Put computed child lists on view methods (`Cards()`) rather than non-comparable slice fields on the root dot.
 
-- Render templates with the dot shape the template expects.
-- Pass raw dot data unless JaWS helper fields (`$.Button`, `$.Container`, `$.Initial`, etc.) are needed.
-- Keep helper code small and deterministic.
+## Clickable template wrappers
+
+- For clickable template content, render a wrapper template (not `$.Button` with HTML getter content).
+- Wrapper templates must include `id="{{$.Jid}}" {{$.Attrs}}` so JaWS can attach identity, attrs, classes, handlers, and dirty updates correctly.
+- Keep interaction semantics explicit on wrapper markup (for example `role="button"` and `tabindex="0"` where keyboard/click behavior is expected).
+- Prefer view-dot click handling (`JawsClick`) for template items instead of passing redundant explicit click handlers in `$.Template(...)`.
+- Pass explicit click handlers to `$.Template(...)` only when the dot cannot own that behavior.
 
 ## Container identity and rerendering
 

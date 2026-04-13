@@ -102,8 +102,13 @@ func (d templateDot) HandCardView(card *deck.WhiteCard) whiteCardView {
 	return whiteCardView{Room: d.Room, Player: d.Player, Card: card, SelectionOrder: selectionOrder(d.Player, card)}
 }
 
-func (d templateDot) CardBody(card *deck.WhiteCard) bind.HTMLGetter {
-	return d.App.HandCardHTML(d.Player, card)
+func (d templateDot) HandCardViews() []whiteCardView {
+	cards := d.Room.HandFor(d.Player)
+	views := make([]whiteCardView, 0, len(cards))
+	for _, card := range cards {
+		views = append(views, d.HandCardView(card))
+	}
+	return views
 }
 
 func (d templateDot) CardAttrs() template.HTMLAttr {
@@ -121,23 +126,17 @@ func (d templateDot) CardClass(card *deck.WhiteCard) template.HTMLAttr {
 	return template.HTMLAttr(class + `"`)
 }
 
-func (d templateDot) SubmissionAction(submission *game.Submission) jaws.ClickHandler {
-	return jui.Clickable("Select Submission", func(elem *jaws.Element, name string) error {
-		if !d.Room.CanJudge(d.Player) {
-			return nil
-		}
-		if d.Player.SelectedSubmission == submission {
-			d.Player.SelectedSubmission = nil
-		} else {
-			d.Player.SelectedSubmission = submission
-		}
-		elem.Dirty(d.Player)
-		return nil
-	})
+func (d templateDot) SubmissionView(submission *game.Submission) submissionView {
+	return submissionView{Room: d.Room, Player: d.Player, Submission: submission}
 }
 
-func (d templateDot) SubmissionBody(submission *game.Submission) bind.HTMLGetter {
-	return d.App.SubmissionHTML(d.Player, submission)
+func (d templateDot) SubmissionViews() []submissionView {
+	submissions := d.Room.Submissions()
+	views := make([]submissionView, 0, len(submissions))
+	for _, submission := range submissions {
+		views = append(views, d.SubmissionView(submission))
+	}
+	return views
 }
 
 func (d templateDot) SubmissionAttrs() template.HTMLAttr {

@@ -277,6 +277,79 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 }
 
+func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app, handler)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app, handler)
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !room.IsJudge(host) {
+		t.Fatal("expected host to be judge for the opening round")
+	}
+
+	hand := room.HandFor(guest)
+	if len(hand) == 0 {
+		t.Fatal("expected non-empty hand")
+	}
+	if err := room.PlayCards(guest, []*deck.WhiteCard{hand[0]}); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	if room.State() != game.StateJudging {
+		t.Fatalf("State() = %s, want %s", room.State(), game.StateJudging)
+	}
+	submissions := room.Submissions()
+	if len(submissions) == 0 {
+		t.Fatal("expected at least one submission")
+	}
+	submission := submissions[0]
+
+	dot := templateDot{App: app, Player: host, Room: room}
+	view := dot.SubmissionView(submission)
+
+	req := app.Jaws.NewRequest(nil)
+	elem := req.NewElement(jui.Template{Name: "submission_clickable.html", Dot: view})
+	var rendered bytes.Buffer
+	if err := elem.JawsRender(&rendered, []any{dot.SubmissionAttrs(), dot.SubmissionClass(submission)}); err != nil {
+		t.Fatalf("JawsRender() error = %v", err)
+	}
+	html := rendered.String()
+	if !strings.Contains(html, `<div id="Jid.`) || !strings.Contains(html, `role="button"`) {
+		t.Fatalf("expected clickable template wrapper div, got %s", html)
+	}
+	if strings.Contains(html, "<button") {
+		t.Fatalf("expected non-button submission template rendering, got %s", html)
+	}
+
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+		t.Fatalf("CallEventHandlers(first click) error = %v", err)
+	}
+	if host.SelectedSubmission != submission {
+		t.Fatalf("SelectedSubmission after first click = %#v, want %#v", host.SelectedSubmission, submission)
+	}
+
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+		t.Fatalf("CallEventHandlers(second click) error = %v", err)
+	}
+	if host.SelectedSubmission != nil {
+		t.Fatalf("SelectedSubmission after second click = %#v, want nil", host.SelectedSubmission)
+	}
+}
+
 func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
