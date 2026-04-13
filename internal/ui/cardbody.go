@@ -3,37 +3,12 @@ package ui
 import (
 	"bytes"
 	"html/template"
-	"strings"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
-
-type whiteCardView struct {
-	Room           *game.Room
-	Card           *deck.WhiteCard
-	SelectionOrder int
-}
-
-func (v whiteCardView) WhiteFootnote() string {
-	deckName := v.Room.FirstSelectedDeckNameForWhiteCard(v.Card)
-	number := strings.Map(func(r rune) rune {
-		if r >= '0' && r <= '9' {
-			return r
-		}
-		return -1
-	}, v.Card.ID)
-	switch {
-	case deckName == "":
-		return number
-	case number == "":
-		return deckName
-	default:
-		return deckName + " · " + number
-	}
-}
 
 type submissionCardsView struct {
 	Cards []whiteCardView
@@ -42,7 +17,7 @@ type submissionCardsView struct {
 func (a *App) HandCardHTML(player *game.Player, card *deck.WhiteCard) bind.HTMLGetter {
 	room := player.Room
 	tag := HandCardRef{Player: player, Room: room, Card: card}
-	dot := whiteCardView{Room: room, Card: card, SelectionOrder: selectionOrder(player, card)}
+	dot := whiteCardView{Room: room, Player: player, Card: card, SelectionOrder: selectionOrder(player, card)}
 	return bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML {
 		return renderTemplateHTML(elem, "white_card_body.html", dot)
 	}, tag)

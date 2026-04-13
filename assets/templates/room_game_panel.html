@@ -82,7 +82,7 @@
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
       {{range .HandFor}}
       <div class="col">
-        {{$.Button ($.Dot.CardBody .) ($.Dot.CardAction .) $.Dot.CardAttrs ($.Dot.CardClass .)}}
+        {{$.Template "hand_card_clickable.html" ($.Dot.HandCardView .) $.Dot.CardAttrs ($.Dot.CardClass .)}}
       </div>
       {{end}}
     </div>

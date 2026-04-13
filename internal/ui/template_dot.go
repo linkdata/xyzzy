@@ -98,15 +98,8 @@ func (d templateDot) DeckToggleAttrs() template.HTMLAttr {
 	return ""
 }
 
-func (d templateDot) CardAction(card *deck.WhiteCard) jaws.ClickHandler {
-	return jui.Clickable("Select Card", func(elem *jaws.Element, name string) error {
-		if d.Room.CanSubmit(d.Player) {
-			if applyCardSelection(d.Player, card, d.Room.NeedPick()) {
-				elem.Dirty(d.Player)
-			}
-		}
-		return nil
-	})
+func (d templateDot) HandCardView(card *deck.WhiteCard) whiteCardView {
+	return whiteCardView{Room: d.Room, Player: d.Player, Card: card, SelectionOrder: selectionOrder(d.Player, card)}
 }
 
 func (d templateDot) CardBody(card *deck.WhiteCard) bind.HTMLGetter {
