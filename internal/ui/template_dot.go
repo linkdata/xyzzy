@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"html/template"
+	"strings"
 	"sync"
 
 	"github.com/linkdata/jaws"
@@ -264,7 +265,21 @@ func (d templateDot) WaitingDetail() string {
 }
 
 func (d templateDot) BlackFootnote(card *deck.BlackCard) string {
-	return cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
+	deckName := d.Room.FirstSelectedDeckNameForBlackCard(card)
+	number := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, card.ID)
+	switch {
+	case deckName == "":
+		return number
+	case number == "":
+		return deckName
+	default:
+		return deckName + " · " + number
+	}
 }
 
 func (d templateDot) StateBadgeClass() string {

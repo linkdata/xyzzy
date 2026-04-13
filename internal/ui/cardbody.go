@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"html/template"
+	"strings"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
@@ -17,7 +18,21 @@ type whiteCardView struct {
 }
 
 func (v whiteCardView) WhiteFootnote() string {
-	return cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
+	deckName := v.Room.FirstSelectedDeckNameForWhiteCard(v.Card)
+	number := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, v.Card.ID)
+	switch {
+	case deckName == "":
+		return number
+	case number == "":
+		return deckName
+	default:
+		return deckName + " · " + number
+	}
 }
 
 type submissionCardsView struct {
