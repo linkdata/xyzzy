@@ -120,9 +120,6 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 }
 
 func (a *App) makeTemplateDot(player *game.Player) templateDot {
-	if player == nil {
-		return templateDot{App: a}
-	}
 	return templateDot{App: a, Player: player, Room: player.Room}
 }
 

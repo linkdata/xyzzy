@@ -64,7 +64,7 @@ func (s *section) JawsContains(*jaws.Element) []jaws.UI {
 }
 
 func (s *section) currentRoom() *game.Room {
-	if s.Player == nil || s.Player.Room == nil {
+	if s.Player.Room == nil {
 		return nil
 	}
 	if s.RequestedCode != "" && !strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
