@@ -19,7 +19,7 @@ const (
 	MaxPlayers             = 10
 	HandSize               = 10
 	ScoreGoal              = 5
-	ReviewDelay            = 5 * time.Second
+	ReviewDelay            = 30 * time.Second
 	MinBlackCards          = 50
 	MinWhiteCardsPerPlayer = 20
 	roomCodeLength         = 6
