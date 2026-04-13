@@ -39,12 +39,17 @@ func testCatalog(t *testing.T) *deck.Catalog {
 
 func forceRound(t *testing.T, room *Room, blackID string) {
 	t.Helper()
+	black := room.catalog.BlackCards[blackID]
+	if black == nil {
+		t.Fatalf("unknown black card %q", blackID)
+	}
 	room.mu.Lock()
 	defer room.mu.Unlock()
-	room.blackDraw = []string{blackID}
+	room.blackDraw = []*deck.BlackCard{black}
 	room.blackDiscard = nil
-	room.currentBlackID = ""
+	room.currentBlack = nil
 	room.submissions = nil
+	room.submissionSeq = 0
 	room.czarIndex = -1
 	room.round = 0
 	room.statusMessage = ""

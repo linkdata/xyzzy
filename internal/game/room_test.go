@@ -3,6 +3,8 @@ package game
 import (
 	"testing"
 	"time"
+
+	"github.com/linkdata/xyzzy/internal/deck"
 )
 
 func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
@@ -31,8 +33,8 @@ func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 			continue
 		}
 		hand := room.HandFor(player)
-		cardIDs := []string{hand[0].ID, hand[1].ID}
-		if err := room.PlayCards(player, cardIDs); err != nil {
+		cards := []*deck.WhiteCard{hand[0], hand[1]}
+		if err := room.PlayCards(player, cards); err != nil {
 			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
@@ -86,6 +88,89 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 		if len(hand) != HandSize+1 {
 			t.Fatalf("non-judge hand size = %d, want %d", len(hand), HandSize+1)
 		}
+	}
+}
+
+func TestSubmissionIDsUseRoundSequence(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	forceRound(t, room, "b1")
+
+	judge := room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge")
+	}
+
+	var nonJudge []*Player
+	for _, player := range room.Players() {
+		if player != judge {
+			nonJudge = append(nonJudge, player)
+		}
+	}
+	if len(nonJudge) != 2 {
+		t.Fatalf("expected 2 non-judge players, got %d", len(nonJudge))
+	}
+
+	firstHand := room.HandFor(nonJudge[0])
+	if err := room.PlayCards(nonJudge[0], []*deck.WhiteCard{firstHand[0]}); err != nil {
+		t.Fatalf("PlayCards(first) error = %v", err)
+	}
+	if got := room.Submissions(); len(got) != 1 || got[0].ID != "r1-s1" {
+		t.Fatalf("first submission IDs = %#v, want [r1-s1]", got)
+	}
+
+	secondHand := room.HandFor(nonJudge[1])
+	if err := room.PlayCards(nonJudge[1], []*deck.WhiteCard{secondHand[0]}); err != nil {
+		t.Fatalf("PlayCards(second) error = %v", err)
+	}
+	if room.State() != StateJudging {
+		t.Fatalf("State() = %s, want %s", room.State(), StateJudging)
+	}
+	seen := map[string]bool{}
+	for _, submission := range room.Submissions() {
+		seen[submission.ID] = true
+	}
+	if !seen["r1-s1"] || !seen["r1-s2"] || len(seen) != 2 {
+		t.Fatalf("submission IDs after round 1 = %#v, want r1-s1 and r1-s2", seen)
+	}
+
+	if err := room.Judge(judge, room.Submissions()[0]); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if err := room.ProceedReview(judge); err != nil {
+		t.Fatalf("ProceedReview() error = %v", err)
+	}
+	if room.State() != StatePlaying {
+		t.Fatalf("State() = %s, want %s", room.State(), StatePlaying)
+	}
+
+	judge = room.JudgePlayer()
+	if judge == nil {
+		t.Fatal("expected judge for round 2")
+	}
+	var player *Player
+	for _, p := range room.Players() {
+		if p != judge {
+			player = p
+			break
+		}
+	}
+	hand := room.HandFor(player)
+	if err := room.PlayCards(player, []*deck.WhiteCard{hand[0]}); err != nil {
+		t.Fatalf("PlayCards(round2) error = %v", err)
+	}
+	if got := room.Submissions(); len(got) != 1 || got[0].ID != "r2-s1" {
+		t.Fatalf("first submission IDs in round 2 = %#v, want [r2-s1]", got)
 	}
 }
 
@@ -151,8 +236,8 @@ func TestJoinDuringPlayingDealsCurrentRoundHandAndAllowsSubmission(t *testing.T)
 			continue
 		}
 		hand := room.HandFor(player)
-		cardIDs := []string{hand[0].ID}
-		if err := room.PlayCards(player, cardIDs); err != nil {
+		cards := []*deck.WhiteCard{hand[0]}
+		if err := room.PlayCards(player, cards); err != nil {
 			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
@@ -185,7 +270,7 @@ func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
 			continue
 		}
 		hand := room.HandFor(player)
-		if err := room.PlayCards(player, []string{hand[0].ID}); err != nil {
+		if err := room.PlayCards(player, []*deck.WhiteCard{hand[0]}); err != nil {
 			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
@@ -244,7 +329,7 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 			continue
 		}
 		hand := room.HandFor(player)
-		if err := room.PlayCards(player, []string{hand[0].ID}); err != nil {
+		if err := room.PlayCards(player, []*deck.WhiteCard{hand[0]}); err != nil {
 			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
@@ -351,9 +436,9 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	winner.Score = ScoreGoal - 1
 	room.state = StateJudging
 	room.submissions = []*Submission{{
-		ID:      "w1",
-		Player:  winner,
-		CardIDs: []string{"w1"},
+		ID:     "r1-s1",
+		Player: winner,
+		Cards:  []*deck.WhiteCard{catalog.WhiteCards["w1"]},
 	}}
 	room.mu.Unlock()
 

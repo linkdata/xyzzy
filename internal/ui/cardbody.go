@@ -17,7 +17,7 @@ type whiteCardView struct {
 }
 
 func (v whiteCardView) WhiteFootnote() string {
-	return cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card.ID), v.Card.ID)
+	return cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
 }
 
 type submissionCardsView struct {
@@ -62,8 +62,8 @@ func renderTemplateHTML(elem *jaws.Element, name string, dot any) template.HTML 
 }
 
 func selectionOrder(player *game.Player, card *deck.WhiteCard) int {
-	for i, cardID := range player.SelectedCardIDs {
-		if cardID == card.ID {
+	for i, selected := range player.SelectedCards {
+		if selected == card {
 			return i + 1
 		}
 	}

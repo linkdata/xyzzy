@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -232,7 +233,7 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	}
 
 	hand := room.HandFor(guest)
-	if err := room.PlayCards(guest, []string{hand[0].ID}); err != nil {
+	if err := room.PlayCards(guest, []*deck.WhiteCard{hand[0]}); err != nil {
 		t.Fatalf("PlayCards() error = %v", err)
 	}
 	if room.State() != game.StateJudging {
@@ -286,7 +287,7 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 	}
 
 	hand := room.HandFor(guest)
-	if err := room.PlayCards(guest, []string{hand[0].ID}); err != nil {
+	if err := room.PlayCards(guest, []*deck.WhiteCard{hand[0]}); err != nil {
 		t.Fatalf("PlayCards() error = %v", err)
 	}
 	if room.State() != game.StateJudging {
@@ -388,12 +389,14 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 }
 
 func TestApplyCardSelectionReplacesSinglePickSelection(t *testing.T) {
-	player := &game.Player{SelectedCardIDs: []string{"w1"}}
+	w1 := &deck.WhiteCard{ID: "w1"}
+	w2 := &deck.WhiteCard{ID: "w2"}
+	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1}}
 
-	changed, alert := applyCardSelection(player, "w2", 1)
+	changed, alert := applyCardSelection(player, w2, 1)
 
-	if len(player.SelectedCardIDs) != 1 || player.SelectedCardIDs[0] != "w2" {
-		t.Fatalf("SelectedCardIDs = %v, want [w2]", player.SelectedCardIDs)
+	if len(player.SelectedCards) != 1 || player.SelectedCards[0] != w2 {
+		t.Fatalf("SelectedCards = %v, want [w2]", player.SelectedCards)
 	}
 	if !changed || alert != "" {
 		t.Fatalf("applyCardSelection() = (%v, %q), want (true, \"\")", changed, alert)
@@ -401,12 +404,15 @@ func TestApplyCardSelectionReplacesSinglePickSelection(t *testing.T) {
 }
 
 func TestApplyCardSelectionKeepsMultiPickLimit(t *testing.T) {
-	player := &game.Player{SelectedCardIDs: []string{"w1", "w2"}}
+	w1 := &deck.WhiteCard{ID: "w1"}
+	w2 := &deck.WhiteCard{ID: "w2"}
+	w3 := &deck.WhiteCard{ID: "w3"}
+	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1, w2}}
 
-	changed, alert := applyCardSelection(player, "w3", 2)
+	changed, alert := applyCardSelection(player, w3, 2)
 
-	if len(player.SelectedCardIDs) != 2 || player.SelectedCardIDs[0] != "w1" || player.SelectedCardIDs[1] != "w2" {
-		t.Fatalf("SelectedCardIDs = %v, want unchanged", player.SelectedCardIDs)
+	if len(player.SelectedCards) != 2 || player.SelectedCards[0] != w1 || player.SelectedCards[1] != w2 {
+		t.Fatalf("SelectedCards = %v, want unchanged", player.SelectedCards)
 	}
 	if changed || alert == "" {
 		t.Fatalf("applyCardSelection() = (%v, %q), want validation message without mutation", changed, alert)

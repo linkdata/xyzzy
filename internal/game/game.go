@@ -462,7 +462,7 @@ func (r *Room) HandFor(player *Player) []*deck.WhiteCard {
 	r.mu.RLock()
 	var cards []*deck.WhiteCard
 	if current := r.playerLocked(player); current != nil {
-		cards = r.lookupWhiteCardsLocked(current.Hand)
+		cards = append([]*deck.WhiteCard(nil), current.Hand...)
 	}
 	r.mu.RUnlock()
 	return cards
@@ -480,7 +480,7 @@ func (r *Room) SubmissionCards(submission *Submission) []*deck.WhiteCard {
 		return nil
 	}
 	r.mu.RLock()
-	cards := r.lookupWhiteCardsLocked(submission.CardIDs)
+	cards := append([]*deck.WhiteCard(nil), submission.Cards...)
 	r.mu.RUnlock()
 	return cards
 }
@@ -689,8 +689,8 @@ func (r *Room) Start(player *Player) error {
 	if err != nil {
 		return err
 	}
-	r.blackDraw = idsFromBlack(blackCards)
-	r.whiteDraw = idsFromWhite(whiteCards)
+	r.blackDraw = append([]*deck.BlackCard(nil), blackCards...)
+	r.whiteDraw = append([]*deck.WhiteCard(nil), whiteCards...)
 	r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
 	r.rand.Shuffle(len(r.whiteDraw), func(i, j int) { r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] })
 	r.prepareOpeningBlackLocked(blackCards)
@@ -698,7 +698,8 @@ func (r *Room) Start(player *Player) error {
 	r.whiteDiscard = nil
 	r.submissions = nil
 	r.clearReviewLocked()
-	r.currentBlackID = ""
+	r.currentBlack = nil
+	r.submissionSeq = 0
 	r.lastWinnerName = ""
 	r.lastGameWinner = ""
 	r.lastGameScores = nil
@@ -714,7 +715,7 @@ func (r *Room) Start(player *Player) error {
 	return nil
 }
 
-func (r *Room) PlayCards(player *Player, cardIDs []string) error {
+func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
@@ -730,36 +731,37 @@ func (r *Room) PlayCards(player *Player, cardIDs []string) error {
 	if len(current.Submitted) > 0 {
 		return ErrAlreadySubmitted
 	}
-	cardIDs = normalizeIDs(cardIDs)
-	if len(cardIDs) != r.currentBlackLocked().Pick {
+	cards = normalizeWhiteCards(cards)
+	if len(cards) != r.currentBlackLocked().Pick {
 		return ErrNeedExactCards
 	}
-	handSet := make(map[string]int, len(current.Hand))
-	for i, id := range current.Hand {
-		handSet[id] = i
+	handSet := make(map[*deck.WhiteCard]struct{}, len(current.Hand))
+	for _, card := range current.Hand {
+		handSet[card] = struct{}{}
 	}
-	for _, cardID := range cardIDs {
-		if _, ok := handSet[cardID]; !ok {
+	for _, card := range cards {
+		if _, ok := handSet[card]; !ok {
 			return ErrCardNotInHand
 		}
 	}
-	remaining := make([]string, 0, len(current.Hand)-len(cardIDs))
-	selected := make(map[string]struct{}, len(cardIDs))
-	for _, cardID := range cardIDs {
-		selected[cardID] = struct{}{}
+	remaining := make([]*deck.WhiteCard, 0, len(current.Hand)-len(cards))
+	selected := make(map[*deck.WhiteCard]struct{}, len(cards))
+	for _, card := range cards {
+		selected[card] = struct{}{}
 	}
-	for _, cardID := range current.Hand {
-		if _, ok := selected[cardID]; ok {
+	for _, card := range current.Hand {
+		if _, ok := selected[card]; ok {
 			continue
 		}
-		remaining = append(remaining, cardID)
+		remaining = append(remaining, card)
 	}
 	current.Hand = remaining
-	current.Submitted = append([]string(nil), cardIDs...)
+	current.Submitted = append([]*deck.WhiteCard(nil), cards...)
+	r.submissionSeq++
 	r.submissions = append(r.submissions, &Submission{
-		ID:      submissionID(cardIDs),
-		Player:  current,
-		CardIDs: append([]string(nil), cardIDs...),
+		ID:     submissionID(r.round, r.submissionSeq),
+		Player: current,
+		Cards:  append([]*deck.WhiteCard(nil), cards...),
 	})
 	if len(r.submissions) == len(r.players)-1 {
 		r.rand.Shuffle(len(r.submissions), func(i, j int) {
@@ -856,7 +858,7 @@ func (r *Room) leave(player *Player) bool {
 	current.Score = 0
 	current.Hand = nil
 	current.Submitted = nil
-	current.SelectedCardIDs = nil
+	current.SelectedCards = nil
 	current.SelectedSubmission = nil
 	r.players = append(r.players[:idx], r.players[idx+1:]...)
 	r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) bool { return sub.Player == current })
@@ -910,7 +912,7 @@ func (r *Room) seatLocked(player *Player) {
 	player.Score = 0
 	player.Hand = nil
 	player.Submitted = nil
-	player.SelectedCardIDs = nil
+	player.SelectedCards = nil
 	player.SelectedSubmission = nil
 }
 
@@ -987,7 +989,8 @@ func (r *Room) resetToLobbyLocked(message string) {
 	r.state = StateLobby
 	r.round = 0
 	r.czarIndex = -1
-	r.currentBlackID = ""
+	r.currentBlack = nil
+	r.submissionSeq = 0
 	r.blackDraw = nil
 	r.blackDiscard = nil
 	r.whiteDraw = nil
@@ -998,7 +1001,7 @@ func (r *Room) resetToLobbyLocked(message string) {
 		player.Score = 0
 		player.Hand = nil
 		player.Submitted = nil
-		player.SelectedCardIDs = nil
+		player.SelectedCards = nil
 		player.SelectedSubmission = nil
 	}
 }
@@ -1028,16 +1031,17 @@ func (r *Room) captureLastGameLocked(winner *Player) {
 
 func (r *Room) advanceRoundLocked() {
 	r.clearReviewLocked()
-	if r.currentBlackID != "" {
-		r.blackDiscard = append(r.blackDiscard, r.currentBlackID)
+	if r.currentBlack != nil {
+		r.blackDiscard = append(r.blackDiscard, r.currentBlack)
 	}
 	for _, submission := range r.submissions {
-		r.whiteDiscard = append(r.whiteDiscard, submission.CardIDs...)
+		r.whiteDiscard = append(r.whiteDiscard, submission.Cards...)
 	}
 	for _, player := range r.players {
 		player.Submitted = nil
 	}
 	r.submissions = nil
+	r.submissionSeq = 0
 	if len(r.players) == 0 {
 		r.resetToLobbyLocked("Room is empty.")
 		return
@@ -1051,14 +1055,14 @@ func (r *Room) advanceRoundLocked() {
 			player.Hand = append(player.Hand, r.drawWhiteLocked())
 		}
 	}
-	r.currentBlackID = r.drawBlackLocked()
+	r.currentBlack = r.drawBlackLocked()
 	black := r.currentBlackLocked()
 	judge := r.judgeLocked()
 	for _, player := range r.players {
 		if player == judge {
 			continue
 		}
-		for i := 0; i < black.Draw; i++ {
+		for i := 0; black != nil && i < black.Draw; i++ {
 			player.Hand = append(player.Hand, r.drawWhiteLocked())
 		}
 	}
@@ -1134,26 +1138,26 @@ func (r *Room) reviewButtonBaseLocked() string {
 	return "Next Round"
 }
 
-func (r *Room) drawWhiteLocked() string {
+func (r *Room) drawWhiteLocked() *deck.WhiteCard {
 	if len(r.whiteDraw) == 0 {
 		r.whiteDraw = append(r.whiteDraw, r.whiteDiscard...)
 		r.whiteDiscard = nil
 		r.rand.Shuffle(len(r.whiteDraw), func(i, j int) { r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] })
 	}
-	cardID := r.whiteDraw[len(r.whiteDraw)-1]
+	card := r.whiteDraw[len(r.whiteDraw)-1]
 	r.whiteDraw = r.whiteDraw[:len(r.whiteDraw)-1]
-	return cardID
+	return card
 }
 
-func (r *Room) drawBlackLocked() string {
+func (r *Room) drawBlackLocked() *deck.BlackCard {
 	if len(r.blackDraw) == 0 {
 		r.blackDraw = append(r.blackDraw, r.blackDiscard...)
 		r.blackDiscard = nil
 		r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
 	}
-	cardID := r.blackDraw[len(r.blackDraw)-1]
+	card := r.blackDraw[len(r.blackDraw)-1]
 	r.blackDraw = r.blackDraw[:len(r.blackDraw)-1]
-	return cardID
+	return card
 }
 
 func (r *Room) judgeLocked() *Player {
@@ -1164,10 +1168,7 @@ func (r *Room) judgeLocked() *Player {
 }
 
 func (r *Room) currentBlackLocked() *deck.BlackCard {
-	if r.currentBlackID == "" {
-		return nil
-	}
-	return r.catalog.BlackCards[r.currentBlackID]
+	return r.currentBlack
 }
 
 func (r *Room) playerLocked(player *Player) *Player {
@@ -1189,84 +1190,94 @@ func (r *Room) selectedDeckNamesLocked() []string {
 	return names
 }
 
-func (r *Room) SelectedDeckIDsForWhiteCard(cardID string) []string {
-	if r == nil || cardID == "" {
+func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) []string {
+	if r == nil || card == nil {
 		return nil
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.selectedDeckIDsForCardLocked(cardID, false)
+	return r.selectedDeckIDsForWhiteCardLocked(card)
 }
 
-func (r *Room) SelectedDeckIDsForBlackCard(cardID string) []string {
-	if r == nil || cardID == "" {
+func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) []string {
+	if r == nil || card == nil {
 		return nil
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.selectedDeckIDsForCardLocked(cardID, true)
+	return r.selectedDeckIDsForBlackCardLocked(card)
 }
 
-func (r *Room) FirstSelectedDeckNameForWhiteCard(cardID string) string {
-	if r == nil || cardID == "" {
+func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) string {
+	if r == nil || card == nil {
 		return ""
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.firstSelectedDeckNameForCardLocked(cardID, false)
+	return r.firstSelectedDeckNameForWhiteCardLocked(card)
 }
 
-func (r *Room) FirstSelectedDeckNameForBlackCard(cardID string) string {
-	if r == nil || cardID == "" {
+func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) string {
+	if r == nil || card == nil {
 		return ""
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.firstSelectedDeckNameForCardLocked(cardID, true)
+	return r.firstSelectedDeckNameForBlackCardLocked(card)
 }
 
-func (r *Room) selectedDeckIDsForCardLocked(cardID string, black bool) []string {
+func (r *Room) selectedDeckIDsForWhiteCardLocked(card *deck.WhiteCard) []string {
 	deckIDs := make([]string, 0, len(r.selectedDeckIDs))
 	for _, deckID := range r.selectedDeckIDs {
 		d := r.catalog.DeckByID(deckID)
 		if d == nil {
 			continue
 		}
-		if black && slices.Contains(d.BlackIDs, cardID) {
-			deckIDs = append(deckIDs, deckID)
-			continue
-		}
-		if !black && slices.Contains(d.WhiteIDs, cardID) {
+		if slices.Contains(d.WhiteCards, card) {
 			deckIDs = append(deckIDs, deckID)
 		}
 	}
 	return deckIDs
 }
 
-func (r *Room) firstSelectedDeckNameForCardLocked(cardID string, black bool) string {
+func (r *Room) selectedDeckIDsForBlackCardLocked(card *deck.BlackCard) []string {
+	deckIDs := make([]string, 0, len(r.selectedDeckIDs))
 	for _, deckID := range r.selectedDeckIDs {
 		d := r.catalog.DeckByID(deckID)
 		if d == nil {
 			continue
 		}
-		if black && slices.Contains(d.BlackIDs, cardID) {
-			return d.Name
+		if slices.Contains(d.BlackCards, card) {
+			deckIDs = append(deckIDs, deckID)
 		}
-		if !black && slices.Contains(d.WhiteIDs, cardID) {
+	}
+	return deckIDs
+}
+
+func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) string {
+	for _, deckID := range r.selectedDeckIDs {
+		d := r.catalog.DeckByID(deckID)
+		if d == nil {
+			continue
+		}
+		if slices.Contains(d.WhiteCards, card) {
 			return d.Name
 		}
 	}
 	return ""
 }
 
-func (r *Room) lookupWhiteCardsLocked(ids []string) []*deck.WhiteCard {
-	cards := make([]*deck.WhiteCard, 0, len(ids))
-	for _, id := range ids {
-		if card, ok := r.catalog.WhiteCards[id]; ok {
-			cards = append(cards, card)
+func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) string {
+	for _, deckID := range r.selectedDeckIDs {
+		d := r.catalog.DeckByID(deckID)
+		if d == nil {
+			continue
+		}
+		if slices.Contains(d.BlackCards, card) {
+			return d.Name
 		}
 	}
-	return cards
+	return ""
 }
 
 func normalizeDeckIDs(catalog *deck.Catalog, ids []string) []string {
@@ -1292,19 +1303,18 @@ func normalizeDeckIDs(catalog *deck.Catalog, ids []string) []string {
 	return out
 }
 
-func normalizeIDs(ids []string) []string {
-	seen := make(map[string]struct{}, len(ids))
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id == "" {
+func normalizeWhiteCards(cards []*deck.WhiteCard) []*deck.WhiteCard {
+	seen := make(map[*deck.WhiteCard]struct{}, len(cards))
+	out := make([]*deck.WhiteCard, 0, len(cards))
+	for _, card := range cards {
+		if card == nil {
 			continue
 		}
-		if _, ok := seen[id]; ok {
+		if _, ok := seen[card]; ok {
 			continue
 		}
-		seen[id] = struct{}{}
-		out = append(out, id)
+		seen[card] = struct{}{}
+		out = append(out, card)
 	}
 	return out
 }
@@ -1320,27 +1330,8 @@ func sortedSelected(values map[string]bool) []string {
 	return out
 }
 
-func idsFromBlack(cards []*deck.BlackCard) []string {
-	out := make([]string, len(cards))
-	for i, card := range cards {
-		out[i] = card.ID
-	}
-	return out
-}
-
-func idsFromWhite(cards []*deck.WhiteCard) []string {
-	out := make([]string, len(cards))
-	for i, card := range cards {
-		out[i] = card.ID
-	}
-	return out
-}
-
-func submissionID(cardIDs []string) string {
-	if len(cardIDs) == 0 {
-		return ""
-	}
-	return strings.Join(cardIDs, "+")
+func submissionID(round, seq int) string {
+	return fmt.Sprintf("r%d-s%d", round, seq)
 }
 
 func (r *Room) setTargetScoreLocked(player *Player, score int) error {
@@ -1381,24 +1372,24 @@ func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {
 	if !r.debug || len(r.blackDraw) == 0 {
 		return
 	}
-	bestID := ""
+	var best *deck.BlackCard
 	bestPick := -1
 	bestDraw := -1
 	for _, card := range cards {
 		if card == nil {
 			continue
 		}
-		if card.Pick > bestPick || (card.Pick == bestPick && card.Draw > bestDraw) || (card.Pick == bestPick && card.Draw == bestDraw && (bestID == "" || card.ID < bestID)) {
-			bestID = card.ID
+		if card.Pick > bestPick || (card.Pick == bestPick && card.Draw > bestDraw) || (card.Pick == bestPick && card.Draw == bestDraw && (best == nil || card.ID < best.ID)) {
+			best = card
 			bestPick = card.Pick
 			bestDraw = card.Draw
 		}
 	}
-	if bestID == "" {
+	if best == nil {
 		return
 	}
-	for i, id := range r.blackDraw {
-		if id == bestID {
+	for i, card := range r.blackDraw {
+		if card == best {
 			last := len(r.blackDraw) - 1
 			r.blackDraw[i], r.blackDraw[last] = r.blackDraw[last], r.blackDraw[i]
 			return

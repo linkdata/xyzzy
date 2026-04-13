@@ -33,6 +33,6 @@ type DeckMetadata struct {
 // Deck is a playable deck with its referenced card IDs.
 type Deck struct {
 	DeckMetadata
-	BlackIDs []string
-	WhiteIDs []string
+	BlackCards []*BlackCard
+	WhiteCards []*WhiteCard
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/xyzzy/internal/deck"
 )
 
 func (p *Player) NicknameField() bind.Binder[string] {
@@ -55,7 +56,7 @@ func (r *Room) StartGameAttrs(player *Player) template.HTMLAttr {
 }
 
 func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
-	if !r.CanSubmit(player) || len(player.SelectedCardIDs) != r.NeedPick() {
+	if !r.CanSubmit(player) || len(player.SelectedCards) != r.NeedPick() {
 		return `disabled`
 	}
 	return ""
@@ -63,9 +64,9 @@ func (r *Room) SubmitCardsAttrs(player *Player) template.HTMLAttr {
 
 func (r *Room) SubmitCardsClick(player *Player) jaws.ClickHandler {
 	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) (err error) {
-		selected := append([]string(nil), player.SelectedCardIDs...)
+		selected := append([]*deck.WhiteCard(nil), player.SelectedCards...)
 		if err = r.PlayCards(player, selected); err == nil {
-			player.SelectedCardIDs = nil
+			player.SelectedCards = nil
 			elem.Dirty(player, r)
 		}
 		return
@@ -113,7 +114,7 @@ func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
 func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
 	return ui.Clickable("Start Game", func(elem *jaws.Element, name string) (err error) {
 		if err = r.Start(player); err == nil {
-			player.SelectedCardIDs = nil
+			player.SelectedCards = nil
 			player.SelectedSubmission = nil
 			elem.Dirty(player, r)
 		}

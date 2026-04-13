@@ -22,23 +22,23 @@ type roomDeckTag struct {
 	Deck *deck.Deck
 }
 
-func applyCardSelection(player *game.Player, cardID string, needPick int) (changed bool, alert string) {
-	if slicesContains(player.SelectedCardIDs, cardID) {
-		player.SelectedCardIDs = deleteString(player.SelectedCardIDs, cardID)
+func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool, alert string) {
+	if slicesContains(player.SelectedCards, card) {
+		player.SelectedCards = deleteCard(player.SelectedCards, card)
 		return true, ""
 	}
 	if needPick == 1 {
-		player.SelectedCardIDs = []string{cardID}
+		player.SelectedCards = []*deck.WhiteCard{card}
 		return true, ""
 	}
-	if len(player.SelectedCardIDs) >= needPick {
+	if len(player.SelectedCards) >= needPick {
 		return false, fmt.Sprintf("Select exactly %d cards.", needPick)
 	}
-	player.SelectedCardIDs = append(player.SelectedCardIDs, cardID)
+	player.SelectedCards = append(player.SelectedCards, card)
 	return true, ""
 }
 
-func slicesContains(values []string, target string) bool {
+func slicesContains(values []*deck.WhiteCard, target *deck.WhiteCard) bool {
 	for _, value := range values {
 		if value == target {
 			return true
@@ -47,7 +47,7 @@ func slicesContains(values []string, target string) bool {
 	return false
 }
 
-func deleteString(values []string, target string) []string {
+func deleteCard(values []*deck.WhiteCard, target *deck.WhiteCard) []*deck.WhiteCard {
 	out := values[:0]
 	for _, value := range values {
 		if value != target {

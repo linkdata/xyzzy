@@ -47,15 +47,16 @@ type Room struct {
 	state            RoomState
 	round            int
 	czarIndex        int
-	currentBlackID   string
+	currentBlack     *deck.BlackCard
+	submissionSeq    int
 	lastWinnerName   string
 	lastGameWinner   string
 	lastGameScores   []FinalScore
 	statusMessage    string
-	blackDraw        []string
-	blackDiscard     []string
-	whiteDraw        []string
-	whiteDiscard     []string
+	blackDraw        []*deck.BlackCard
+	blackDiscard     []*deck.BlackCard
+	whiteDraw        []*deck.WhiteCard
+	whiteDiscard     []*deck.WhiteCard
 	submissions      []*Submission
 	reviewDelay      time.Duration
 	reviewTimer      *time.Timer
@@ -73,18 +74,18 @@ type Player struct {
 	NicknameInput      string
 	Room               *Room
 	Score              int
-	Hand               []string
-	Submitted          []string
-	SelectedCardIDs    []string
+	Hand               []*deck.WhiteCard
+	Submitted          []*deck.WhiteCard
+	SelectedCards      []*deck.WhiteCard
 	SelectedSubmission *Submission
 
 	uiMu sync.Mutex
 }
 
 type Submission struct {
-	ID      string
-	Player  *Player
-	CardIDs []string
+	ID     string
+	Player *Player
+	Cards  []*deck.WhiteCard
 }
 
 type FinalScore struct {

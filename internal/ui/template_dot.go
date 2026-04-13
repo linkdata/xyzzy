@@ -102,7 +102,7 @@ func (d templateDot) CardAction(card *deck.WhiteCard) jaws.ClickHandler {
 		if !d.Room.CanSubmit(d.Player) {
 			return nil
 		}
-		changed, alert := applyCardSelection(d.Player, card.ID, d.Room.NeedPick())
+		changed, alert := applyCardSelection(d.Player, card, d.Room.NeedPick())
 		if alert != "" {
 			return errors.New(alert)
 		}
@@ -126,7 +126,7 @@ func (d templateDot) CardAttrs() template.HTMLAttr {
 
 func (d templateDot) CardClass(card *deck.WhiteCard) template.HTMLAttr {
 	class := `class="card-face card-face-white w-100 text-start`
-	if slicesContains(d.Player.SelectedCardIDs, card.ID) {
+	if slicesContains(d.Player.SelectedCards, card) {
 		class += ` is-selected`
 	}
 	return template.HTMLAttr(class + `"`)
@@ -264,7 +264,7 @@ func (d templateDot) WaitingDetail() string {
 }
 
 func (d templateDot) BlackFootnote(card *deck.BlackCard) string {
-	return cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card.ID), card.ID)
+	return cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
 }
 
 func (d templateDot) StateBadgeClass() string {

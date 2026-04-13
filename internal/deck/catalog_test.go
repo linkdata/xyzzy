@@ -31,6 +31,16 @@ func TestLoadFSAndUnion(t *testing.T) {
 	if got := catalog.OrderedDecks(); len(got) != 2 || got[0].ID != "beta" || got[1].ID != "alpha" {
 		t.Fatalf("OrderedDecks() unexpected order = %#v", got)
 	}
+	alpha := catalog.DeckByID("alpha")
+	if alpha == nil || len(alpha.BlackCards) != 2 || len(alpha.WhiteCards) != 2 {
+		t.Fatalf("DeckByID(alpha) card membership = %#v, want 2 black and 2 white", alpha)
+	}
+	if alpha.BlackCards[0] != catalog.BlackCards["b1"] || alpha.BlackCards[1] != catalog.BlackCards["b2"] {
+		t.Fatalf("alpha black membership should reference catalog cards, got %#v", alpha.BlackCards)
+	}
+	if alpha.WhiteCards[0] != catalog.WhiteCards["w1"] || alpha.WhiteCards[1] != catalog.WhiteCards["w2"] {
+		t.Fatalf("alpha white membership should reference catalog cards, got %#v", alpha.WhiteCards)
+	}
 	blackCount, whiteCount, err := catalog.UnionCounts([]string{"alpha", "beta"})
 	if err != nil {
 		t.Fatalf("UnionCounts() error = %v", err)
@@ -82,7 +92,7 @@ func TestLoadFSAllowsOneSidedDeck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFS() error = %v", err)
 	}
-	if got := catalog.DeckByID("alpha"); got == nil || len(got.BlackIDs) != 0 || len(got.WhiteIDs) != 1 {
+	if got := catalog.DeckByID("alpha"); got == nil || len(got.BlackCards) != 0 || len(got.WhiteCards) != 1 {
 		t.Fatalf("unexpected deck = %#v", got)
 	}
 }

@@ -43,7 +43,7 @@ func TestHandCardHTMLUsesTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
-	player.SelectedCardIDs = []string{"w2", "w1"}
+	player.SelectedCards = []*deck.WhiteCard{catalog.WhiteCards["w2"], catalog.WhiteCards["w1"]}
 	getter := app.HandCardHTML(player, catalog.WhiteCards["w1"])
 	got := string(getter.JawsGetHTML(newCardHTMLElement(app, getter)))
 	if !strings.Contains(got, `<div class="card-copy">`) {
@@ -89,7 +89,7 @@ func TestSubmissionHTMLUsesTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
-	submission := &game.Submission{ID: "sub-1", Player: player, CardIDs: []string{"w1", "w2"}}
+	submission := &game.Submission{ID: "sub-1", Player: player, Cards: []*deck.WhiteCard{catalog.WhiteCards["w1"], catalog.WhiteCards["w2"]}}
 	getter := app.SubmissionHTML(player, submission)
 	got := string(getter.JawsGetHTML(newCardHTMLElement(app, getter)))
 	if !strings.Contains(got, `submission-stack`) {
