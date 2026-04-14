@@ -22,7 +22,6 @@ var legacyCardTagReplacer = strings.NewReplacer(
 
 func formatCardHTML(text string) (result template.HTML) {
 	escaped := html.EscapeString(html.UnescapeString(text))
-	result = template.HTML(legacyCardTagReplacer.Replace(escaped))
+	result = template.HTML(legacyCardTagReplacer.Replace(escaped)) // #nosec G203
 	return
-	// #nosec G203
 }
