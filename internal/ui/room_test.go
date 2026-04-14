@@ -166,32 +166,35 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	}
 }
 
-func newScoreTargetElement(app *App, slider bind.Binder[int]) *jaws.Element {
-	return app.Jaws.NewRequest(nil).NewElement(jui.NewRange(bind.MakeSetterFloat64(slider)))
+func newScoreTargetElement(app *App, slider bind.Binder[int]) (result *jaws.Element) {
+	result = app.Jaws.NewRequest(nil).NewElement(jui.NewRange(bind.MakeSetterFloat64(slider)))
+	return
 }
 
-func newTestSession(t *testing.T, app *App, handler http.Handler) *jaws.Session {
+func newTestSession(t *testing.T, app *App, handler http.Handler) (result *jaws.Session) {
 	t.Helper()
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
+	result = app.Jaws.GetSession(req)
+	if result == nil {
 		t.Fatal("expected JaWS session")
 	}
-	return sess
+	return
 }
 
-func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want string) error {
+func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want string) (errResult error) {
 	for {
 		_, body, err := conn.Read(ctx)
 		if err != nil {
-			return err
+			errResult = err
+			return
 		}
 		text := string(body)
 		if strings.Contains(text, `value="`+want+`"`) || strings.Contains(text, `>`+want+`<`) {
-			return nil
+			errResult = nil
+			return
 		}
 		for _, line := range strings.Split(text, "\n") {
 			if line == "" {
@@ -204,22 +207,25 @@ func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want 
 			switch msg.What {
 			case what.Value, what.Inner:
 				if msg.Data == want {
-					return nil
+					errResult = nil
+					return
 				}
 			case what.Append, what.Replace:
 				if strings.Contains(msg.Data, `value="`+want+`"`) || strings.Contains(msg.Data, `>`+want+`<`) {
-					return nil
+					errResult = nil
+					return
 				}
 			}
 		}
 	}
 }
 
-func testPlayableApp(t *testing.T) (*App, *http.ServeMux) {
-	return testPlayableAppWithOptions(t, game.Options{MinPlayers: 2})
+func testPlayableApp(t *testing.T) (result1 *App, result2 *http.ServeMux) {
+	result1, result2 = testPlayableAppWithOptions(t, game.Options{MinPlayers: 2})
+	return
 }
 
-func testPlayableAppWithOptions(t *testing.T, opts game.Options) (*App, *http.ServeMux) {
+func testPlayableAppWithOptions(t *testing.T, opts game.Options) (result1 *App, result2 *http.ServeMux) {
 	t.Helper()
 
 	jw, err := jaws.New()
@@ -235,10 +241,11 @@ func testPlayableAppWithOptions(t *testing.T, opts game.Options) (*App, *http.Se
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)
 	}
-	return app, mux
+	result1, result2 = app, mux
+	return
 }
 
-func testPlayableCatalog(t *testing.T) *deck.Catalog {
+func testPlayableCatalog(t *testing.T) (result *deck.Catalog) {
 	t.Helper()
 
 	fsys := fstest.MapFS{
@@ -271,11 +278,11 @@ func testPlayableCatalog(t *testing.T) *deck.Catalog {
 	fsys["assets/decks/base/black.json"] = &fstest.MapFile{Data: blackJSON}
 	fsys["assets/decks/base/white.json"] = &fstest.MapFile{Data: whiteJSON}
 
-	catalog, err := deck.LoadFS(fsys)
+	result, err = deck.LoadFS(fsys)
 	if err != nil {
 		t.Fatalf("LoadFS() error = %v", err)
 	}
-	return catalog
+	return
 }
 
 func TestRoomRendersExistingRoom(t *testing.T) {

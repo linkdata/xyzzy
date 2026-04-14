@@ -32,51 +32,62 @@ type Catalog struct {
 }
 
 // LoadFS loads a catalog from the provided filesystem.
-func LoadFS(fsys fs.FS) (*Catalog, error) {
+func LoadFS(fsys fs.FS) (result1 *Catalog, errResult error) {
 	c := &Catalog{
 		BlackCards: make(map[string]*BlackCard),
 		WhiteCards: make(map[string]*WhiteCard),
 		Decks:      make(map[string]*Deck),
 	}
-	if err := loadJSONDir(fsys, blackDir, func(name string, raw []byte) error {
+	if err := loadJSONDir(fsys, blackDir, func(name string, raw []byte) (errResult error) {
 		card := new(BlackCard)
 		if err := json.Unmarshal(raw, card); err != nil {
-			return fmt.Errorf("%s: decode black card: %w", name, err)
+			errResult = fmt.Errorf("%s: decode black card: %w", name, err)
+			return
 		}
 		card.Pick = max(card.Pick, 1)
 		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
-			return fmt.Errorf("%s: %w: black card missing id or text", name, ErrInvalidDeck)
+			errResult = fmt.Errorf("%s: %w: black card missing id or text", name, ErrInvalidDeck)
+			return
 		}
 		card.HTML = formatCardHTML(card.Text)
 		if _, exists := c.BlackCards[card.ID]; exists {
-			return fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+			errResult = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+			return
 		}
 		c.BlackCards[card.ID] = card
-		return nil
+		errResult = nil
+		return
 	}); err != nil {
-		return nil, err
+		result1, errResult = nil, err
+		return
 	}
-	if err := loadJSONDir(fsys, whiteDir, func(name string, raw []byte) error {
+	if err := loadJSONDir(fsys, whiteDir, func(name string, raw []byte) (errResult error) {
 		card := new(WhiteCard)
 		if err := json.Unmarshal(raw, card); err != nil {
-			return fmt.Errorf("%s: decode white card: %w", name, err)
+			errResult = fmt.Errorf("%s: decode white card: %w", name, err)
+			return
 		}
 		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
-			return fmt.Errorf("%s: %w: white card missing id or text", name, ErrInvalidDeck)
+			errResult = fmt.Errorf("%s: %w: white card missing id or text", name, ErrInvalidDeck)
+			return
 		}
 		card.HTML = formatCardHTML(card.Text)
 		if _, exists := c.WhiteCards[card.ID]; exists {
-			return fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+			errResult = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+			return
 		}
 		c.WhiteCards[card.ID] = card
-		return nil
+		errResult = nil
+		return
 	}); err != nil {
-		return nil, err
+		result1, errResult = nil, err
+		return
 	}
 
 	deckEntries, err := fs.ReadDir(fsys, decksDir)
 	if err != nil {
-		return nil, fmt.Errorf("read decks: %w", err)
+		result1, errResult = nil, fmt.Errorf("read decks: %w", err)
+		return
 	}
 	for _, entry := range deckEntries {
 		if !entry.IsDir() {
@@ -85,7 +96,8 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 		dir := path.Join(decksDir, entry.Name())
 		meta, blackIDs, whiteIDs, err := loadDeckDir(fsys, dir)
 		if err != nil {
-			return nil, err
+			result1, errResult = nil, err
+			return
 		}
 		deck := &Deck{
 			DeckMetadata: meta,
@@ -93,19 +105,22 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 			WhiteCards:   make([]*WhiteCard, 0, len(whiteIDs)),
 		}
 		if _, exists := c.Decks[deck.ID]; exists {
-			return nil, fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
+			result1, errResult = nil, fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
+			return
 		}
 		for _, cardID := range blackIDs {
 			card, ok := c.BlackCards[cardID]
 			if !ok {
-				return nil, fmt.Errorf("%s: unknown black card id %q", dir, cardID)
+				result1, errResult = nil, fmt.Errorf("%s: unknown black card id %q", dir, cardID)
+				return
 			}
 			deck.BlackCards = append(deck.BlackCards, card)
 		}
 		for _, cardID := range whiteIDs {
 			card, ok := c.WhiteCards[cardID]
 			if !ok {
-				return nil, fmt.Errorf("%s: unknown white card id %q", dir, cardID)
+				result1, errResult = nil, fmt.Errorf("%s: unknown white card id %q", dir, cardID)
+				return
 			}
 			deck.WhiteCards = append(deck.WhiteCards, card)
 		}
@@ -115,70 +130,85 @@ func LoadFS(fsys fs.FS) (*Catalog, error) {
 			c.defaultIDs = append(c.defaultIDs, deck.ID)
 		}
 	}
-	slices.SortFunc(c.ordered, func(a, b *Deck) int {
+	slices.SortFunc(c.ordered, func(a, b *Deck) (result int) {
 		if a.Weight != b.Weight {
-			return a.Weight - b.Weight
+			result = a.Weight - b.Weight
+			return
 		}
-		return strings.Compare(a.Name, b.Name)
+		result = strings.Compare(a.Name, b.Name)
+		return
 	})
 	if len(c.defaultIDs) == 0 && len(c.ordered) > 0 {
 		c.defaultIDs = []string{c.ordered[0].ID}
 	}
 	slices.Sort(c.defaultIDs)
-	return c, nil
+	result1, errResult = c, nil
+	return
 }
 
-func loadDeckDir(fsys fs.FS, dir string) (DeckMetadata, []string, []string, error) {
+func loadDeckDir(fsys fs.FS, dir string) (result1 DeckMetadata, result2 []string, result3 []string, errResult error) {
 	metaPath := path.Join(dir, "deck.json")
 	raw, err := fs.ReadFile(fsys, metaPath)
 	if err != nil {
-		return DeckMetadata{}, nil, nil, fmt.Errorf("%s: read deck metadata: %w", metaPath, err)
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: read deck metadata: %w", metaPath, err)
+		return
 	}
 	var meta DeckMetadata
 	if err := json.Unmarshal(raw, &meta); err != nil {
-		return DeckMetadata{}, nil, nil, fmt.Errorf("%s: decode deck metadata: %w", metaPath, err)
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: decode deck metadata: %w", metaPath, err)
+		return
 	}
 	if meta.ID == "" || strings.TrimSpace(meta.Name) == "" {
-		return DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck missing id or name", metaPath, ErrInvalidDeck)
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck missing id or name", metaPath, ErrInvalidDeck)
+		return
 	}
 	blackIDs, err := loadStringList(fsys, path.Join(dir, "black.json"))
 	if err != nil {
-		return DeckMetadata{}, nil, nil, err
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, err
+		return
 	}
 	whiteIDs, err := loadStringList(fsys, path.Join(dir, "white.json"))
 	if err != nil {
-		return DeckMetadata{}, nil, nil, err
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, err
+		return
 	}
 	blackIDs = uniqueSorted(blackIDs)
 	whiteIDs = uniqueSorted(whiteIDs)
 	if len(blackIDs) == 0 && len(whiteIDs) == 0 {
-		return DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck must include at least one card", dir, ErrInvalidDeck)
+		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck must include at least one card", dir, ErrInvalidDeck)
+		return
 	}
-	return meta, blackIDs, whiteIDs, nil
+	result1, result2, result3, errResult = meta, blackIDs, whiteIDs, nil
+	return
 }
 
-func loadStringList(fsys fs.FS, name string) ([]string, error) {
+func loadStringList(fsys fs.FS, name string) (result1 []string, errResult error) {
 	raw, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return nil, fmt.Errorf("%s: read card membership: %w", name, err)
+		result1, errResult = nil, fmt.Errorf("%s: read card membership: %w", name, err)
+		return
 	}
 	var ids []string
 	if err := json.Unmarshal(raw, &ids); err != nil {
-		return nil, fmt.Errorf("%s: decode card membership: %w", name, err)
+		result1, errResult = nil, fmt.Errorf("%s: decode card membership: %w", name, err)
+		return
 	}
 	for i, id := range ids {
 		ids[i] = strings.TrimSpace(id)
 		if ids[i] == "" {
-			return nil, fmt.Errorf("%s: %w: blank card id", name, ErrInvalidDeck)
+			result1, errResult = nil, fmt.Errorf("%s: %w: blank card id", name, ErrInvalidDeck)
+			return
 		}
 	}
-	return ids, nil
+	result1, errResult = ids, nil
+	return
 }
 
-func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error) error {
+func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error) (errResult error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", dir, err)
+		errResult = fmt.Errorf("read %s: %w", dir, err)
+		return
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || path.Ext(entry.Name()) != ".json" {
@@ -187,49 +217,57 @@ func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error)
 		name := path.Join(dir, entry.Name())
 		raw, err := fs.ReadFile(fsys, name)
 		if err != nil {
-			return fmt.Errorf("%s: read: %w", name, err)
+			errResult = fmt.Errorf("%s: read: %w", name, err)
+			return
 		}
 		if err := fn(name, raw); err != nil {
-			return err
+			errResult = err
+			return
 		}
 	}
-	return nil
+	errResult = nil
+	return
 }
 
 // OrderedDecks returns the deck list sorted by weight then name.
-func (c *Catalog) OrderedDecks() []*Deck {
+func (c *Catalog) OrderedDecks() (result []*Deck) {
 	if c == nil {
-		return nil
+		result = nil
+		return
 	}
-	out := make([]*Deck, len(c.ordered))
-	copy(out, c.ordered)
-	return out
+	result = make([]*Deck, len(c.ordered))
+	copy(result, c.ordered)
+	return
 }
 
 // DefaultDeckIDs returns the default-selected deck IDs.
-func (c *Catalog) DefaultDeckIDs() []string {
+func (c *Catalog) DefaultDeckIDs() (result []string) {
 	if c == nil {
-		return nil
+		result = nil
+		return
 	}
-	out := make([]string, len(c.defaultIDs))
-	copy(out, c.defaultIDs)
-	return out
+	result = make([]string, len(c.defaultIDs))
+	copy(result, c.defaultIDs)
+	return
 }
 
 // UnionCounts returns the unique black and white card counts for the selected decks.
 func (c *Catalog) UnionCounts(deckIDs []string) (blackCount, whiteCount int, err error) {
 	blackSet, whiteSet, err := c.unionSet(deckIDs)
 	if err != nil {
-		return 0, 0, err
+		blackCount, whiteCount = 0, 0
+		return
 	}
-	return len(blackSet), len(whiteSet), nil
+	blackCount, whiteCount, err = len(blackSet), len(whiteSet), nil
+	return
 }
 
 // UnionCards returns unique cards from the selected decks, sorted by card ID.
 func (c *Catalog) UnionCards(deckIDs []string) (black []*BlackCard, white []*WhiteCard, err error) {
 	blackSet, whiteSet, err := c.unionSet(deckIDs)
 	if err != nil {
-		return nil, nil, err
+		black, white = nil, nil
+		return
 	}
 	for card := range blackSet {
 		black = append(black, card)
@@ -237,29 +275,33 @@ func (c *Catalog) UnionCards(deckIDs []string) (black []*BlackCard, white []*Whi
 	for card := range whiteSet {
 		white = append(white, card)
 	}
-	slices.SortFunc(black, func(a, b *BlackCard) int { return strings.Compare(a.ID, b.ID) })
-	slices.SortFunc(white, func(a, b *WhiteCard) int { return strings.Compare(a.ID, b.ID) })
-	return black, white, nil
+	slices.SortFunc(black, func(a, b *BlackCard) (result int) { result = strings.Compare(a.ID, b.ID); return })
+	slices.SortFunc(white, func(a, b *WhiteCard) (result int) { result = strings.Compare(a.ID, b.ID); return })
+	return
 }
 
 // DeckByID returns a deck by ID.
-func (c *Catalog) DeckByID(id string) *Deck {
+func (c *Catalog) DeckByID(id string) (result *Deck) {
 	if c == nil {
-		return nil
+		result = nil
+		return
 	}
-	return c.Decks[id]
+	result = c.Decks[id]
+	return
 }
 
-func (c *Catalog) unionSet(deckIDs []string) (map[*BlackCard]struct{}, map[*WhiteCard]struct{}, error) {
+func (c *Catalog) unionSet(deckIDs []string) (result1 map[*BlackCard]struct{}, result2 map[*WhiteCard]struct{}, errResult error) {
 	if c == nil {
-		return nil, nil, nil
+		result1, result2, errResult = nil, nil, nil
+		return
 	}
 	blackSet := make(map[*BlackCard]struct{})
 	whiteSet := make(map[*WhiteCard]struct{})
 	for _, deckID := range uniqueSorted(deckIDs) {
 		deck := c.Decks[deckID]
 		if deck == nil {
-			return nil, nil, fmt.Errorf("unknown deck id %q", deckID)
+			result1, result2, errResult = nil, nil, fmt.Errorf("unknown deck id %q", deckID)
+			return
 		}
 		for _, card := range deck.BlackCards {
 			if card == nil {
@@ -274,12 +316,13 @@ func (c *Catalog) unionSet(deckIDs []string) (map[*BlackCard]struct{}, map[*Whit
 			whiteSet[card] = struct{}{}
 		}
 	}
-	return blackSet, whiteSet, nil
+	result1, result2, errResult = blackSet, whiteSet, nil
+	return
 }
 
-func uniqueSorted(values []string) []string {
+func uniqueSorted(values []string) (result []string) {
 	set := make(map[string]struct{}, len(values))
-	out := make([]string, 0, len(values))
+	result = make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -289,15 +332,17 @@ func uniqueSorted(values []string) []string {
 			continue
 		}
 		set[value] = struct{}{}
-		out = append(out, value)
+		result = append(result, value)
 	}
-	slices.Sort(out)
-	return out
+	slices.Sort(result)
+	return
 }
 
-func max(a, b int) int {
+func max(a, b int) (result int) {
 	if a > b {
-		return a
+		result = a
+		return
 	}
-	return b
+	result = b
+	return
 }

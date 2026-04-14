@@ -47,22 +47,24 @@ var (
 	ErrReviewNotReady      = errors.New("round result is not ready")
 )
 
-func NewManager(catalog *deck.Catalog) *Manager {
-	return NewManagerWithOptions(catalog, Options{})
+func NewManager(catalog *deck.Catalog) (result *Manager) {
+	result = NewManagerWithOptions(catalog, Options{})
+	return
 }
 
-func NewManagerWithOptions(catalog *deck.Catalog, opts Options) *Manager {
+func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager) {
 	if opts.MinPlayers < 2 {
 		opts.MinPlayers = MinPlayers
 	}
-	return &Manager{
+	result = &Manager{
 		rooms:   make(map[string]*Room),
 		catalog: catalog,
 		opts:    opts,
 	}
+	return
 }
 
-func NormalizeNickname(raw string) string {
+func NormalizeNickname(raw string) (result string) {
 	var b strings.Builder
 	for _, r := range raw {
 		switch {
@@ -75,19 +77,22 @@ func NormalizeNickname(raw string) string {
 		}
 	}
 	if b.Len() == 0 {
-		return "Player"
+		result = "Player"
+		return
 	}
-	return b.String()
+	result = b.String()
+	return
 }
 
-func normalizeDeckIDs(catalog *deck.Catalog, ids []string) []string {
+func normalizeDeckIDs(catalog *deck.Catalog, ids []string) (result []string) {
 	if catalog == nil {
-		return nil
+		result = nil
+		return
 	}
 	if len(ids) == 0 {
 		ids = catalog.DefaultDeckIDs()
 	}
-	out := make([]string, 0, len(ids))
+	result = make([]string, 0, len(ids))
 	seen := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		if catalog.DeckByID(id) == nil {
@@ -97,15 +102,15 @@ func normalizeDeckIDs(catalog *deck.Catalog, ids []string) []string {
 			continue
 		}
 		seen[id] = struct{}{}
-		out = append(out, id)
+		result = append(result, id)
 	}
-	slices.Sort(out)
-	return out
+	slices.Sort(result)
+	return
 }
 
-func normalizeWhiteCards(cards []*deck.WhiteCard) []*deck.WhiteCard {
+func normalizeWhiteCards(cards []*deck.WhiteCard) (result []*deck.WhiteCard) {
 	seen := make(map[*deck.WhiteCard]struct{}, len(cards))
-	out := make([]*deck.WhiteCard, 0, len(cards))
+	result = make([]*deck.WhiteCard, 0, len(cards))
 	for _, card := range cards {
 		if card == nil {
 			continue
@@ -114,42 +119,47 @@ func normalizeWhiteCards(cards []*deck.WhiteCard) []*deck.WhiteCard {
 			continue
 		}
 		seen[card] = struct{}{}
-		out = append(out, card)
+		result = append(result, card)
 	}
-	return out
+	return
 }
 
-func sortedSelected(values map[string]bool) []string {
-	out := make([]string, 0, len(values))
+func sortedSelected(values map[string]bool) (result []string) {
+	result = make([]string, 0, len(values))
 	for id, enabled := range values {
 		if enabled {
-			out = append(out, id)
+			result = append(result, id)
 		}
 	}
-	slices.Sort(out)
-	return out
+	slices.Sort(result)
+	return
 }
 
-func submissionID(round, seq int) string {
-	return fmt.Sprintf("r%d-s%d", round, seq)
+func submissionID(round, seq int) (result string) {
+	result = fmt.Sprintf("r%d-s%d", round, seq)
+	return
 }
 
-func randomCode() (string, error) {
+func randomCode() (result1 string, errResult error) {
 	var raw [roomCodeLength]byte
 	if _, err := rand.Read(raw[:]); err != nil {
-		return "", err
+		result1, errResult = "", err
+		return
 	}
 	var b strings.Builder
 	for _, n := range raw {
 		b.WriteByte(roomCodeAlphabet[n&31])
 	}
-	return b.String(), nil
+	result1, errResult = b.String(), nil
+	return
 }
 
-func newCryptoRand() (*mathrand.Rand, error) {
+func newCryptoRand() (result1 *mathrand.Rand, errResult error) {
 	var seed [8]byte
 	if _, err := rand.Read(seed[:]); err != nil {
-		return nil, err
+		result1, errResult = nil, err
+		return
 	}
-	return mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:])))), nil
+	result1, errResult = mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:])))), nil
+	return
 }

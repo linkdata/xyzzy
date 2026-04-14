@@ -29,50 +29,63 @@ type section struct {
 	Kind          sectionKind
 }
 
-func (s *section) JawsGetTag(jtag.Context) any {
-	tags := []any{s.Player}
+func (s *section) JawsGetTag(jtag.Context) (result any) {
 	switch s.Kind {
 	case sectionLobbySidebar:
-		tags = append(tags, s.App.Manager)
+		result = []any{s.Player, s.App.Manager}
+		return
 	case sectionRoomSidebar, sectionRoomMain:
 		if room := s.currentRoom(); room != nil {
-			tags = append(tags, room)
+			result = []any{s.Player, room}
+			return
 		}
+		result = []any{s.Player}
+		return
 	}
-	return tags
+	result = []any{s.Player}
+	return
 }
 
-func (s *section) JawsContains(*jaws.Element) []jaws.UI {
+func (s *section) JawsContains(*jaws.Element) (result []jaws.UI) {
 	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
+		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
+		return
 	case sectionLobbyMain:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
+		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
+		return
 	case sectionRoomSidebar:
 		if s.currentRoom() == nil {
-			return nil
+			result = nil
+			return
 		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
+		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
+		return
 	default:
 		templateName := "room_single_panel.html"
 		if s.currentRoom() != nil {
 			templateName = "room_game_panel.html"
 		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
+		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
+		return
 	}
 }
 
-func (s *section) currentRoom() *game.Room {
+func (s *section) currentRoom() (result *game.Room) {
 	if s.Player.Room == nil {
-		return nil
+		result = nil
+		return
 	}
 	if s.RequestedCode != "" && !strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
-		return nil
+		result = nil
+		return
 	}
-	return s.Player.Room
+	result = s.Player.Room
+	return
 }
 
-func normalizeRoomCode(roomCode string) string {
-	return strings.ToUpper(strings.TrimSpace(roomCode))
+func normalizeRoomCode(roomCode string) (result string) {
+	result = strings.ToUpper(strings.TrimSpace(roomCode))
+	return
 }

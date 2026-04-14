@@ -19,7 +19,7 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-func testCatalog(t *testing.T) *deck.Catalog {
+func testCatalog(t *testing.T) (result *deck.Catalog) {
 	t.Helper()
 	fsys := fstest.MapFS{
 		"assets/cards/black/b1.json":    {Data: []byte(`{"id":"b1","text":"Question?"}`)},
@@ -35,14 +35,15 @@ func testCatalog(t *testing.T) *deck.Catalog {
 		"assets/decks/extra/black.json": {Data: []byte(`["b2"]`)},
 		"assets/decks/extra/white.json": {Data: []byte(`["w4"]`)},
 	}
-	catalog, err := deck.LoadFS(fsys)
+	var err error
+	result, err = deck.LoadFS(fsys)
 	if err != nil {
 		t.Fatalf("LoadFS() error = %v", err)
 	}
-	return catalog
+	return
 }
 
-func testApp(t *testing.T) (*App, *http.ServeMux) {
+func testApp(t *testing.T) (result1 *App, result2 *http.ServeMux) {
 	t.Helper()
 	jw, err := jaws.New()
 	if err != nil {
@@ -56,7 +57,8 @@ func testApp(t *testing.T) (*App, *http.ServeMux) {
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)
 	}
-	return app, mux
+	result1, result2 = app, mux
+	return
 }
 
 var jawsKeyRe = regexp.MustCompile(`<meta name="jawsKey" content="([^"]+)"`)
@@ -68,17 +70,19 @@ type liveHarness struct {
 	base   *url.URL
 }
 
-func newLiveHarness(t *testing.T) *liveHarness {
+func newLiveHarness(t *testing.T) (result *liveHarness) {
 	t.Helper()
-	return newHarnessWithCatalog(t, testCatalog(t), game.Options{})
+	result = newHarnessWithCatalog(t, testCatalog(t), game.Options{})
+	return
 }
 
-func newPlayableLiveHarness(t *testing.T) *liveHarness {
+func newPlayableLiveHarness(t *testing.T) (result *liveHarness) {
 	t.Helper()
-	return newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{})
+	result = newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{})
+	return
 }
 
-func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Options) *liveHarness {
+func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Options) (result *liveHarness) {
 	t.Helper()
 	jw, err := jaws.New()
 	if err != nil {
@@ -105,28 +109,31 @@ func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Option
 	if err != nil {
 		t.Fatalf("url.Parse() error = %v", err)
 	}
-	return &liveHarness{
+	result = &liveHarness{
 		app:    app,
 		server: server,
 		client: client,
 		base:   base,
 	}
+	return
 }
 
-func (h *liveHarness) newClient(t *testing.T) *http.Client {
+func (h *liveHarness) newClient(t *testing.T) (result *http.Client) {
 	t.Helper()
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		t.Fatalf("cookiejar.New() error = %v", err)
 	}
-	return &http.Client{Jar: jar}
+	result = &http.Client{Jar: jar}
+	return
 }
 
-func (h *liveHarness) get(t *testing.T, path string) string {
-	return h.getWithClient(t, h.client, path)
+func (h *liveHarness) get(t *testing.T, path string) (result string) {
+	result = h.getWithClient(t, h.client, path)
+	return
 }
 
-func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path string) string {
+func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path string) (result string) {
 	t.Helper()
 	resp, err := client.Get(h.server.URL + path)
 	if err != nil {
@@ -140,22 +147,26 @@ func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path stri
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s status = %d body=%s", path, resp.StatusCode, body)
 	}
-	return string(body)
+	result = string(body)
+	return
 }
 
-func (h *liveHarness) cookies() []*http.Cookie {
-	return h.cookiesFor(h.client)
+func (h *liveHarness) cookies() (result []*http.Cookie) {
+	result = h.cookiesFor(h.client)
+	return
 }
 
-func (h *liveHarness) cookiesFor(client *http.Client) []*http.Cookie {
-	return client.Jar.Cookies(h.base)
+func (h *liveHarness) cookiesFor(client *http.Client) (result []*http.Cookie) {
+	result = client.Jar.Cookies(h.base)
+	return
 }
 
-func (h *liveHarness) session(t *testing.T) *jaws.Session {
-	return h.sessionForClient(t, h.client)
+func (h *liveHarness) session(t *testing.T) (result *jaws.Session) {
+	result = h.sessionForClient(t, h.client)
+	return
 }
 
-func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) *jaws.Session {
+func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) (result *jaws.Session) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, h.server.URL+"/", nil)
 	req.Host = h.base.Host
@@ -165,18 +176,19 @@ func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) *jaws.
 	for _, cookie := range h.cookiesFor(client) {
 		req.AddCookie(cookie)
 	}
-	sess := h.app.Jaws.GetSession(req)
-	if sess == nil {
+	result = h.app.Jaws.GetSession(req)
+	if result == nil {
 		t.Fatal("expected JaWS session")
 	}
-	return sess
+	return
 }
 
-func (h *liveHarness) connect(t *testing.T, html string) (*websocket.Conn, context.CancelFunc) {
-	return h.connectWithCookies(t, html, h.cookies())
+func (h *liveHarness) connect(t *testing.T, html string) (result1 *websocket.Conn, result2 context.CancelFunc) {
+	result1, result2 = h.connectWithCookies(t, html, h.cookies())
+	return
 }
 
-func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*http.Cookie) (*websocket.Conn, context.CancelFunc) {
+func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*http.Cookie) (result1 *websocket.Conn, result2 context.CancelFunc) {
 	t.Helper()
 	match := jawsKeyRe.FindStringSubmatch(html)
 	if len(match) != 2 {
@@ -196,26 +208,30 @@ func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*h
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 		cancel()
 	})
-	return conn, cancel
+	result1, result2 = conn, cancel
+	return
 }
 
-func cookieHeader(cookies []*http.Cookie) string {
+func cookieHeader(cookies []*http.Cookie) (result string) {
 	parts := make([]string, 0, len(cookies))
 	for _, cookie := range cookies {
 		parts = append(parts, cookie.Name+"="+cookie.Value)
 	}
-	return strings.Join(parts, "; ")
+	result = strings.Join(parts, "; ")
+	return
 }
 
-func readUntilContains(ctx context.Context, conn *websocket.Conn, needle string) (string, error) {
+func readUntilContains(ctx context.Context, conn *websocket.Conn, needle string) (result1 string, errResult error) {
 	for {
 		_, body, err := conn.Read(ctx)
 		if err != nil {
-			return "", err
+			result1, errResult = "", err
+			return
 		}
 		text := string(body)
 		if strings.Contains(text, needle) {
-			return text, nil
+			result1, errResult = text, nil
+			return
 		}
 	}
 }

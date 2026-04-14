@@ -24,11 +24,13 @@ var (
 	flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode, allow two-player games, allow target score 1, and force the first black card to the highest-pick prompt")
 )
 
-func envOrDefault(envvar, fallback string) string {
+func envOrDefault(envvar, fallback string) (result string) {
 	if value := os.Getenv(envvar); value != "" {
-		return value
+		result = value
+		return
 	}
-	return fallback
+	result = fallback
+	return
 }
 
 func main() {

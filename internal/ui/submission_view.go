@@ -11,16 +11,19 @@ type submissionView struct {
 	Submission *game.Submission
 }
 
-func (v submissionView) Cards() []whiteCardView {
+func (v submissionView) Cards() (result []whiteCardView) {
 	if v.Room == nil || v.Submission == nil {
-		return nil
+		result = nil
+		return
 	}
-	return submissionCardViews(v.Room, v.Submission)
+	result = submissionCardViews(v.Room, v.Submission)
+	return
 }
 
-func (v submissionView) JawsClick(elem *jaws.Element, name string) error {
+func (v submissionView) JawsClick(elem *jaws.Element, name string) (errResult error) {
 	if !v.Room.CanJudge(v.Player) {
-		return nil
+		errResult = nil
+		return
 	}
 	if v.Player.SelectedSubmission == v.Submission {
 		v.Player.SelectedSubmission = nil
@@ -28,14 +31,15 @@ func (v submissionView) JawsClick(elem *jaws.Element, name string) error {
 		v.Player.SelectedSubmission = v.Submission
 	}
 	elem.Dirty(v.Player)
-	return nil
+	errResult = nil
+	return
 }
 
-func submissionCardViews(room *game.Room, submission *game.Submission) []whiteCardView {
+func submissionCardViews(room *game.Room, submission *game.Submission) (result []whiteCardView) {
 	cards := room.SubmissionCards(submission)
-	views := make([]whiteCardView, 0, len(cards))
+	result = make([]whiteCardView, 0, len(cards))
 	for _, card := range cards {
-		views = append(views, whiteCardView{Room: room, Card: card})
+		result = append(result, whiteCardView{Room: room, Card: card})
 	}
-	return views
+	return
 }

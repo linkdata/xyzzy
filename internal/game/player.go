@@ -23,8 +23,9 @@ type Player struct {
 	uiMu sync.Mutex
 }
 
-func (p *Player) NicknameField() bind.Binder[string] {
-	return bind.New(&p.uiMu, &p.NicknameInput)
+func (p *Player) NicknameField() (result bind.Binder[string]) {
+	result = bind.New(&p.uiMu, &p.NicknameInput)
+	return
 }
 
-func (p *Player) UILocker() *sync.Mutex { return &p.uiMu }
+func (p *Player) UILocker() (result *sync.Mutex) { result = &p.uiMu; return }

@@ -35,10 +35,11 @@ func main() {
 	}
 }
 
-func parseSQL(path string) (*sqlData, error) {
+func parseSQL(path string) (result1 *sqlData, errResult error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		result1, errResult = nil, err
+		return
 	}
 	defer f.Close()
 
@@ -80,7 +81,8 @@ func parseSQL(path string) (*sqlData, error) {
 		switch section {
 		case "black":
 			if len(parts) < 5 {
-				return nil, fmt.Errorf("invalid black card row: %q", line)
+				result1, errResult = nil, fmt.Errorf("invalid black card row: %q", line)
+				return
 			}
 			id := mustAtoi(parts[0])
 			data.blackCards[id] = deck.BlackCard{
@@ -92,7 +94,8 @@ func parseSQL(path string) (*sqlData, error) {
 			}
 		case "white":
 			if len(parts) < 3 {
-				return nil, fmt.Errorf("invalid white card row: %q", line)
+				result1, errResult = nil, fmt.Errorf("invalid white card row: %q", line)
+				return
 			}
 			id := mustAtoi(parts[0])
 			data.whiteCards[id] = deck.WhiteCard{
@@ -102,7 +105,8 @@ func parseSQL(path string) (*sqlData, error) {
 			}
 		case "deck":
 			if len(parts) < 6 {
-				return nil, fmt.Errorf("invalid deck row: %q", line)
+				result1, errResult = nil, fmt.Errorf("invalid deck row: %q", line)
+				return
 			}
 			id := mustAtoi(parts[0])
 			name := parts[4]
@@ -111,7 +115,8 @@ func parseSQL(path string) (*sqlData, error) {
 				deckID = fmt.Sprintf("deck-%d", id)
 			}
 			if _, exists := data.decks[id]; exists {
-				return nil, fmt.Errorf("duplicate deck row id %d", id)
+				result1, errResult = nil, fmt.Errorf("duplicate deck row id %d", id)
+				return
 			}
 			data.decks[id] = deckRecord{
 				active: parts[1] == "t",
@@ -126,27 +131,32 @@ func parseSQL(path string) (*sqlData, error) {
 			}
 		case "deck_black":
 			if len(parts) < 2 {
-				return nil, fmt.Errorf("invalid deck black row: %q", line)
+				result1, errResult = nil, fmt.Errorf("invalid deck black row: %q", line)
+				return
 			}
 			deckID := mustAtoi(parts[0])
 			data.deckBlackLinks[deckID] = append(data.deckBlackLinks[deckID], mustAtoi(parts[1]))
 		case "deck_white":
 			if len(parts) < 2 {
-				return nil, fmt.Errorf("invalid deck white row: %q", line)
+				result1, errResult = nil, fmt.Errorf("invalid deck white row: %q", line)
+				return
 			}
 			deckID := mustAtoi(parts[0])
 			data.deckWhiteLinks[deckID] = append(data.deckWhiteLinks[deckID], mustAtoi(parts[1]))
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		result1, errResult = nil, err
+		return
 	}
-	return data, nil
+	result1, errResult = data, nil
+	return
 }
 
-func writeAssets(outDir string, data *sqlData) error {
+func writeAssets(outDir string, data *sqlData) (errResult error) {
 	if data == nil {
-		return errors.New("missing parsed data")
+		errResult = errors.New("missing parsed data")
+		return
 	}
 	usedBlack := make(map[int]struct{})
 	usedWhite := make(map[int]struct{})
@@ -166,7 +176,8 @@ func writeAssets(outDir string, data *sqlData) error {
 		if prev, ok := seenDeckIDs[meta.ID]; ok {
 			meta.ID = fmt.Sprintf("%s-%d", meta.ID, legacyID)
 			if prev == legacyID {
-				return fmt.Errorf("duplicate deck id %q", meta.ID)
+				errResult = fmt.Errorf("duplicate deck id %q", meta.ID)
+				return
 			}
 		}
 		seenDeckIDs[meta.ID] = legacyID
@@ -174,7 +185,8 @@ func writeAssets(outDir string, data *sqlData) error {
 		for _, cardID := range data.deckBlackLinks[legacyID] {
 			card, ok := data.blackCards[cardID]
 			if !ok {
-				return fmt.Errorf("deck %s references unknown black card %d", meta.ID, cardID)
+				errResult = fmt.Errorf("deck %s references unknown black card %d", meta.ID, cardID)
+				return
 			}
 			usedBlack[cardID] = struct{}{}
 			blackIDs = append(blackIDs, card.ID)
@@ -182,7 +194,8 @@ func writeAssets(outDir string, data *sqlData) error {
 		for _, cardID := range data.deckWhiteLinks[legacyID] {
 			card, ok := data.whiteCards[cardID]
 			if !ok {
-				return fmt.Errorf("deck %s references unknown white card %d", meta.ID, cardID)
+				errResult = fmt.Errorf("deck %s references unknown white card %d", meta.ID, cardID)
+				return
 			}
 			usedWhite[cardID] = struct{}{}
 			whiteIDs = append(whiteIDs, card.ID)
@@ -196,7 +209,7 @@ func writeAssets(outDir string, data *sqlData) error {
 			white: uniqueStrings(whiteIDs),
 		})
 	}
-	slices.SortFunc(decks, func(a, b deckOut) int { return strings.Compare(a.meta.ID, b.meta.ID) })
+	slices.SortFunc(decks, func(a, b deckOut) (result int) { result = strings.Compare(a.meta.ID, b.meta.ID); return })
 
 	for _, dir := range []string{
 		filepath.Join(outDir, "cards", "black"),
@@ -204,48 +217,58 @@ func writeAssets(outDir string, data *sqlData) error {
 		filepath.Join(outDir, "decks"),
 	} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
+			errResult = err
+			return
 		}
 	}
 	for cardID := range usedBlack {
 		card := data.blackCards[cardID]
 		if err := writeJSON(filepath.Join(outDir, "cards", "black", card.ID+".json"), card); err != nil {
-			return err
+			errResult = err
+			return
 		}
 	}
 	for cardID := range usedWhite {
 		card := data.whiteCards[cardID]
 		if err := writeJSON(filepath.Join(outDir, "cards", "white", card.ID+".json"), card); err != nil {
-			return err
+			errResult = err
+			return
 		}
 	}
 	for _, d := range decks {
 		if err := os.MkdirAll(d.dir, 0o755); err != nil {
-			return err
+			errResult = err
+			return
 		}
 		if err := writeJSON(filepath.Join(d.dir, "deck.json"), d.meta); err != nil {
-			return err
+			errResult = err
+			return
 		}
 		if err := writeJSON(filepath.Join(d.dir, "black.json"), d.black); err != nil {
-			return err
+			errResult = err
+			return
 		}
 		if err := writeJSON(filepath.Join(d.dir, "white.json"), d.white); err != nil {
-			return err
+			errResult = err
+			return
 		}
 	}
-	return nil
+	errResult = nil
+	return
 }
 
-func writeJSON(path string, value any) error {
+func writeJSON(path string, value any) (errResult error) {
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
-		return err
+		errResult = err
+		return
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o644)
+	errResult = os.WriteFile(path, data, 0o644)
+	return
 }
 
-func slugify(s string) string {
+func slugify(s string) (result string) {
 	s = strings.ToLower(strings.TrimSpace(s))
 	var b strings.Builder
 	lastDash := false
@@ -261,29 +284,28 @@ func slugify(s string) string {
 			}
 		}
 	}
-	out := strings.Trim(b.String(), "-")
-	out = strings.ReplaceAll(out, "--", "-")
-	return out
+	result = strings.Trim(b.String(), "-")
+	result = strings.ReplaceAll(result, "--", "-")
+	return
 }
 
-func uniqueStrings(values []string) []string {
+func uniqueStrings(values []string) (result []string) {
 	set := make(map[string]struct{}, len(values))
-	out := make([]string, 0, len(values))
+	result = make([]string, 0, len(values))
 	for _, value := range values {
 		if _, ok := set[value]; ok {
 			continue
 		}
 		set[value] = struct{}{}
-		out = append(out, value)
+		result = append(result, value)
 	}
-	slices.Sort(out)
-	return out
+	slices.Sort(result)
+	return
 }
 
-func mustAtoi(s string) int {
-	var n int
+func mustAtoi(s string) (result int) {
 	for _, r := range s {
-		n = (n * 10) + int(r-'0')
+		result = (result * 10) + int(r-'0')
 	}
-	return n
+	return
 }

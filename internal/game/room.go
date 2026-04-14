@@ -61,55 +61,67 @@ type Room struct {
 }
 
 func (r *Room) ScoreTargetSlider(player *Player) (result bind.Binder[int]) {
-	return bind.New(&r.mu, &r.targetScore).
+	result = bind.New(&r.mu, &r.targetScore).
 		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) (err error) {
-			return r.setTargetScoreLocked(player, value)
+			err = r.setTargetScoreLocked(player, value)
+			return
 		})
+	return
 }
 
 func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) {
-	return bind.New(&r.mu, &r.private).
+	result = bind.New(&r.mu, &r.private).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
 			if err = r.setPrivateLocked(player, value); err == nil {
 				elem.Dirty(r.manager, r)
 			}
 			return
 		})
+	return
 }
 
 func (r *Room) PrivateToggleAttrs(player *Player) (result template.HTMLAttr) {
 	if r.host == player && r.state == StateLobby {
-		return ""
+		result = ""
+		return
 	}
-	return `disabled`
+	result = `disabled`
+	return
 }
 
 func (r *Room) ScoreTargetAttrs(player *Player) (result template.HTMLAttr) {
 	if r.IsHost(player) && r.state == StateLobby {
-		return ""
+		result = ""
+		return
 	}
-	return `disabled`
+	result = `disabled`
+	return
 }
 
 func (r *Room) StartGameAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.IsHost(player) {
-		return `hidden`
+		result = `hidden`
+		return
 	}
 	if !r.CanStart(player) {
-		return `disabled`
+		result = `disabled`
+		return
 	}
-	return ""
+	result = ""
+	return
 }
 
 func (r *Room) SubmitCardsAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.CanSubmit(player) || len(player.SelectedCards) != r.NeedPick() {
-		return `disabled`
+		result = `disabled`
+		return
 	}
-	return ""
+	result = ""
+	return
 }
 
 func (r *Room) SubmitCardsClick(player *Player) (result jaws.ClickHandler) {
-	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) (err error) {
+	result = ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) (err error) {
 		selected := append([]*deck.WhiteCard(nil), player.SelectedCards...)
 		if err = r.PlayCards(player, selected); err == nil {
 			player.SelectedCards = nil
@@ -117,48 +129,56 @@ func (r *Room) SubmitCardsClick(player *Player) (result jaws.ClickHandler) {
 		}
 		return
 	})
+	return
 }
 
 func (r *Room) JudgeAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.CanJudge(player) || player.SelectedSubmission == nil {
-		return `disabled`
+		result = `disabled`
+		return
 	}
-	return ""
+	result = ""
+	return
 }
 
 func (r *Room) JudgeClick(player *Player) (result jaws.ClickHandler) {
-	return ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) (err error) {
+	result = ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) (err error) {
 		selected := player.SelectedSubmission
 		if err = r.Judge(player, selected); err == nil {
 			player.SelectedSubmission = nil
 			elem.Dirty(player, r)
 		}
-		return nil
+		err = nil
+		return
 	})
+	return
 }
 
 func (r *Room) ProceedReviewAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.CanProceed(player) {
-		return `hidden`
+		result = `hidden`
+		return
 	}
-	return template.HTMLAttr(fmt.Sprintf(
+	result = template.HTMLAttr(fmt.Sprintf(
 		`class="btn btn-primary review-countdown-button" data-review-deadline="%d" data-review-label="%s"`,
 		r.ReviewDeadlineUnixMilli(),
 		r.ReviewButtonBase(),
 	))
+	return
 }
 
 func (r *Room) ProceedReviewClick(player *Player) (result jaws.ClickHandler) {
-	return ui.Clickable("", func(elem *jaws.Element, name string) (err error) {
+	result = ui.Clickable("", func(elem *jaws.Element, name string) (err error) {
 		if err = r.ProceedReview(player); err == nil {
 			elem.Dirty(r)
 		}
 		return
 	})
+	return
 }
 
 func (r *Room) StartGameClick(player *Player) (result jaws.ClickHandler) {
-	return ui.Clickable("Start Game", func(elem *jaws.Element, name string) (err error) {
+	result = ui.Clickable("Start Game", func(elem *jaws.Element, name string) (err error) {
 		if err = r.Start(player); err == nil {
 			player.SelectedCards = nil
 			player.SelectedSubmission = nil
@@ -166,26 +186,27 @@ func (r *Room) StartGameClick(player *Player) (result jaws.ClickHandler) {
 		}
 		return
 	})
+	return
 }
 
-func (r *Room) Code() (result string) { return r.code }
+func (r *Room) Code() (result string) { result = r.code; return }
 
-func (r *Room) Locker() (result *sync.RWMutex) { return &r.mu }
+func (r *Room) Locker() (result *sync.RWMutex) { result = &r.mu; return }
 
-func (r *Room) TargetScorePtr() (result *int) { return &r.targetScore }
+func (r *Room) TargetScorePtr() (result *int) { result = &r.targetScore; return }
 
 func (r *Room) State() (result RoomState) {
 	r.mu.RLock()
-	state := r.state
+	result = r.state
 	r.mu.RUnlock()
-	return state
+	return
 }
 
 func (r *Room) Host() (result *Player) {
 	r.mu.RLock()
-	host := r.host
+	result = r.host
 	r.mu.RUnlock()
-	return host
+	return
 }
 
 func (r *Room) HostName() (result string) {
@@ -193,196 +214,199 @@ func (r *Room) HostName() (result string) {
 	host := r.host
 	r.mu.RUnlock()
 	if host == nil {
-		return ""
+		result = ""
+		return
 	}
-	return host.Nickname
+	result = host.Nickname
+	return
 }
 
 func (r *Room) Players() (result []*Player) {
 	r.mu.RLock()
-	players := append([]*Player(nil), r.players...)
+	result = append([]*Player(nil), r.players...)
 	r.mu.RUnlock()
-	return players
+	return
 }
 
 func (r *Room) PlayerCount() (result int) {
 	r.mu.RLock()
-	count := len(r.players)
+	result = len(r.players)
 	r.mu.RUnlock()
-	return count
+	return
 }
 
 func (r *Room) ScoreFor(player *Player) (result int) {
 	r.mu.RLock()
-	score := 0
 	if current := r.playerLocked(player); current != nil {
-		score = current.Score
+		result = current.Score
 	}
 	r.mu.RUnlock()
-	return score
+	return
 }
 
 func (r *Room) SubmittedBy(player *Player) (result bool) {
 	r.mu.RLock()
-	submitted := false
 	if current := r.playerLocked(player); current != nil {
-		submitted = len(current.Submitted) > 0
+		result = len(current.Submitted) > 0
 	}
 	r.mu.RUnlock()
-	return submitted
+	return
 }
 
 func (r *Room) HasPlayer(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := r.playerLocked(player) != nil
+	result = r.playerLocked(player) != nil
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) IsHost(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := player != nil && r.host == player
+	result = player != nil && r.host == player
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) IsJudge(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := player != nil && r.state != StateLobby && r.judgeLocked() == player
+	result = player != nil && r.state != StateLobby && r.judgeLocked() == player
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) CanJoin(player *Player) (result bool) {
 	r.mu.RLock()
-	canJoin := r.canJoinLocked(player) == nil
+	result = r.canJoinLocked(player) == nil
 	r.mu.RUnlock()
-	return canJoin
+	return
 }
 
 func (r *Room) CanStart(player *Player) (result bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if player == nil || r.host != player || r.state != StateLobby || len(r.players) < r.minPlayers {
-		return false
+		result = false
+		return
 	}
 	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if err != nil {
-		return false
+		result = false
+		return
 	}
-	return blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
+	result = blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
+	return
 }
 
 func (r *Room) CanSubmit(player *Player) (result bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	current := r.playerLocked(player)
-	return current != nil && r.state == StatePlaying && r.judgeLocked() != current && len(current.Submitted) == 0
+	result = current != nil && r.state == StatePlaying && r.judgeLocked() != current && len(current.Submitted) == 0
+	return
 }
 
 func (r *Room) CanJudge(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := player != nil && r.state == StateJudging && r.judgeLocked() == player
+	result = player != nil && r.state == StateJudging && r.judgeLocked() == player
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) CanProceed(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := player != nil && r.state == StateReview && r.judgeLocked() == player
+	result = player != nil && r.state == StateReview && r.judgeLocked() == player
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) SelectedDecks() (result []*deck.Deck) {
 	r.mu.RLock()
-	decks := make([]*deck.Deck, 0, len(r.selectedDeckIDs))
+	result = make([]*deck.Deck, 0, len(r.selectedDeckIDs))
 	for _, id := range r.selectedDeckIDs {
 		if d := r.catalog.DeckByID(id); d != nil {
-			decks = append(decks, d)
+			result = append(result, d)
 		}
 	}
 	r.mu.RUnlock()
-	return decks
+	return
 }
 
 func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	if d == nil {
-		return false
+		result = false
+		return
 	}
 	r.mu.RLock()
-	enabled := slices.Contains(r.selectedDeckIDs, d.ID)
+	result = slices.Contains(r.selectedDeckIDs, d.ID)
 	r.mu.RUnlock()
-	return enabled
+	return
 }
 
 func (r *Room) BlackCount() (result int) {
 	r.mu.RLock()
-	blackCount, _, _ := r.catalog.UnionCounts(r.selectedDeckIDs)
+	result, _, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
 	r.mu.RUnlock()
-	return blackCount
+	return
 }
 
 func (r *Room) WhiteCount() (result int) {
 	r.mu.RLock()
-	_, whiteCount, _ := r.catalog.UnionCounts(r.selectedDeckIDs)
+	_, result, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
 	r.mu.RUnlock()
-	return whiteCount
+	return
 }
 
 func (r *Room) RequiredWhite() (result int) {
 	r.mu.RLock()
-	required := MinWhiteCardsPerPlayer * max(len(r.players), 1)
+	result = MinWhiteCardsPerPlayer * max(len(r.players), 1)
 	r.mu.RUnlock()
-	return required
+	return
 }
 
 func (r *Room) TargetScore() (result int) {
 	r.mu.RLock()
-	score := r.targetScore
+	result = r.targetScore
 	r.mu.RUnlock()
-	return score
+	return
 }
 
 func (r *Room) IsPrivate() (result bool) {
 	r.mu.RLock()
-	private := r.private
+	result = r.private
 	r.mu.RUnlock()
-	return private
+	return
 }
 
 func (r *Room) MinTargetScore() (result int) {
 	r.mu.RLock()
-	minScore := r.minTargetScoreLocked()
+	result = r.minTargetScoreLocked()
 	r.mu.RUnlock()
-	return minScore
+	return
 }
 
 func (r *Room) CurrentBlack() (result *deck.BlackCard) {
 	r.mu.RLock()
-	card := r.currentBlackLocked()
+	result = r.currentBlackLocked()
 	r.mu.RUnlock()
-	return card
+	return
 }
 
 func (r *Room) NeedPick() (result int) {
 	r.mu.RLock()
-	pick := 0
 	if black := r.currentBlackLocked(); black != nil {
-		pick = black.Pick
+		result = black.Pick
 	}
 	r.mu.RUnlock()
-	return pick
+	return
 }
 
 func (r *Room) NeedDraw() (result int) {
 	r.mu.RLock()
-	draw := 0
 	if black := r.currentBlackLocked(); black != nil {
-		draw = black.Draw
+		result = black.Draw
 	}
 	r.mu.RUnlock()
-	return draw
+	return
 }
 
 func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) {
@@ -391,7 +415,7 @@ func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) {
 		cards = append(cards, current.Hand...)
 	}
 	r.mu.RUnlock()
-	return cards
+	return
 }
 
 func (r *Room) Submissions() (submissions []*Submission) {
@@ -412,9 +436,9 @@ func (r *Room) SubmissionCards(submission *Submission) (cards []*deck.WhiteCard)
 
 func (r *Room) JudgePlayer() (result *Player) {
 	r.mu.RLock()
-	judge := r.judgeLocked()
+	result = r.judgeLocked()
 	r.mu.RUnlock()
-	return judge
+	return
 }
 
 func (r *Room) JudgeName() (result string) {
@@ -422,51 +446,52 @@ func (r *Room) JudgeName() (result string) {
 	judge := r.judgeLocked()
 	r.mu.RUnlock()
 	if judge == nil {
-		return ""
+		result = ""
+		return
 	}
-	return judge.Nickname
+	result = judge.Nickname
+	return
 }
 
 func (r *Room) StatusMessage() (result string) {
 	r.mu.RLock()
-	message := r.statusMessage
+	result = r.statusMessage
 	r.mu.RUnlock()
-	return message
+	return
 }
 
 func (r *Room) LastWinnerName() (result string) {
 	r.mu.RLock()
-	name := r.lastWinnerName
+	result = r.lastWinnerName
 	r.mu.RUnlock()
-	return name
+	return
 }
 
 func (r *Room) LastGameWinner() (result string) {
 	r.mu.RLock()
-	name := r.lastGameWinner
+	result = r.lastGameWinner
 	r.mu.RUnlock()
-	return name
+	return
 }
 
 func (r *Room) LastGameScores() (result []FinalScore) {
 	r.mu.RLock()
-	scores := append([]FinalScore(nil), r.lastGameScores...)
+	result = append([]FinalScore(nil), r.lastGameScores...)
 	r.mu.RUnlock()
-	return scores
+	return
 }
 
 func (r *Room) ReviewTitle() (result string) {
 	r.mu.RLock()
-	title := ""
 	if r.state == StateReview && r.reviewWinner != nil {
 		if r.reviewGameWinner {
-			title = fmt.Sprintf("%s won the game!", r.reviewWinner.Nickname)
+			result = fmt.Sprintf("%s won the game!", r.reviewWinner.Nickname)
 		} else {
-			title = fmt.Sprintf("%s won the round!", r.reviewWinner.Nickname)
+			result = fmt.Sprintf("%s won the round!", r.reviewWinner.Nickname)
 		}
 	}
 	r.mu.RUnlock()
-	return title
+	return
 }
 
 func (r *Room) ReviewCountdown() (result int) {
@@ -475,13 +500,16 @@ func (r *Room) ReviewCountdown() (result int) {
 	state := r.state
 	r.mu.RUnlock()
 	if state != StateReview || deadline.IsZero() {
-		return 0
+		result = 0
+		return
 	}
 	remaining := time.Until(deadline)
 	if remaining <= 0 {
-		return 0
+		result = 0
+		return
 	}
-	return int((remaining + time.Second - time.Nanosecond) / time.Second)
+	result = int((remaining + time.Second - time.Nanosecond) / time.Second)
+	return
 }
 
 func (r *Room) ReviewDeadlineUnixMilli() (result int64) {
@@ -489,25 +517,28 @@ func (r *Room) ReviewDeadlineUnixMilli() (result int64) {
 	deadline := r.reviewDeadline
 	r.mu.RUnlock()
 	if deadline.IsZero() {
-		return 0
+		result = 0
+		return
 	}
-	return deadline.UnixMilli()
+	result = deadline.UnixMilli()
+	return
 }
 
 func (r *Room) ReviewButtonBase() (result string) {
 	r.mu.RLock()
-	base := r.reviewButtonBaseLocked()
+	result = r.reviewButtonBaseLocked()
 	r.mu.RUnlock()
-	return base
+	return
 }
 
 func (r *Room) ReviewProceedLabel() (result string) {
-	base := r.ReviewButtonBase()
+	result = r.ReviewButtonBase()
 	countdown := r.ReviewCountdown()
 	if countdown <= 0 {
-		return base
+		return
 	}
-	return fmt.Sprintf("%s (%d)", base, countdown)
+	result = fmt.Sprintf("%s (%d)", result, countdown)
+	return
 }
 
 func (r *Room) ReviewWaitingText() (result string) {
@@ -515,36 +546,42 @@ func (r *Room) ReviewWaitingText() (result string) {
 	countdown := r.ReviewCountdown()
 	switch {
 	case base == "":
-		return ""
+		result = ""
+		return
 	case countdown <= 0 && base == "Back to Lobby":
-		return "Returning to the lobby."
+		result = "Returning to the lobby."
+		return
 	case countdown <= 0:
-		return "Advancing to the next round."
+		result = "Advancing to the next round."
+		return
 	case base == "Back to Lobby":
-		return fmt.Sprintf("Returning to the lobby in %d seconds.", countdown)
+		result = fmt.Sprintf("Returning to the lobby in %d seconds.", countdown)
+		return
 	default:
-		return fmt.Sprintf("Next round in %d seconds.", countdown)
+		result = fmt.Sprintf("Next round in %d seconds.", countdown)
+		return
 	}
 }
 
 func (r *Room) IsRoundWinner(player *Player) (result bool) {
 	r.mu.RLock()
-	ok := r.state == StateReview && player != nil && r.reviewWinner == player
+	result = r.state == StateReview && player != nil && r.reviewWinner == player
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) IsWinningSubmission(submission *Submission) (result bool) {
 	r.mu.RLock()
-	ok := r.state == StateReview && submission != nil && r.reviewSubmission == submission
+	result = r.state == StateReview && submission != nil && r.reviewSubmission == submission
 	r.mu.RUnlock()
-	return ok
+	return
 }
 
 func (r *Room) SetPrivate(player *Player, private bool) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.setPrivateLocked(player, private)
+	result = r.setPrivateLocked(player, private)
+	return
 }
 
 func (r *Room) SetNickname(player *Player, nickname string) {
@@ -563,20 +600,24 @@ func (r *Room) SetNickname(player *Player, nickname string) {
 func (r *Room) SetTargetScore(player *Player, score int) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.setTargetScoreLocked(player, score)
+	result = r.setTargetScoreLocked(player, score)
+	return
 }
 
 func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.host != player {
-		return ErrOnlyHostCanEdit
+		result = ErrOnlyHostCanEdit
+		return
 	}
 	if r.state != StateLobby {
-		return ErrDecksLocked
+		result = ErrDecksLocked
+		return
 	}
 	if deck == nil || r.catalog.DeckByID(deck.ID) == nil {
-		return ErrUnknownDeck
+		result = ErrUnknownDeck
+		return
 	}
 	selected := make(map[string]bool, len(r.selectedDeckIDs))
 	for _, id := range r.selectedDeckIDs {
@@ -588,31 +629,38 @@ func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) (re
 		delete(selected, deck.ID)
 	}
 	r.selectedDeckIDs = sortedSelected(selected)
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) Start(player *Player) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.host != player {
-		return ErrOnlyHostCanStart
+		result = ErrOnlyHostCanStart
+		return
 	}
 	if len(r.players) < r.minPlayers {
-		return fmt.Errorf("need at least %d players to start", r.minPlayers)
+		result = fmt.Errorf("need at least %d players to start", r.minPlayers)
+		return
 	}
 	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if err != nil {
-		return err
+		result = err
+		return
 	}
 	if blackCount < MinBlackCards {
-		return ErrNotEnoughBlackCards
+		result = ErrNotEnoughBlackCards
+		return
 	}
 	if whiteCount < MinWhiteCardsPerPlayer*len(r.players) {
-		return ErrNotEnoughWhiteCards
+		result = ErrNotEnoughWhiteCards
+		return
 	}
 	blackCards, whiteCards, err := r.catalog.UnionCards(r.selectedDeckIDs)
 	if err != nil {
-		return err
+		result = err
+		return
 	}
 	r.blackDraw = append([]*deck.BlackCard(nil), blackCards...)
 	r.whiteDraw = append([]*deck.WhiteCard(nil), whiteCards...)
@@ -637,7 +685,8 @@ func (r *Room) Start(player *Player) (result error) {
 		current.Submitted = nil
 	}
 	r.advanceRoundLocked()
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (result error) {
@@ -645,20 +694,25 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (result error)
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
 	if current == nil {
-		return ErrOnlyPlayersCanPlay
+		result = ErrOnlyPlayersCanPlay
+		return
 	}
 	if r.state != StatePlaying {
-		return ErrNotYourTurn
+		result = ErrNotYourTurn
+		return
 	}
 	if r.judgeLocked() == current {
-		return ErrJudgeCannotPlay
+		result = ErrJudgeCannotPlay
+		return
 	}
 	if len(current.Submitted) > 0 {
-		return ErrAlreadySubmitted
+		result = ErrAlreadySubmitted
+		return
 	}
 	cards = normalizeWhiteCards(cards)
 	if len(cards) != r.currentBlackLocked().Pick {
-		return ErrNeedExactCards
+		result = ErrNeedExactCards
+		return
 	}
 	handSet := make(map[*deck.WhiteCard]struct{}, len(current.Hand))
 	for _, card := range current.Hand {
@@ -666,7 +720,8 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (result error)
 	}
 	for _, card := range cards {
 		if _, ok := handSet[card]; !ok {
-			return ErrCardNotInHand
+			result = ErrCardNotInHand
+			return
 		}
 	}
 	remaining := make([]*deck.WhiteCard, 0, len(current.Hand)-len(cards))
@@ -697,17 +752,20 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (result error)
 			r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
 		}
 	}
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) Judge(player *Player, submission *Submission) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state != StateJudging {
-		return ErrNotYourTurn
+		result = ErrNotYourTurn
+		return
 	}
 	if r.judgeLocked() != player {
-		return ErrNotJudge
+		result = ErrNotJudge
+		return
 	}
 	var winner *Player
 	for _, candidate := range r.submissions {
@@ -717,7 +775,8 @@ func (r *Room) Judge(player *Player, submission *Submission) (result error) {
 		}
 	}
 	if winner == nil {
-		return ErrSubmissionNotFound
+		result = ErrSubmissionNotFound
+		return
 	}
 	winner.Score++
 	r.lastWinnerName = winner.Nickname
@@ -727,30 +786,36 @@ func (r *Room) Judge(player *Player, submission *Submission) (result error) {
 	}
 	r.statusMessage = fmt.Sprintf("%s won the round.", winner.Nickname)
 	r.beginReviewLocked(winner, submission, gameWinner)
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) ProceedReview(player *Player) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state != StateReview {
-		return ErrReviewNotReady
+		result = ErrReviewNotReady
+		return
 	}
 	if r.judgeLocked() != player {
-		return ErrNotJudge
+		result = ErrNotJudge
+		return
 	}
 	r.finishReviewLocked()
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) join(player *Player) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.playerLocked(player) != nil {
-		return nil
+		result = nil
+		return
 	}
 	if err := r.canJoinLocked(player); err != nil {
-		return err
+		result = err
+		return
 	}
 	r.seatLocked(player)
 	r.players = append(r.players, player)
@@ -759,7 +824,8 @@ func (r *Room) join(player *Player) (result error) {
 	}
 	r.dealJoinedPlayerLocked(player)
 	r.statusMessage = fmt.Sprintf("%s joined the room.", player.Nickname)
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) leave(player *Player) (result bool) {
@@ -767,12 +833,14 @@ func (r *Room) leave(player *Player) (result bool) {
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
 	if current == nil {
-		return len(r.players) == 0
+		result = len(r.players) == 0
+		return
 	}
 	wasJudge := r.judgeLocked() == current
 	idx := slices.Index(r.players, current)
 	if idx < 0 {
-		return len(r.players) == 0
+		result = len(r.players) == 0
+		return
 	}
 	if idx < r.czarIndex {
 		r.czarIndex--
@@ -786,7 +854,7 @@ func (r *Room) leave(player *Player) (result bool) {
 	current.SelectedCards = nil
 	current.SelectedSubmission = nil
 	r.players = append(r.players[:idx], r.players[idx+1:]...)
-	r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) bool { return sub.Player == current })
+	r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) { result = sub.Player == current; return })
 	if r.host == current {
 		if len(r.players) > 0 {
 			r.host = r.players[0]
@@ -795,7 +863,8 @@ func (r *Room) leave(player *Player) (result bool) {
 		}
 	}
 	if len(r.players) == 0 {
-		return true
+		result = true
+		return
 	}
 	if r.state != StateLobby {
 		switch {
@@ -815,19 +884,20 @@ func (r *Room) leave(player *Player) (result bool) {
 	} else {
 		r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
 	}
-	return false
+	result = false
+	return
 }
 
 func (r *Room) expiredPlayers() (result []*Player) {
 	r.mu.RLock()
-	expired := make([]*Player, 0)
+	result = make([]*Player, 0)
 	for _, player := range r.players {
 		if player == nil || player.Session == nil || player.Session.Cookie().MaxAge < 0 {
-			expired = append(expired, player)
+			result = append(result, player)
 		}
 	}
 	r.mu.RUnlock()
-	return expired
+	return
 }
 
 func (r *Room) seatLocked(player *Player) {
@@ -843,25 +913,32 @@ func (r *Room) seatLocked(player *Player) {
 
 func (r *Room) canJoinLocked(player *Player) (result error) {
 	if player == nil {
-		return ErrRoomNotFound
+		result = ErrRoomNotFound
+		return
 	}
 	if player.Room != nil {
-		return ErrAlreadyInRoom
+		result = ErrAlreadyInRoom
+		return
 	}
 	if len(r.players) >= MaxPlayers {
-		return ErrRoomFull
+		result = ErrRoomFull
+		return
 	}
 	if r.state == StateLobby {
-		return nil
+		result = nil
+		return
 	}
 	_, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if err != nil {
-		return err
+		result = err
+		return
 	}
 	if whiteCount < MinWhiteCardsPerPlayer*(len(r.players)+1) {
-		return ErrNotEnoughWhiteCards
+		result = ErrNotEnoughWhiteCards
+		return
 	}
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) dealJoinedPlayerLocked(player *Player) {
@@ -884,16 +961,16 @@ func (r *Room) dealJoinedPlayerLocked(player *Player) {
 }
 
 func (r *Room) uniqueNicknameLocked(player *Player) (result string) {
-	base := NormalizeNickname(player.NicknameInput)
-	if base == "Player" && strings.TrimSpace(player.Nickname) != "" {
-		base = NormalizeNickname(player.Nickname)
+	result = NormalizeNickname(player.NicknameInput)
+	if result == "Player" && strings.TrimSpace(player.Nickname) != "" {
+		result = NormalizeNickname(player.Nickname)
 	}
-	candidate := base
+	base := result
 	for suffix := 2; ; suffix++ {
-		if !r.nicknameTakenLocked(candidate, player) {
-			return candidate
+		if !r.nicknameTakenLocked(result, player) {
+			return
 		}
-		candidate = fmt.Sprintf("%s-%d", base, suffix)
+		result = fmt.Sprintf("%s-%d", base, suffix)
 	}
 }
 
@@ -903,10 +980,12 @@ func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bo
 			continue
 		}
 		if strings.EqualFold(player.Nickname, candidate) {
-			return true
+			result = true
+			return
 		}
 	}
-	return false
+	result = false
+	return
 }
 
 func (r *Room) resetToLobbyLocked(message string) {
@@ -946,11 +1025,13 @@ func (r *Room) captureLastGameLocked(winner *Player) {
 		}
 		r.lastGameScores = append(r.lastGameScores, score)
 	}
-	slices.SortStableFunc(r.lastGameScores, func(a, b FinalScore) int {
+	slices.SortStableFunc(r.lastGameScores, func(a, b FinalScore) (result int) {
 		if a.Score != b.Score {
-			return b.Score - a.Score
+			result = b.Score - a.Score
+			return
 		}
-		return strings.Compare(a.Nickname, b.Nickname)
+		result = strings.Compare(a.Nickname, b.Nickname)
+		return
 	})
 }
 
@@ -1055,12 +1136,15 @@ func (r *Room) clearReviewLocked() {
 
 func (r *Room) reviewButtonBaseLocked() (result string) {
 	if r.state != StateReview {
-		return ""
+		result = ""
+		return
 	}
 	if r.reviewGameWinner {
-		return "Back to Lobby"
+		result = "Back to Lobby"
+		return
 	}
-	return "Next Round"
+	result = "Next Round"
+	return
 }
 
 func (r *Room) drawWhiteLocked() (result *deck.WhiteCard) {
@@ -1069,9 +1153,9 @@ func (r *Room) drawWhiteLocked() (result *deck.WhiteCard) {
 		r.whiteDiscard = nil
 		r.rand.Shuffle(len(r.whiteDraw), func(i, j int) { r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] })
 	}
-	card := r.whiteDraw[len(r.whiteDraw)-1]
+	result = r.whiteDraw[len(r.whiteDraw)-1]
 	r.whiteDraw = r.whiteDraw[:len(r.whiteDraw)-1]
-	return card
+	return
 }
 
 func (r *Room) drawBlackLocked() (result *deck.BlackCard) {
@@ -1080,93 +1164,105 @@ func (r *Room) drawBlackLocked() (result *deck.BlackCard) {
 		r.blackDiscard = nil
 		r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
 	}
-	card := r.blackDraw[len(r.blackDraw)-1]
+	result = r.blackDraw[len(r.blackDraw)-1]
 	r.blackDraw = r.blackDraw[:len(r.blackDraw)-1]
-	return card
+	return
 }
 
 func (r *Room) judgeLocked() (result *Player) {
 	if len(r.players) == 0 || r.czarIndex < 0 || r.czarIndex >= len(r.players) {
-		return nil
+		result = nil
+		return
 	}
-	return r.players[r.czarIndex]
+	result = r.players[r.czarIndex]
+	return
 }
 
 func (r *Room) currentBlackLocked() (result *deck.BlackCard) {
-	return r.currentBlack
+	result = r.currentBlack
+	return
 }
 
 func (r *Room) playerLocked(player *Player) (result *Player) {
-	for _, current := range r.players {
-		if current == player {
-			return current
+	for _, result = range r.players {
+		if result == player {
+			return
 		}
 	}
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) (result []string) {
 	if r == nil || card == nil {
-		return nil
+		result = nil
+		return
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.selectedDeckIDsForWhiteCardLocked(card)
+	result = r.selectedDeckIDsForWhiteCardLocked(card)
+	return
 }
 
 func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) (result []string) {
 	if r == nil || card == nil {
-		return nil
+		result = nil
+		return
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.selectedDeckIDsForBlackCardLocked(card)
+	result = r.selectedDeckIDsForBlackCardLocked(card)
+	return
 }
 
 func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result string) {
 	if r == nil || card == nil {
-		return ""
+		result = ""
+		return
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.firstSelectedDeckNameForWhiteCardLocked(card)
+	result = r.firstSelectedDeckNameForWhiteCardLocked(card)
+	return
 }
 
 func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result string) {
 	if r == nil || card == nil {
-		return ""
+		result = ""
+		return
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.firstSelectedDeckNameForBlackCardLocked(card)
+	result = r.firstSelectedDeckNameForBlackCardLocked(card)
+	return
 }
 
 func (r *Room) selectedDeckIDsForWhiteCardLocked(card *deck.WhiteCard) (result []string) {
-	deckIDs := make([]string, 0, len(r.selectedDeckIDs))
+	result = make([]string, 0, len(r.selectedDeckIDs))
 	for _, deckID := range r.selectedDeckIDs {
 		d := r.catalog.DeckByID(deckID)
 		if d == nil {
 			continue
 		}
 		if slices.Contains(d.WhiteCards, card) {
-			deckIDs = append(deckIDs, deckID)
+			result = append(result, deckID)
 		}
 	}
-	return deckIDs
+	return
 }
 
 func (r *Room) selectedDeckIDsForBlackCardLocked(card *deck.BlackCard) (result []string) {
-	deckIDs := make([]string, 0, len(r.selectedDeckIDs))
+	result = make([]string, 0, len(r.selectedDeckIDs))
 	for _, deckID := range r.selectedDeckIDs {
 		d := r.catalog.DeckByID(deckID)
 		if d == nil {
 			continue
 		}
 		if slices.Contains(d.BlackCards, card) {
-			deckIDs = append(deckIDs, deckID)
+			result = append(result, deckID)
 		}
 	}
-	return deckIDs
+	return
 }
 
 func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (result string) {
@@ -1176,10 +1272,12 @@ func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (re
 			continue
 		}
 		if slices.Contains(d.WhiteCards, card) {
-			return d.Name
+			result = d.Name
+			return
 		}
 	}
-	return ""
+	result = ""
+	return
 }
 
 func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) (result string) {
@@ -1189,10 +1287,12 @@ func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) (re
 			continue
 		}
 		if slices.Contains(d.BlackCards, card) {
-			return d.Name
+			result = d.Name
+			return
 		}
 	}
-	return ""
+	result = ""
+	return
 }
 
 func (r *Room) setTargetScoreLocked(player *Player, score int) (result error) {
@@ -1202,31 +1302,39 @@ func (r *Room) setTargetScoreLocked(player *Player, score int) (result error) {
 		score = 10
 	}
 	if r.host != player {
-		return ErrOnlyHostCanEdit
+		result = ErrOnlyHostCanEdit
+		return
 	}
 	if r.state != StateLobby {
-		return ErrGameInProgress
+		result = ErrGameInProgress
+		return
 	}
 	r.targetScore = score
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) setPrivateLocked(player *Player, private bool) (result error) {
 	if r.host != player {
-		return ErrOnlyHostCanEdit
+		result = ErrOnlyHostCanEdit
+		return
 	}
 	if r.state != StateLobby {
-		return ErrGameInProgress
+		result = ErrGameInProgress
+		return
 	}
 	r.private = private
-	return nil
+	result = nil
+	return
 }
 
 func (r *Room) minTargetScoreLocked() (result int) {
 	if r.debug {
-		return 1
+		result = 1
+		return
 	}
-	return 2
+	result = 2
+	return
 }
 
 func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {

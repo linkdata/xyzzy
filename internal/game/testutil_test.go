@@ -7,7 +7,7 @@ import (
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
-func testCatalog(t *testing.T) *deck.Catalog {
+func testCatalog(t *testing.T) (result *deck.Catalog) {
 	t.Helper()
 	fsys := fstest.MapFS{}
 	for i := 1; i <= 60; i++ {
@@ -30,11 +30,12 @@ func testCatalog(t *testing.T) *deck.Catalog {
 	fsys["assets/decks/expansion/deck.json"] = &fstest.MapFile{Data: []byte(`{"id":"expansion","name":"Expansion"}`)}
 	fsys["assets/decks/expansion/black.json"] = &fstest.MapFile{Data: []byte(`["b41","b42","b43","b44","b45","b46","b47","b48","b49","b50","b51","b52","b53","b54","b55","b56","b57","b58","b59","b60"]`)}
 	fsys["assets/decks/expansion/white.json"] = &fstest.MapFile{Data: []byte(`["w21","w22","w23","w24","w25","w41","w42","w43","w44","w45","w46","w47","w48","w49","w50","w51","w52","w53","w54","w55","w56","w57","w58","w59","w60","w61","w62","w63","w64","w65","w66","w67","w68","w69","w70","w71","w72","w73","w74","w75","w76","w77","w78","w79","w80"]`)}
-	catalog, err := deck.LoadFS(fsys)
+	var err error
+	result, err = deck.LoadFS(fsys)
 	if err != nil {
 		t.Fatalf("LoadFS() error = %v", err)
 	}
-	return catalog
+	return
 }
 
 func forceRound(t *testing.T, room *Room, blackID string) {
@@ -61,17 +62,19 @@ func forceRound(t *testing.T, room *Room, blackID string) {
 	room.advanceRoundLocked()
 }
 
-func testPlayer(name string) *Player {
+func testPlayer(name string) (result *Player) {
 	name = NormalizeNickname(name)
-	return &Player{
+	result = &Player{
 		Nickname:      name,
 		NicknameInput: name,
 	}
+	return
 }
 
-func itoa(v int) string {
+func itoa(v int) (result string) {
 	if v == 0 {
-		return "0"
+		result = "0"
+		return
 	}
 	var digits [20]byte
 	i := len(digits)
@@ -80,5 +83,6 @@ func itoa(v int) string {
 		digits[i] = byte('0' + v%10)
 		v /= 10
 	}
-	return string(digits[i:])
+	result = string(digits[i:])
+	return
 }

@@ -20,7 +20,8 @@ var legacyCardTagReplacer = strings.NewReplacer(
 	"&lt;br /&gt;", "<br />",
 )
 
-func formatCardHTML(text string) template.HTML {
+func formatCardHTML(text string) (result template.HTML) {
 	escaped := html.EscapeString(html.UnescapeString(text))
-	return template.HTML(legacyCardTagReplacer.Replace(escaped)) // #nosec G203
+	result = template.HTML(legacyCardTagReplacer.Replace(escaped))
+	return // #nosec G203
 }

@@ -152,23 +152,25 @@ func TestCleanupExpiredPlayerWithTooFewRemainingResetsToLobby(t *testing.T) {
 	}
 }
 
-func livePlayer(t *testing.T, h *liveHarness, nickname string) (*jaws.Session, *game.Player) {
+func livePlayer(t *testing.T, h *liveHarness, nickname string) (result1 *jaws.Session, result2 *game.Player) {
 	t.Helper()
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
 	h.app.setNickname(player, nickname)
-	return sess, player
+	result1, result2 = sess, player
+	return
 }
 
-func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (*jaws.Session, *game.Player) {
+func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (result1 *jaws.Session, result2 *game.Player) {
 	t.Helper()
 	client := h.newClient(t)
 	h.getWithClient(t, client, "/")
 	sess := h.sessionForClient(t, client)
 	player := h.app.player(sess, nil)
 	h.app.setNickname(player, nickname)
-	return sess, player
+	result1, result2 = sess, player
+	return
 }
 
 func TestLobbyPageReceivesLiveRoomUpdates(t *testing.T) {
@@ -351,8 +353,9 @@ func TestCreateRoomWhileLobbyIsLiveStillOpensRoomPage(t *testing.T) {
 	}
 }
 
-func newPrivateToggleElement(app *App, toggle bind.Binder[bool]) *jaws.Element {
-	return app.Jaws.NewRequest(nil).NewElement(jui.NewCheckbox(toggle))
+func newPrivateToggleElement(app *App, toggle bind.Binder[bool]) (result *jaws.Element) {
+	result = app.Jaws.NewRequest(nil).NewElement(jui.NewCheckbox(toggle))
+	return
 }
 
 func TestLobbyRenders(t *testing.T) {

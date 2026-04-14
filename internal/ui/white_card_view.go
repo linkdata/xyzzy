@@ -15,29 +15,35 @@ type whiteCardView struct {
 	SelectionOrder int
 }
 
-func (v whiteCardView) WhiteFootnote() string {
+func (v whiteCardView) WhiteFootnote() (result string) {
 	deckName := v.Room.FirstSelectedDeckNameForWhiteCard(v.Card)
-	number := strings.Map(func(r rune) rune {
+	number := strings.Map(func(r rune) (result rune) {
 		if r >= '0' && r <= '9' {
-			return r
+			result = r
+			return
 		}
-		return -1
+		result = -1
+		return
 	}, v.Card.ID)
 	switch {
 	case deckName == "":
-		return number
+		result = number
+		return
 	case number == "":
-		return deckName
+		result = deckName
+		return
 	default:
-		return deckName + " · " + number
+		result = deckName + " · " + number
+		return
 	}
 }
 
-func (d whiteCardView) JawsClick(elem *jaws.Element, name string) error {
+func (d whiteCardView) JawsClick(elem *jaws.Element, name string) (errResult error) {
 	if d.Room.CanSubmit(d.Player) {
 		if applyCardSelection(d.Player, d.Card, d.Room.NeedPick()) {
 			elem.Dirty(d.Player)
 		}
 	}
-	return nil
+	errResult = nil
+	return
 }
