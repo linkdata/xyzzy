@@ -31,183 +31,152 @@ type Catalog struct {
 	defaultIDs []string
 }
 
+func loadBlackCard(c *Catalog, name string, raw []byte) (err error) {
+	card := new(BlackCard)
+	if err = json.Unmarshal(raw, card); err == nil {
+		card.Pick = max(card.Pick, 1)
+		if card.ID != "" && strings.TrimSpace(card.Text) != "" {
+			card.HTML = formatCardHTML(card.Text)
+			if _, exists := c.BlackCards[card.ID]; exists {
+				err = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+				return
+			}
+			c.BlackCards[card.ID] = card
+		}
+	}
+	return
+}
+
+func loadWhiteCard(c *Catalog, name string, raw []byte) (err error) {
+	card := new(WhiteCard)
+	if err = json.Unmarshal(raw, card); err == nil {
+		if card.ID != "" && strings.TrimSpace(card.Text) != "" {
+			card.HTML = formatCardHTML(card.Text)
+			if _, exists := c.WhiteCards[card.ID]; exists {
+				err = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+				return
+			}
+			c.WhiteCards[card.ID] = card
+		}
+	}
+	return
+}
+
 // LoadFS loads a catalog from the provided filesystem.
-func LoadFS(fsys fs.FS) (result1 *Catalog, errResult error) {
-	c := &Catalog{
+func LoadFS(fsys fs.FS) (c *Catalog, err error) {
+	tmp_c := &Catalog{
 		BlackCards: make(map[string]*BlackCard),
 		WhiteCards: make(map[string]*WhiteCard),
 		Decks:      make(map[string]*Deck),
 	}
-	if err := loadJSONDir(fsys, blackDir, func(name string, raw []byte) (errResult error) {
-		card := new(BlackCard)
-		if err := json.Unmarshal(raw, card); err != nil {
-			errResult = fmt.Errorf("%s: decode black card: %w", name, err)
-			return
-		}
-		card.Pick = max(card.Pick, 1)
-		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
-			errResult = fmt.Errorf("%s: %w: black card missing id or text", name, ErrInvalidDeck)
-			return
-		}
-		card.HTML = formatCardHTML(card.Text)
-		if _, exists := c.BlackCards[card.ID]; exists {
-			errResult = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
-			return
-		}
-		c.BlackCards[card.ID] = card
-		errResult = nil
-		return
 
-	}); err != nil {
-		result1, errResult = nil, err
-		return
-	}
-	if err := loadJSONDir(fsys, whiteDir, func(name string, raw []byte) (errResult error) {
-		card := new(WhiteCard)
-		if err := json.Unmarshal(raw, card); err != nil {
-			errResult = fmt.Errorf("%s: decode white card: %w", name, err)
-			return
-		}
-		if card.ID == "" || strings.TrimSpace(card.Text) == "" {
-			errResult = fmt.Errorf("%s: %w: white card missing id or text", name, ErrInvalidDeck)
-			return
-		}
-		card.HTML = formatCardHTML(card.Text)
-		if _, exists := c.WhiteCards[card.ID]; exists {
-			errResult = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
-			return
-		}
-		c.WhiteCards[card.ID] = card
-		errResult = nil
-		return
+	if err = loadJSONDir(fsys, blackDir, tmp_c, loadBlackCard); err == nil {
+		if err = loadJSONDir(fsys, whiteDir, tmp_c, loadWhiteCard); err == nil {
+			var deckEntries []fs.DirEntry
+			if deckEntries, err = fs.ReadDir(fsys, decksDir); err == nil {
+				for _, entry := range deckEntries {
+					if !entry.IsDir() {
+						continue
+					}
+					dir := path.Join(decksDir, entry.Name())
+					var meta DeckMetadata
+					var blackIDs, whiteIDs []string
+					meta, blackIDs, whiteIDs, err = loadDeckDir(fsys, dir)
+					if err != nil {
+						return
+					}
+					deck := &Deck{
+						DeckMetadata: meta,
+						BlackCards:   make([]*BlackCard, 0, len(blackIDs)),
+						WhiteCards:   make([]*WhiteCard, 0, len(whiteIDs)),
+					}
+					if _, exists := tmp_c.Decks[deck.ID]; exists {
+						err = fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
+						return
+					}
+					for _, cardID := range blackIDs {
+						if card, ok := tmp_c.BlackCards[cardID]; ok {
+							deck.BlackCards = append(deck.BlackCards, card)
+						} else {
+							err = fmt.Errorf("%s: unknown black card id %q", dir, cardID)
+							return
+						}
+					}
+					for _, cardID := range whiteIDs {
+						if card, ok := tmp_c.WhiteCards[cardID]; ok {
+							deck.WhiteCards = append(deck.WhiteCards, card)
+						} else {
+							err = fmt.Errorf("%s: unknown white card id %q", dir, cardID)
+							return
+						}
+					}
+					tmp_c.Decks[deck.ID] = deck
+					tmp_c.ordered = append(tmp_c.ordered, deck)
+					if deck.EnabledByDefault {
+						tmp_c.defaultIDs = append(tmp_c.defaultIDs, deck.ID)
+					}
+				}
+				slices.SortFunc(tmp_c.ordered, func(a, b *Deck) (result int) {
+					if a.Weight != b.Weight {
+						result = a.Weight - b.Weight
+						return
+					}
+					result = strings.Compare(a.Name, b.Name)
+					return
 
-	}); err != nil {
-		result1, errResult = nil, err
-		return
-	}
-
-	deckEntries, err := fs.ReadDir(fsys, decksDir)
-	if err != nil {
-		result1, errResult = nil, fmt.Errorf("read decks: %w", err)
-		return
-	}
-	for _, entry := range deckEntries {
-		if !entry.IsDir() {
-			continue
-		}
-		dir := path.Join(decksDir, entry.Name())
-		meta, blackIDs, whiteIDs, err := loadDeckDir(fsys, dir)
-		if err != nil {
-			result1, errResult = nil, err
-			return
-		}
-		deck := &Deck{
-			DeckMetadata: meta,
-			BlackCards:   make([]*BlackCard, 0, len(blackIDs)),
-			WhiteCards:   make([]*WhiteCard, 0, len(whiteIDs)),
-		}
-		if _, exists := c.Decks[deck.ID]; exists {
-			result1, errResult = nil, fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
-			return
-		}
-		for _, cardID := range blackIDs {
-			card, ok := c.BlackCards[cardID]
-			if !ok {
-				result1, errResult = nil, fmt.Errorf("%s: unknown black card id %q", dir, cardID)
-				return
+				})
+				if len(tmp_c.defaultIDs) == 0 && len(tmp_c.ordered) > 0 {
+					tmp_c.defaultIDs = []string{tmp_c.ordered[0].ID}
+				}
+				slices.Sort(tmp_c.defaultIDs)
+				c = tmp_c
 			}
-			deck.BlackCards = append(deck.BlackCards, card)
-		}
-		for _, cardID := range whiteIDs {
-			card, ok := c.WhiteCards[cardID]
-			if !ok {
-				result1, errResult = nil, fmt.Errorf("%s: unknown white card id %q", dir, cardID)
-				return
-			}
-			deck.WhiteCards = append(deck.WhiteCards, card)
-		}
-		c.Decks[deck.ID] = deck
-		c.ordered = append(c.ordered, deck)
-		if deck.EnabledByDefault {
-			c.defaultIDs = append(c.defaultIDs, deck.ID)
 		}
 	}
-	slices.SortFunc(c.ordered, func(a, b *Deck) (result int) {
-		if a.Weight != b.Weight {
-			result = a.Weight - b.Weight
-			return
-		}
-		result = strings.Compare(a.Name, b.Name)
-		return
-
-	})
-	if len(c.defaultIDs) == 0 && len(c.ordered) > 0 {
-		c.defaultIDs = []string{c.ordered[0].ID}
-	}
-	slices.Sort(c.defaultIDs)
-	result1, errResult = c, nil
 	return
 }
 
-func loadDeckDir(fsys fs.FS, dir string) (result1 DeckMetadata, result2 []string, result3 []string, errResult error) {
+func loadDeckDir(fsys fs.FS, dir string) (meta DeckMetadata, blackIDs []string, whiteIDs []string, err error) {
 	metaPath := path.Join(dir, "deck.json")
-	raw, err := fs.ReadFile(fsys, metaPath)
-	if err != nil {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: read deck metadata: %w", metaPath, err)
-		return
-	}
-	var meta DeckMetadata
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: decode deck metadata: %w", metaPath, err)
-		return
-	}
-	if meta.ID == "" || strings.TrimSpace(meta.Name) == "" {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck missing id or name", metaPath, ErrInvalidDeck)
-		return
-	}
-	blackIDs, err := loadStringList(fsys, path.Join(dir, "black.json"))
-	if err != nil {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, err
-		return
-	}
-	whiteIDs, err := loadStringList(fsys, path.Join(dir, "white.json"))
-	if err != nil {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, err
-		return
-	}
-	blackIDs = uniqueSorted(blackIDs)
-	whiteIDs = uniqueSorted(whiteIDs)
-	if len(blackIDs) == 0 && len(whiteIDs) == 0 {
-		result1, result2, result3, errResult = DeckMetadata{}, nil, nil, fmt.Errorf("%s: %w: deck must include at least one card", dir, ErrInvalidDeck)
-		return
-	}
-	result1, result2, result3, errResult = meta, blackIDs, whiteIDs, nil
-	return
-}
-
-func loadStringList(fsys fs.FS, name string) (result1 []string, errResult error) {
-	raw, err := fs.ReadFile(fsys, name)
-	if err != nil {
-		result1, errResult = nil, fmt.Errorf("%s: read card membership: %w", name, err)
-		return
-	}
-	var ids []string
-	if err := json.Unmarshal(raw, &ids); err != nil {
-		result1, errResult = nil, fmt.Errorf("%s: decode card membership: %w", name, err)
-		return
-	}
-	for i, id := range ids {
-		ids[i] = strings.TrimSpace(id)
-		if ids[i] == "" {
-			result1, errResult = nil, fmt.Errorf("%s: %w: blank card id", name, ErrInvalidDeck)
-			return
+	var raw []byte
+	if raw, err = fs.ReadFile(fsys, metaPath); err == nil {
+		if err = json.Unmarshal(raw, &meta); err == nil {
+			if meta.ID == "" || strings.TrimSpace(meta.Name) == "" {
+				err = fmt.Errorf("%s: %w: deck missing id or name", metaPath, ErrInvalidDeck)
+				return
+			}
+			if blackIDs, err = loadStringList(fsys, path.Join(dir, "black.json")); err == nil {
+				if whiteIDs, err = loadStringList(fsys, path.Join(dir, "white.json")); err == nil {
+					blackIDs = uniqueSorted(blackIDs)
+					whiteIDs = uniqueSorted(whiteIDs)
+					if len(blackIDs) == 0 && len(whiteIDs) == 0 {
+						err = fmt.Errorf("%s: %w: deck must include at least one card", dir, ErrInvalidDeck)
+						return
+					}
+				}
+			}
 		}
 	}
-	result1, errResult = ids, nil
 	return
 }
 
-func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error) (errResult error) {
+func loadStringList(fsys fs.FS, name string) (ids []string, err error) {
+	var raw []byte
+	if raw, err = fs.ReadFile(fsys, name); err == nil {
+		if err = json.Unmarshal(raw, &ids); err == nil {
+			for i, id := range ids {
+				ids[i] = strings.TrimSpace(id)
+				if ids[i] == "" {
+					err = fmt.Errorf("%s: %w: blank card id", name, ErrInvalidDeck)
+					return
+				}
+			}
+		}
+	}
+	return
+}
+
+func loadJSONDir(fsys fs.FS, dir string, c *Catalog, fn func(c *Catalog, name string, raw []byte) error) (errResult error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		errResult = fmt.Errorf("read %s: %w", dir, err)
@@ -223,7 +192,7 @@ func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error)
 			errResult = fmt.Errorf("%s: read: %w", name, err)
 			return
 		}
-		if err := fn(name, raw); err != nil {
+		if err := fn(c, name, raw); err != nil {
 			errResult = err
 			return
 		}
