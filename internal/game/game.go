@@ -139,18 +139,14 @@ func submissionID(round, seq int) (result string) {
 	return
 }
 
-func randomCode() (result1 string, errResult error) {
+func randomCode() (result string) {
 	var raw [roomCodeLength]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		result1, errResult = "", err
-		return
-	}
+	_, _ = rand.Read(raw[:])
 	var b strings.Builder
 	for _, n := range raw {
 		b.WriteByte(roomCodeAlphabet[n&31])
 	}
-	result1, errResult = b.String(), nil
-	return
+	return b.String()
 }
 
 func newCryptoRand() (result1 *mathrand.Rand, errResult error) {

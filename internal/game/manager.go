@@ -176,18 +176,14 @@ func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 	return
 }
 
-func (m *Manager) newRoomCodeLocked() (result1 string, errResult error) {
+func (m *Manager) newRoomCodeLocked() (roomCode string, err error) {
 	for i := 0; i < 1024; i++ {
-		code, err := randomCode()
-		if err != nil {
-			result1, errResult = "", err
-			return
-		}
-		if _, exists := m.rooms[code]; !exists {
-			result1, errResult = code, nil
+		s := randomCode()
+		if _, exists := m.rooms[s]; !exists {
+			roomCode = s
 			return
 		}
 	}
-	result1, errResult = "", errors.New("could not allocate room code")
+	err = errors.New("could not allocate room code")
 	return
 }
