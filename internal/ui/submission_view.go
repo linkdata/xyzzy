@@ -2,7 +2,6 @@ package ui
 
 import (
 	"github.com/linkdata/jaws"
-	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -39,13 +38,4 @@ func submissionCardViews(room *game.Room, submission *game.Submission) []whiteCa
 		views = append(views, whiteCardView{Room: room, Card: card})
 	}
 	return views
-}
-
-func selectionOrder(player *game.Player, card *deck.WhiteCard) int {
-	for i, selected := range player.SelectedCards {
-		if selected == card {
-			return i + 1
-		}
-	}
-	return 0
 }

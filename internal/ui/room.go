@@ -3,25 +3,9 @@ package ui
 import (
 	"slices"
 
-	"github.com/linkdata/jaws/lib/bind"
-	"github.com/linkdata/jaws/lib/jtag"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
-
-type taggedBinder[T comparable] struct {
-	bind.Binder[T]
-	tag any
-}
-
-func (b taggedBinder[T]) JawsGetTag(jtag.Context) any {
-	return b.tag
-}
-
-type roomDeckTag struct {
-	Room *game.Room
-	Deck *deck.Deck
-}
 
 func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool) {
 	if idx := slices.Index(player.SelectedCards, card); idx >= 0 {

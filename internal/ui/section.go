@@ -9,6 +9,10 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
+type templateFrame struct {
+	jui.Template
+}
+
 type sectionKind string
 
 const (
@@ -23,10 +27,6 @@ type section struct {
 	Player        *game.Player
 	RequestedCode string
 	Kind          sectionKind
-}
-
-type templateFrame struct {
-	jui.Template
 }
 
 func (s *section) JawsGetTag(jtag.Context) any {

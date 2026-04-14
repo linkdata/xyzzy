@@ -8,10 +8,25 @@ import (
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
+	"github.com/linkdata/jaws/lib/jtag"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
+
+type taggedBinder[T comparable] struct {
+	bind.Binder[T]
+	tag any
+}
+
+func (b taggedBinder[T]) JawsGetTag(jtag.Context) any {
+	return b.tag
+}
+
+type roomDeckTag struct {
+	Room *game.Room
+	Deck *deck.Deck
+}
 
 type templateDot struct {
 	App *App
@@ -296,4 +311,13 @@ func (d templateDot) PlayerScore(player *game.Player) int {
 
 func (d templateDot) PlayerSubmitted(player *game.Player) bool {
 	return d.Room.SubmittedBy(player)
+}
+
+func selectionOrder(player *game.Player, card *deck.WhiteCard) int {
+	for i, selected := range player.SelectedCards {
+		if selected == card {
+			return i + 1
+		}
+	}
+	return 0
 }
