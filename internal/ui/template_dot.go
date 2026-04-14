@@ -91,6 +91,7 @@ func (d templateDot) SaveNicknameClick() (result jaws.ClickHandler) {
 		elem.Request.Redirect(redirectURL)
 		errResult = nil
 		return
+
 	})
 	return
 }
@@ -107,6 +108,7 @@ func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
 		GetLocked(func(bind bind.Binder[bool], elem *jaws.Element) (result bool) {
 			result = room.DeckEnabled(deck)
 			return
+
 		}).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (errResult error) {
 			if err := room.SetDeckEnabled(d.Player, deck, value); err != nil {
@@ -116,6 +118,7 @@ func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
 			elem.Dirty(d.Player, room)
 			errResult = nil
 			return
+
 		})
 	result = taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
 	return
@@ -124,7 +127,6 @@ func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
 func (d templateDot) DeckToggleAttrs() (result template.HTMLAttr) {
 	if !d.Room.IsHost(d.Player) || d.Room.State() != game.StateLobby {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -146,7 +148,6 @@ func (d templateDot) HandCardViews() (result []whiteCardView) {
 func (d templateDot) CardAttrs() (result template.HTMLAttr) {
 	if !d.Room.CanSubmit(d.Player) {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -177,7 +178,6 @@ func (d templateDot) SubmissionViews() (result []submissionView) {
 func (d templateDot) SubmissionAttrs() (result template.HTMLAttr) {
 	if !d.Room.CanJudge(d.Player) {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -306,7 +306,6 @@ func (d templateDot) WaitingDetail() (result string) {
 	}
 	if d.Room.SubmittedBy(d.Player) {
 		result = "Your cards are in."
-		return
 	}
 	return
 }
@@ -320,6 +319,7 @@ func (d templateDot) BlackFootnote(card *deck.BlackCard) (result string) {
 		}
 		result = -1
 		return
+
 	}, card.ID)
 	switch {
 	case deckName == "":

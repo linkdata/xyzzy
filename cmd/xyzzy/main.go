@@ -31,6 +31,7 @@ func envOrDefault(envvar, fallback string) (result string) {
 	}
 	result = fallback
 	return
+
 }
 
 func main() {

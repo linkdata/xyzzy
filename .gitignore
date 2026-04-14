@@ -33,5 +33,5 @@ go.work.sum
 .gocache/
 .gomodcache/
 deploy.sh
-xyzzy
+/xyzzy
 AGENTS.md

@@ -57,6 +57,7 @@ func LoadFS(fsys fs.FS) (result1 *Catalog, errResult error) {
 		c.BlackCards[card.ID] = card
 		errResult = nil
 		return
+
 	}); err != nil {
 		result1, errResult = nil, err
 		return
@@ -79,6 +80,7 @@ func LoadFS(fsys fs.FS) (result1 *Catalog, errResult error) {
 		c.WhiteCards[card.ID] = card
 		errResult = nil
 		return
+
 	}); err != nil {
 		result1, errResult = nil, err
 		return
@@ -137,6 +139,7 @@ func LoadFS(fsys fs.FS) (result1 *Catalog, errResult error) {
 		}
 		result = strings.Compare(a.Name, b.Name)
 		return
+
 	})
 	if len(c.defaultIDs) == 0 && len(c.ordered) > 0 {
 		c.defaultIDs = []string{c.ordered[0].ID}

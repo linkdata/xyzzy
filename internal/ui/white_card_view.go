@@ -24,6 +24,7 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 		}
 		result = -1
 		return
+
 	}, v.Card.ID)
 	switch {
 	case deckName == "":

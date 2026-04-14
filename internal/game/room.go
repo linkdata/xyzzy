@@ -65,6 +65,7 @@ func (r *Room) ScoreTargetSlider(player *Player) (result bind.Binder[int]) {
 		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) (err error) {
 			err = r.setTargetScoreLocked(player, value)
 			return
+
 		})
 	return
 }
@@ -76,6 +77,7 @@ func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) {
 				elem.Dirty(r.manager, r)
 			}
 			return
+
 		})
 	return
 }
@@ -103,7 +105,6 @@ func (r *Room) StartGameAttrs(player *Player) (result template.HTMLAttr) {
 	}
 	if !r.CanStart(player) {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -111,7 +112,6 @@ func (r *Room) StartGameAttrs(player *Player) (result template.HTMLAttr) {
 func (r *Room) SubmitCardsAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.CanSubmit(player) || len(player.SelectedCards) != r.NeedPick() {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -124,6 +124,7 @@ func (r *Room) SubmitCardsClick(player *Player) (result jaws.ClickHandler) {
 			elem.Dirty(player, r)
 		}
 		return
+
 	})
 	return
 }
@@ -131,7 +132,6 @@ func (r *Room) SubmitCardsClick(player *Player) (result jaws.ClickHandler) {
 func (r *Room) JudgeAttrs(player *Player) (result template.HTMLAttr) {
 	if !r.CanJudge(player) || player.SelectedSubmission == nil {
 		result = `disabled`
-		return
 	}
 	return
 }
@@ -145,6 +145,7 @@ func (r *Room) JudgeClick(player *Player) (result jaws.ClickHandler) {
 		}
 		err = nil
 		return
+
 	})
 	return
 }
@@ -168,6 +169,7 @@ func (r *Room) ProceedReviewClick(player *Player) (result jaws.ClickHandler) {
 			elem.Dirty(r)
 		}
 		return
+
 	})
 	return
 }
@@ -180,6 +182,7 @@ func (r *Room) StartGameClick(player *Player) (result jaws.ClickHandler) {
 			elem.Dirty(player, r)
 		}
 		return
+
 	})
 	return
 }
@@ -912,7 +915,6 @@ func (r *Room) canJoinLocked(player *Player) (result error) {
 	}
 	if whiteCount < MinWhiteCardsPerPlayer*(len(r.players)+1) {
 		result = ErrNotEnoughWhiteCards
-		return
 	}
 	return
 }
@@ -1007,6 +1009,7 @@ func (r *Room) captureLastGameLocked(winner *Player) {
 		}
 		result = strings.Compare(a.Nickname, b.Nickname)
 		return
+
 	})
 }
 
