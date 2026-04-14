@@ -29,41 +29,33 @@ type App struct {
 	Manager *game.Manager
 }
 
-func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) (result *App) {
+func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 	if manager != nil && jw != nil {
 		manager.SetDirty(jw.Dirty)
 	}
-	result = &App{Jaws: jw, Catalog: catalog, Manager: manager}
+	return &App{Jaws: jw, Catalog: catalog, Manager: manager}
+}
+
+func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
+	var templates *template.Template
+	if templates, err = template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html"); err == nil {
+		if err = a.Jaws.AddTemplateLookuper(templates); err == nil {
+			if err = a.Jaws.Setup(mux.Handle, "/static",
+				jawsboot.Setup,
+				staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css", "app.js"),
+			); err == nil {
+				mux.Handle("GET /jaws/", a.Jaws)
+				mux.Handle("GET /", http.HandlerFunc(a.serveLobby))
+				mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
+				mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
+			}
+		}
+	}
 	return
 }
 
-func (a *App) SetupRoutes(mux *http.ServeMux) (errResult error) {
-	templates, err := template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html")
-	if err != nil {
-		errResult = err
-		return
-	}
-	if err := a.Jaws.AddTemplateLookuper(templates); err != nil {
-		errResult = err
-		return
-	}
-	if err := a.Jaws.Setup(mux.Handle, "/static",
-		jawsboot.Setup,
-		staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css", "app.js"),
-	); err != nil {
-		errResult = err
-		return
-	}
-	mux.Handle("GET /jaws/", a.Jaws)
-	mux.Handle("GET /", http.HandlerFunc(a.serveLobby))
-	mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
-	mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
-	return
-}
-
-func (a *App) Middleware(next http.Handler) (result http.Handler) {
-	result = a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(next))
-	return
+func (a *App) Middleware(next http.Handler) http.Handler {
+	return a.Jaws.Session(a.Jaws.SecureHeadersMiddleware(next))
 }
 
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
@@ -75,8 +67,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	a.syncNicknameCookie(w, r, player)
 	if err := a.renderTemplate(w, r, "index.html", a.makeTemplateDot(player)); err != nil {
-		a.Jaws.Log(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -96,8 +87,7 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	a.syncNicknameCookie(w, r, player)
 	if err := a.renderTemplate(w, r, "room.html", a.makeTemplateDot(player)); err != nil {
-		a.Jaws.Log(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -106,23 +96,21 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 	player := a.player(sess, r)
 	a.cleanupExpired()
 	if player.Room != nil {
-		http.Redirect(w, r, a.roomURL(player.Room.Code()), http.StatusSeeOther)
+		http.Redirect(w, r, a.RoomURL(player.Room.Code()), http.StatusSeeOther)
 		return
 	}
 	room, err := a.createRoom(player)
 	if err != nil {
-		a.Jaws.Log(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
 		return
 	}
 	a.syncNicknameCookie(w, r, player)
-	http.Redirect(w, r, a.roomURL(room.Code()), http.StatusSeeOther)
+	http.Redirect(w, r, a.RoomURL(room.Code()), http.StatusSeeOther)
 }
 
-func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) (errResult error) {
+func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) (err error) {
 	req := a.Jaws.NewRequest(r)
-	errResult = req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
-	return
+	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
 }
 
 func (a *App) makeTemplateDot(player *game.Player) (result templateDot) {
@@ -168,14 +156,13 @@ func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) 
 
 func (a *App) cleanupExpired() {
 	affected := a.Manager.CleanupExpiredSessions()
-	if len(affected) == 0 {
-		return
+	if len(affected) > 0 {
+		tags := []any{a.Manager}
+		for _, room := range affected {
+			tags = append(tags, room)
+		}
+		a.Jaws.Dirty(tags...)
 	}
-	tags := []any{a.Manager}
-	for _, room := range affected {
-		tags = append(tags, room)
-	}
-	a.Jaws.Dirty(tags...)
 }
 
 func (a *App) nicknameCookieName() (result string) {
@@ -188,18 +175,14 @@ func (a *App) nicknameCookieName() (result string) {
 }
 
 func (a *App) nicknameFromCookie(r *http.Request) (result string) {
-	if r == nil {
-		return
+	if r != nil {
+		cookie, err := r.Cookie(a.nicknameCookieName())
+		if err == nil && cookie.Value != "" {
+			if raw, err := base64.RawURLEncoding.DecodeString(cookie.Value); err == nil {
+				result = strings.TrimSpace(string(raw))
+			}
+		}
 	}
-	cookie, err := r.Cookie(a.nicknameCookieName())
-	if err != nil || cookie.Value == "" {
-		return
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(cookie.Value)
-	if err != nil {
-		return
-	}
-	result = strings.TrimSpace(string(raw))
 	return
 }
 
@@ -221,19 +204,18 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 }
 
 func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player *game.Player) {
-	if player == nil {
-		return
-	}
-	nickname := strings.TrimSpace(player.Nickname)
-	if nickname == "" {
-		nickname = generateNickname()
-		player.Nickname = nickname
-		if player.NicknameInput == "" {
-			player.NicknameInput = nickname
+	if player != nil {
+		nickname := strings.TrimSpace(player.Nickname)
+		if nickname == "" {
+			nickname = generateNickname()
+			player.Nickname = nickname
+			if player.NicknameInput == "" {
+				player.NicknameInput = nickname
+			}
 		}
-	}
-	if nickname != a.nicknameFromCookie(r) {
-		a.setNicknameCookie(w, r, nickname)
+		if nickname != a.nicknameFromCookie(r) {
+			a.setNicknameCookie(w, r, nickname)
+		}
 	}
 }
 
@@ -245,47 +227,38 @@ func generateNickname() (result string) {
 }
 
 func (a *App) setNickname(player *game.Player, nickname string) {
-	if player == nil {
-		return
+	if player != nil {
+		nickname = game.NormalizeNickname(nickname)
+		if room := player.Room; room != nil {
+			room.SetNickname(player, nickname)
+			return
+		}
+		player.Nickname = nickname
+		player.NicknameInput = nickname
 	}
-	nickname = game.NormalizeNickname(nickname)
-	if room := player.Room; room != nil {
-		room.SetNickname(player, nickname)
-		return
-	}
-	player.Nickname = nickname
-	player.NicknameInput = nickname
 }
 
-func (a *App) createRoom(player *game.Player) (result1 *game.Room, errResult error) {
-	room, err := a.Manager.CreateRoom(player, a.Catalog.DefaultDeckIDs())
-	if err != nil {
-		result1, errResult = nil, err
-		return
+func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {
+	if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDeckIDs()); err == nil {
+		a.Jaws.Dirty(a.Manager, room)
 	}
-	a.Jaws.Dirty(a.Manager, room)
-	result1, errResult = room, nil
 	return
 }
 
-func (a *App) joinRoom(player *game.Player, roomCode string) (result1 *game.Room, errResult error) {
-	room, err := a.Manager.JoinRoom(roomCode, player)
-	if err != nil {
-		result1, errResult = nil, err
-		return
+func (a *App) joinRoom(player *game.Player, roomCode string) (room *game.Room, err error) {
+	if room, err = a.Manager.JoinRoom(roomCode, player); err == nil {
+		a.Jaws.Dirty(a.Manager, room, player)
 	}
+	return
+}
+
+func (a *App) leaveRoom(player *game.Player) (room *game.Room) {
+	room, _ = a.Manager.LeaveRoom(player)
 	a.Jaws.Dirty(a.Manager, room, player)
-	result1, errResult = room, nil
 	return
 }
 
-func (a *App) leaveRoom(player *game.Player) (result *game.Room) {
-	result, _ = a.Manager.LeaveRoom(player)
-	a.Jaws.Dirty(a.Manager, result, player)
-	return
-}
-
-func (a *App) roomURL(code string) (result string) {
+func (a *App) RoomURL(code string) (result string) {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" {
 		result = "/"
@@ -295,17 +268,10 @@ func (a *App) roomURL(code string) (result string) {
 	return
 }
 
-func (a *App) RoomURL(code string) (result string) { result = a.roomURL(code); return }
-
 func requestIsSecure(r *http.Request) (result bool) {
-	if r == nil {
-		return
+	if r != nil {
+		result = r.TLS != nil
+		result = result || strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]) == "https"
 	}
-	if r.TLS != nil {
-		result = true
-		return
-	}
-	proto := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0])
-	result = strings.EqualFold(proto, "https")
 	return
 }
