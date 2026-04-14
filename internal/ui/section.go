@@ -29,56 +29,46 @@ type section struct {
 	Kind          sectionKind
 }
 
-func (s *section) JawsGetTag(jtag.Context) (result any) {
+func (s *section) JawsGetTag(jtag.Context) any {
+	result := []any{s.Player}
 	switch s.Kind {
 	case sectionLobbySidebar:
-		result = []any{s.Player, s.App.Manager}
-		return
+		result = append(result, s.App.Manager)
 	case sectionRoomSidebar, sectionRoomMain:
 		if room := s.currentRoom(); room != nil {
-			result = []any{s.Player, room}
-			return
+			result = append(result, room)
 		}
-		result = []any{s.Player}
-		return
 	}
-	result = []any{s.Player}
-	return
+	return result
 }
 
-func (s *section) JawsContains(*jaws.Element) (result []jaws.UI) {
+func (s *section) JawsContains(*jaws.Element) []jaws.UI {
 	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
-		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
-		return
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
 	case sectionLobbyMain:
-		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
-		return
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
 	case sectionRoomSidebar:
-		if s.currentRoom() == nil {
-			return
+		if s.currentRoom() != nil {
+			return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
 		}
-		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
-		return
+		return nil
 	default:
 		templateName := "room_single_panel.html"
 		if s.currentRoom() != nil {
 			templateName = "room_game_panel.html"
 		}
-		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
-		return
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
 	}
 }
 
 func (s *section) currentRoom() (result *game.Room) {
-	if s.Player.Room == nil {
-		return
+	if s.Player.Room != nil {
+		if s.RequestedCode == "" || strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
+			result = s.Player.Room
+		}
 	}
-	if s.RequestedCode != "" && !strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
-		return
-	}
-	result = s.Player.Room
 	return
 }
 

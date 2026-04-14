@@ -80,8 +80,8 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 	return
 }
 
-func (d templateDot) SaveNicknameClick() (result jaws.ClickHandler) {
-	result = jui.Clickable("Save Nickname", func(elem *jaws.Element, name string) (errResult error) {
+func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
+	return jui.Clickable("Save Nickname", func(elem *jaws.Element, name string) (err error) {
 		d.App.setNickname(d.Player, d.Player.NicknameInput)
 		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room)
 		redirectURL := elem.Request.Initial().URL.RequestURI()
@@ -89,11 +89,8 @@ func (d templateDot) SaveNicknameClick() (result jaws.ClickHandler) {
 			redirectURL = "/"
 		}
 		elem.Request.Redirect(redirectURL)
-		errResult = nil
 		return
-
 	})
-	return
 }
 
 func (d templateDot) OrderedDecks() (result []*deck.Deck) {
@@ -108,17 +105,12 @@ func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
 		GetLocked(func(bind bind.Binder[bool], elem *jaws.Element) (result bool) {
 			result = room.DeckEnabled(deck)
 			return
-
 		}).
-		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (errResult error) {
-			if err := room.SetDeckEnabled(d.Player, deck, value); err != nil {
-				errResult = err
-				return
+		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
+			if err = room.SetDeckEnabled(d.Player, deck, value); err == nil {
+				elem.Dirty(d.Player, room)
 			}
-			elem.Dirty(d.Player, room)
-			errResult = nil
 			return
-
 		})
 	result = taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
 	return

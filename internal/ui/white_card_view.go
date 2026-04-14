@@ -39,7 +39,7 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 	}
 }
 
-func (d whiteCardView) JawsClick(elem *jaws.Element, name string) (errResult error) {
+func (d whiteCardView) JawsClick(elem *jaws.Element, name string) (err error) {
 	if d.Room.CanSubmit(d.Player) {
 		if applyCardSelection(d.Player, d.Card, d.Room.NeedPick()) {
 			elem.Dirty(d.Player)
