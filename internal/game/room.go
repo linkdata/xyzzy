@@ -45,7 +45,6 @@ type Room struct {
 	lastWinnerName   string
 	lastGameWinner   string
 	lastGameScores   []FinalScore
-	statusMessage    string
 	blackDraw        []*deck.BlackCard
 	blackDiscard     []*deck.BlackCard
 	whiteDraw        []*deck.WhiteCard
@@ -421,13 +420,6 @@ func (r *Room) JudgeName() (result string) {
 	return
 }
 
-func (r *Room) StatusMessage() (result string) {
-	r.mu.RLock()
-	result = r.statusMessage
-	r.mu.RUnlock()
-	return
-}
-
 func (r *Room) LastWinnerName() (result string) {
 	r.mu.RLock()
 	result = r.lastWinnerName
@@ -626,7 +618,6 @@ func (r *Room) Start(player *Player) (err error) {
 	r.lastWinnerName = ""
 	r.lastGameWinner = ""
 	r.lastGameScores = nil
-	r.statusMessage = ""
 	r.round = 0
 	r.czarIndex = -1
 	for _, current := range r.players {
@@ -697,9 +688,6 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (err error) {
 			r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i]
 		})
 		r.state = StateJudging
-		if judge := r.judgeLocked(); judge != nil {
-			r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
-		}
 	}
 	return
 }
@@ -732,7 +720,6 @@ func (r *Room) Judge(player *Player, submission *Submission) (err error) {
 	if gameWinner {
 		r.captureLastGameLocked(winner)
 	}
-	r.statusMessage = fmt.Sprintf("%s won the round.", winner.Nickname)
 	r.beginReviewLocked(winner, submission, gameWinner)
 	return
 }
@@ -763,7 +750,6 @@ func (r *Room) join(player *Player) (err error) {
 				r.host = player
 			}
 			r.dealJoinedPlayerLocked(player)
-			r.statusMessage = fmt.Sprintf("%s joined the room.", player.Nickname)
 		}
 	}
 	return
@@ -801,20 +787,13 @@ func (r *Room) leave(player *Player) (empty bool) {
 				if r.state != StateLobby {
 					switch {
 					case len(r.players) < r.minPlayers:
-						r.resetToLobbyLocked("Not enough players to continue. Room reset to the lobby.")
+						r.resetToLobbyLocked()
 					case wasJudge:
-						r.resetToLobbyLocked("The judge left. Room reset to the lobby.")
+						r.resetToLobbyLocked()
 					case len(r.submissions) == len(r.players)-1 && r.state == StatePlaying:
 						r.rand.Shuffle(len(r.submissions), func(i, j int) { r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i] })
 						r.state = StateJudging
-						if judge := r.judgeLocked(); judge != nil {
-							r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
-						}
-					default:
-						r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
 					}
-				} else {
-					r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
 				}
 			}
 		}
@@ -914,7 +893,7 @@ func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bo
 	return
 }
 
-func (r *Room) resetToLobbyLocked(message string) {
+func (r *Room) resetToLobbyLocked() {
 	r.clearReviewLocked()
 	r.state = StateLobby
 	r.round = 0
@@ -926,7 +905,6 @@ func (r *Room) resetToLobbyLocked(message string) {
 	r.whiteDraw = nil
 	r.whiteDiscard = nil
 	r.submissions = nil
-	r.statusMessage = message
 	for _, player := range r.players {
 		player.Score = 0
 		player.Hand = nil
@@ -976,7 +954,7 @@ func (r *Room) advanceRoundLocked() {
 	r.submissions = nil
 	r.submissionSeq = 0
 	if len(r.players) == 0 {
-		r.resetToLobbyLocked("Room is empty.")
+		r.resetToLobbyLocked()
 		return
 	}
 	r.czarIndex++
@@ -1001,9 +979,6 @@ func (r *Room) advanceRoundLocked() {
 	}
 	r.round++
 	r.state = StatePlaying
-	if judge != nil {
-		r.statusMessage = fmt.Sprintf("%s is the judge for round %d.", judge.Nickname, r.round)
-	}
 }
 
 func (r *Room) beginReviewLocked(winner *Player, submission *Submission, gameWinner bool) {
@@ -1024,12 +999,8 @@ func (r *Room) beginReviewLocked(winner *Player, submission *Submission, gameWin
 }
 
 func (r *Room) finishReviewLocked() {
-	winnerName := ""
-	if r.reviewWinner != nil {
-		winnerName = r.reviewWinner.Nickname
-	}
 	if r.reviewGameWinner {
-		r.resetToLobbyLocked(fmt.Sprintf("%s won the game. Room reset to the lobby.", winnerName))
+		r.resetToLobbyLocked()
 		return
 	}
 	r.advanceRoundLocked()

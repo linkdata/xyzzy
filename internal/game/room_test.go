@@ -193,9 +193,6 @@ func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	if room.State() != StateLobby {
 		t.Fatalf("expected lobby reset, got %s", room.State())
 	}
-	if room.StatusMessage() == "" {
-		t.Fatal("expected reset message")
-	}
 }
 
 func TestJoinDuringPlayingDealsCurrentRoundHandAndAllowsSubmission(t *testing.T) {

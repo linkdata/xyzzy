@@ -53,7 +53,6 @@ func forceRound(t *testing.T, room *Room, blackID string) {
 	room.submissionSeq = 0
 	room.czarIndex = -1
 	room.round = 0
-	room.statusMessage = ""
 	for _, player := range room.players {
 		player.Score = 0
 		player.Submitted = nil
