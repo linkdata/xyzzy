@@ -34,3 +34,4 @@ go.work.sum
 .gomodcache/
 deploy.sh
 xyzzy
+AGENTS.md
