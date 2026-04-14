@@ -71,6 +71,19 @@ func testPlayer(name string) (result *Player) {
 	return
 }
 
+func testDecks(t *testing.T, catalog *deck.Catalog, ids ...string) (result []*deck.Deck) {
+	t.Helper()
+	result = make([]*deck.Deck, 0, len(ids))
+	for _, id := range ids {
+		selected := catalog.DeckByID(id)
+		if selected == nil {
+			t.Fatalf("unknown test deck %q", id)
+		}
+		result = append(result, selected)
+	}
+	return
+}
+
 func itoa(v int) (result string) {
 	if v == 0 {
 		result = "0"

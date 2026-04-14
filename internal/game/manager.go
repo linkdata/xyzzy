@@ -32,7 +32,7 @@ func (m *Manager) notify(tags ...any) {
 	}
 }
 
-func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (room *Room, err error) {
+func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
 	err = ErrAlreadyInRoom
 	if player != nil && player.Room == nil {
 		m.mu.Lock()
@@ -40,17 +40,17 @@ func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (room *Roo
 		var code string
 		if code, err = m.newRoomCodeLocked(); err == nil {
 			room = &Room{
-				manager:         m,
-				code:            code,
-				catalog:         m.catalog,
-				rand:            newCryptoRand(),
-				minPlayers:      m.opts.MinPlayers,
-				debug:           m.opts.Debug,
-				reviewDelay:     ReviewDelay,
-				targetScore:     ScoreGoal,
-				state:           StateLobby,
-				czarIndex:       -1,
-				selectedDeckIDs: normalizeDeckIDs(m.catalog, defaultDeckIDs),
+				manager:       m,
+				code:          code,
+				catalog:       m.catalog,
+				rand:          newCryptoRand(),
+				minPlayers:    m.opts.MinPlayers,
+				debug:         m.opts.Debug,
+				reviewDelay:   ReviewDelay,
+				targetScore:   ScoreGoal,
+				state:         StateLobby,
+				czarIndex:     -1,
+				selectedDecks: normalizeDecks(m.catalog, defaultDecks),
 			}
 			room.seatLocked(player)
 			room.host = player

@@ -25,8 +25,9 @@ func TestLoadFSAndUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFS() error = %v", err)
 	}
-	if got := catalog.DefaultDeckIDs(); len(got) != 1 || got[0] != "beta" {
-		t.Fatalf("DefaultDeckIDs() = %v", got)
+	defaults := catalog.DefaultDecks()
+	if len(defaults) != 1 || defaults[0] != catalog.DeckByID("beta") {
+		t.Fatalf("DefaultDecks() = %v", defaults)
 	}
 	if got := catalog.OrderedDecks(); len(got) != 2 || got[0].ID != "beta" || got[1].ID != "alpha" {
 		t.Fatalf("OrderedDecks() unexpected order = %#v", got)
@@ -41,11 +42,11 @@ func TestLoadFSAndUnion(t *testing.T) {
 	if alpha.WhiteCards[0] != catalog.WhiteCards["w1"] || alpha.WhiteCards[1] != catalog.WhiteCards["w2"] {
 		t.Fatalf("alpha white membership should reference catalog cards, got %#v", alpha.WhiteCards)
 	}
-	blackCount, whiteCount := catalog.UnionCounts([]string{"alpha", "beta"})
+	blackCount, whiteCount := catalog.UnionCounts([]*Deck{catalog.DeckByID("alpha"), catalog.DeckByID("beta")})
 	if blackCount != 2 || whiteCount != 3 {
 		t.Fatalf("UnionCounts() = (%d,%d), want (2,3)", blackCount, whiteCount)
 	}
-	black, white := catalog.UnionCards([]string{"beta", "alpha"})
+	black, white := catalog.UnionCards([]*Deck{catalog.DeckByID("beta"), catalog.DeckByID("alpha")})
 	if len(black) != 2 || len(white) != 3 {
 		t.Fatalf("UnionCards() got %d black and %d white", len(black), len(white))
 	}
@@ -57,6 +58,61 @@ func TestLoadFSAndUnion(t *testing.T) {
 	}
 	if black[1].Pick != 2 || black[1].Draw != 1 {
 		t.Fatalf("expected black card defaults preserved, got %#v", black[1])
+	}
+}
+
+func TestDefaultDecksSortedByDeckID(t *testing.T) {
+	fsys := fstest.MapFS{
+		"assets/cards/black/b1.json":    {Data: []byte(`{"id":"b1","text":"Q1"}`)},
+		"assets/cards/white/w1.json":    {Data: []byte(`{"id":"w1","text":"A1"}`)},
+		"assets/decks/zeta/deck.json":   {Data: []byte(`{"id":"zeta","name":"Zeta","enabled_by_default":true}`)},
+		"assets/decks/zeta/black.json":  {Data: []byte(`["b1"]`)},
+		"assets/decks/zeta/white.json":  {Data: []byte(`["w1"]`)},
+		"assets/decks/alpha/deck.json":  {Data: []byte(`{"id":"alpha","name":"Alpha","enabled_by_default":true}`)},
+		"assets/decks/alpha/black.json": {Data: []byte(`["b1"]`)},
+		"assets/decks/alpha/white.json": {Data: []byte(`["w1"]`)},
+	}
+
+	catalog, err := LoadFS(fsys)
+	if err != nil {
+		t.Fatalf("LoadFS() error = %v", err)
+	}
+
+	defaults := catalog.DefaultDecks()
+	if len(defaults) != 2 || defaults[0].ID != "alpha" || defaults[1].ID != "zeta" {
+		t.Fatalf("DefaultDecks() = %#v, want alpha then zeta", defaults)
+	}
+}
+
+func TestUnionIgnoresDuplicateAndUnknownDeckPointers(t *testing.T) {
+	fsys := fstest.MapFS{
+		"assets/cards/black/b1.json":    {Data: []byte(`{"id":"b1","text":"Q1"}`)},
+		"assets/cards/black/b2.json":    {Data: []byte(`{"id":"b2","text":"Q2"}`)},
+		"assets/cards/white/w1.json":    {Data: []byte(`{"id":"w1","text":"A1"}`)},
+		"assets/cards/white/w2.json":    {Data: []byte(`{"id":"w2","text":"A2"}`)},
+		"assets/decks/alpha/deck.json":  {Data: []byte(`{"id":"alpha","name":"Alpha"}`)},
+		"assets/decks/alpha/black.json": {Data: []byte(`["b1"]`)},
+		"assets/decks/alpha/white.json": {Data: []byte(`["w1"]`)},
+		"assets/decks/beta/deck.json":   {Data: []byte(`{"id":"beta","name":"Beta"}`)},
+		"assets/decks/beta/black.json":  {Data: []byte(`["b2"]`)},
+		"assets/decks/beta/white.json":  {Data: []byte(`["w2"]`)},
+	}
+
+	catalog, err := LoadFS(fsys)
+	if err != nil {
+		t.Fatalf("LoadFS() error = %v", err)
+	}
+
+	alpha := catalog.DeckByID("alpha")
+	beta := catalog.DeckByID("beta")
+	unknown := &Deck{
+		DeckMetadata: DeckMetadata{ID: "alpha", Name: "Alpha Copy"},
+		BlackCards:   []*BlackCard{catalog.BlackCards["b1"]},
+		WhiteCards:   []*WhiteCard{catalog.WhiteCards["w1"]},
+	}
+	blackCount, whiteCount := catalog.UnionCounts([]*Deck{alpha, alpha, nil, unknown, beta})
+	if blackCount != 2 || whiteCount != 2 {
+		t.Fatalf("UnionCounts() = (%d,%d), want (2,2)", blackCount, whiteCount)
 	}
 }
 

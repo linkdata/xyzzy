@@ -239,7 +239,7 @@ func (a *App) setNickname(player *game.Player, nickname string) {
 }
 
 func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {
-	if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDeckIDs()); err == nil {
+	if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDecks()); err == nil {
 		a.Jaws.Dirty(a.Manager, room)
 	}
 	return

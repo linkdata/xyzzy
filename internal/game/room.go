@@ -34,7 +34,7 @@ type Room struct {
 	mu               sync.RWMutex
 	host             *Player
 	players          []*Player
-	selectedDeckIDs  []string
+	selectedDecks    []*deck.Deck
 	private          bool
 	targetScore      int
 	state            RoomState
@@ -268,7 +268,7 @@ func (r *Room) CanStart(player *Player) (result bool) {
 	if player == nil || r.host != player || r.state != StateLobby || len(r.players) < r.minPlayers {
 		return
 	}
-	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
+	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
 	result = blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
 	return
 }
@@ -298,19 +298,15 @@ func (r *Room) CanProceed(player *Player) (result bool) {
 func (r *Room) SelectedDecks() (result []*deck.Deck) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	result = make([]*deck.Deck, 0, len(r.selectedDeckIDs))
-	for _, id := range r.selectedDeckIDs {
-		if d := r.catalog.DeckByID(id); d != nil {
-			result = append(result, d)
-		}
-	}
+	result = make([]*deck.Deck, 0, len(r.selectedDecks))
+	result = append(result, r.selectedDecks...)
 	return
 }
 
 func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	if d != nil {
 		r.mu.RLock()
-		result = slices.Contains(r.selectedDeckIDs, d.ID)
+		result = slices.Contains(r.selectedDecks, d)
 		r.mu.RUnlock()
 	}
 	return
@@ -318,14 +314,14 @@ func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 
 func (r *Room) BlackCount() (result int) {
 	r.mu.RLock()
-	result, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
+	result, _ = r.catalog.UnionCounts(r.selectedDecks)
 	r.mu.RUnlock()
 	return
 }
 
 func (r *Room) WhiteCount() (result int) {
 	r.mu.RLock()
-	_, result = r.catalog.UnionCounts(r.selectedDeckIDs)
+	_, result = r.catalog.UnionCounts(r.selectedDecks)
 	r.mu.RUnlock()
 	return
 }
@@ -567,7 +563,7 @@ func (r *Room) SetTargetScore(player *Player, score int) (err error) {
 	return
 }
 
-func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) (err error) {
+func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled bool) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.host != player {
@@ -578,20 +574,20 @@ func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) (er
 		err = ErrDecksLocked
 		return
 	}
-	if deck == nil || r.catalog.DeckByID(deck.ID) == nil {
+	if selectedDeck == nil || r.catalog.DeckByID(selectedDeck.ID) != selectedDeck {
 		err = ErrUnknownDeck
 		return
 	}
-	selected := make(map[string]bool, len(r.selectedDeckIDs))
-	for _, id := range r.selectedDeckIDs {
-		selected[id] = true
+	selected := make(map[*deck.Deck]bool, len(r.selectedDecks))
+	for _, chosen := range r.selectedDecks {
+		selected[chosen] = true
 	}
 	if enabled {
-		selected[deck.ID] = true
+		selected[selectedDeck] = true
 	} else {
-		delete(selected, deck.ID)
+		delete(selected, selectedDeck)
 	}
-	r.selectedDeckIDs = sortedSelected(selected)
+	r.selectedDecks = sortedSelectedDecks(selected)
 	return
 }
 
@@ -606,7 +602,7 @@ func (r *Room) Start(player *Player) (err error) {
 		err = fmt.Errorf("need at least %d players to start", r.minPlayers)
 		return
 	}
-	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
+	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
 	if blackCount < MinBlackCards {
 		err = ErrNotEnoughBlackCards
 		return
@@ -615,7 +611,7 @@ func (r *Room) Start(player *Player) (err error) {
 		err = ErrNotEnoughWhiteCards
 		return
 	}
-	blackCards, whiteCards := r.catalog.UnionCards(r.selectedDeckIDs)
+	blackCards, whiteCards := r.catalog.UnionCards(r.selectedDecks)
 	r.blackDraw = append([]*deck.BlackCard(nil), blackCards...)
 	r.whiteDraw = append([]*deck.WhiteCard(nil), whiteCards...)
 	r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
@@ -865,7 +861,7 @@ func (r *Room) canJoinLocked(player *Player) (err error) {
 	if r.state == StateLobby {
 		return
 	}
-	_, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
+	_, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
 	if whiteCount < MinWhiteCardsPerPlayer*(len(r.players)+1) {
 		err = ErrNotEnoughWhiteCards
 	}
@@ -1119,20 +1115,20 @@ func (r *Room) playerLocked(player *Player) (result *Player) {
 	return
 }
 
-func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) (result []string) {
+func (r *Room) SelectedDecksForWhiteCard(card *deck.WhiteCard) (result []*deck.Deck) {
 	if r != nil && card != nil {
 		r.mu.RLock()
 		defer r.mu.RUnlock()
-		result = r.selectedDeckIDsForWhiteCardLocked(card)
+		result = r.selectedDecksForWhiteCardLocked(card)
 	}
 	return
 }
 
-func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) (result []string) {
+func (r *Room) SelectedDecksForBlackCard(card *deck.BlackCard) (result []*deck.Deck) {
 	if r != nil && card != nil {
 		r.mu.RLock()
 		defer r.mu.RUnlock()
-		result = r.selectedDeckIDsForBlackCardLocked(card)
+		result = r.selectedDecksForBlackCardLocked(card)
 	}
 	return
 }
@@ -1155,40 +1151,28 @@ func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result s
 	return
 }
 
-func (r *Room) selectedDeckIDsForWhiteCardLocked(card *deck.WhiteCard) (result []string) {
-	result = make([]string, 0, len(r.selectedDeckIDs))
-	for _, deckID := range r.selectedDeckIDs {
-		d := r.catalog.DeckByID(deckID)
-		if d == nil {
-			continue
-		}
+func (r *Room) selectedDecksForWhiteCardLocked(card *deck.WhiteCard) (result []*deck.Deck) {
+	result = make([]*deck.Deck, 0, len(r.selectedDecks))
+	for _, d := range r.selectedDecks {
 		if slices.Contains(d.WhiteCards, card) {
-			result = append(result, deckID)
+			result = append(result, d)
 		}
 	}
 	return
 }
 
-func (r *Room) selectedDeckIDsForBlackCardLocked(card *deck.BlackCard) (result []string) {
-	result = make([]string, 0, len(r.selectedDeckIDs))
-	for _, deckID := range r.selectedDeckIDs {
-		d := r.catalog.DeckByID(deckID)
-		if d == nil {
-			continue
-		}
+func (r *Room) selectedDecksForBlackCardLocked(card *deck.BlackCard) (result []*deck.Deck) {
+	result = make([]*deck.Deck, 0, len(r.selectedDecks))
+	for _, d := range r.selectedDecks {
 		if slices.Contains(d.BlackCards, card) {
-			result = append(result, deckID)
+			result = append(result, d)
 		}
 	}
 	return
 }
 
 func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (result string) {
-	for _, deckID := range r.selectedDeckIDs {
-		d := r.catalog.DeckByID(deckID)
-		if d == nil {
-			continue
-		}
+	for _, d := range r.selectedDecks {
 		if slices.Contains(d.WhiteCards, card) {
 			result = d.Name
 			return
@@ -1198,11 +1182,7 @@ func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (re
 }
 
 func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) (result string) {
-	for _, deckID := range r.selectedDeckIDs {
-		d := r.catalog.DeckByID(deckID)
-		if d == nil {
-			continue
-		}
+	for _, d := range r.selectedDecks {
 		if slices.Contains(d.BlackCards, card) {
 			result = d.Name
 			return

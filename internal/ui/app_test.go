@@ -570,7 +570,7 @@ func TestCreateRoomRouteFollowRedirectShowsRoomPage(t *testing.T) {
 func TestSetNicknameInRoomKeepsNicknameUnique(t *testing.T) {
 	app, _ := testApp(t)
 	host := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}
-	room, err := app.Manager.CreateRoom(host, app.Catalog.DefaultDeckIDs())
+	room, err := app.Manager.CreateRoom(host, app.Catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}

@@ -28,7 +28,7 @@ type Catalog struct {
 	WhiteCards map[string]*WhiteCard
 	Decks      map[string]*Deck
 	ordered    []*Deck
-	defaultIDs []string
+	defaults   []*Deck
 }
 
 func loadBlackCard(c *Catalog, name string, raw []byte) (err error) {
@@ -113,7 +113,7 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 					tmp_c.Decks[deck.ID] = deck
 					tmp_c.ordered = append(tmp_c.ordered, deck)
 					if deck.EnabledByDefault {
-						tmp_c.defaultIDs = append(tmp_c.defaultIDs, deck.ID)
+						tmp_c.defaults = append(tmp_c.defaults, deck)
 					}
 				}
 				slices.SortFunc(tmp_c.ordered, func(a, b *Deck) (result int) {
@@ -125,10 +125,10 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 					return
 
 				})
-				if len(tmp_c.defaultIDs) == 0 && len(tmp_c.ordered) > 0 {
-					tmp_c.defaultIDs = []string{tmp_c.ordered[0].ID}
+				if len(tmp_c.defaults) == 0 && len(tmp_c.ordered) > 0 {
+					tmp_c.defaults = []*Deck{tmp_c.ordered[0]}
 				}
-				slices.Sort(tmp_c.defaultIDs)
+				slices.SortFunc(tmp_c.defaults, func(a, b *Deck) (result int) { result = strings.Compare(a.ID, b.ID); return })
 				c = tmp_c
 			}
 		}
@@ -205,25 +205,25 @@ func (c *Catalog) OrderedDecks() (result []*Deck) {
 	return
 }
 
-// DefaultDeckIDs returns the default-selected deck IDs.
-func (c *Catalog) DefaultDeckIDs() (result []string) {
+// DefaultDecks returns the default-selected decks.
+func (c *Catalog) DefaultDecks() (result []*Deck) {
 	if c != nil {
-		result = make([]string, len(c.defaultIDs))
-		copy(result, c.defaultIDs)
+		result = make([]*Deck, len(c.defaults))
+		copy(result, c.defaults)
 	}
 	return
 }
 
 // UnionCounts returns the unique black and white card counts for the selected decks.
-func (c *Catalog) UnionCounts(deckIDs []string) (blackCount, whiteCount int) {
-	blackSet, whiteSet := c.unionSet(deckIDs)
+func (c *Catalog) UnionCounts(decks []*Deck) (blackCount, whiteCount int) {
+	blackSet, whiteSet := c.unionSet(decks)
 	blackCount, whiteCount = len(blackSet), len(whiteSet)
 	return
 }
 
 // UnionCards returns unique cards from the selected decks, sorted by card ID.
-func (c *Catalog) UnionCards(deckIDs []string) (black []*BlackCard, white []*WhiteCard) {
-	blackSet, whiteSet := c.unionSet(deckIDs)
+func (c *Catalog) UnionCards(decks []*Deck) (black []*BlackCard, white []*WhiteCard) {
+	blackSet, whiteSet := c.unionSet(decks)
 	for card := range blackSet {
 		black = append(black, card)
 	}
@@ -243,19 +243,27 @@ func (c *Catalog) DeckByID(id string) (result *Deck) {
 	return
 }
 
-func (c *Catalog) unionSet(deckIDs []string) (blackSet map[*BlackCard]struct{}, whiteSet map[*WhiteCard]struct{}) {
+func (c *Catalog) unionSet(decks []*Deck) (blackSet map[*BlackCard]struct{}, whiteSet map[*WhiteCard]struct{}) {
 	if c != nil {
 		blackSet = make(map[*BlackCard]struct{})
 		whiteSet = make(map[*WhiteCard]struct{})
-		for _, deckID := range uniqueSorted(deckIDs) {
-			deck := c.Decks[deckID]
-			if deck != nil {
-				for _, card := range deck.BlackCards {
-					blackSet[card] = struct{}{}
-				}
-				for _, card := range deck.WhiteCards {
-					whiteSet[card] = struct{}{}
-				}
+		seen := make(map[*Deck]struct{}, len(decks))
+		for _, deck := range decks {
+			if deck == nil {
+				continue
+			}
+			if canonical := c.DeckByID(deck.ID); canonical != deck {
+				continue
+			}
+			if _, ok := seen[deck]; ok {
+				continue
+			}
+			seen[deck] = struct{}{}
+			for _, card := range deck.BlackCards {
+				blackSet[card] = struct{}{}
+			}
+			for _, card := range deck.WhiteCards {
+				whiteSet[card] = struct{}{}
 			}
 		}
 	}

@@ -15,7 +15,7 @@ func TestPickTwoRoundAndJudgeFlow(t *testing.T) {
 	casey := testPlayer("Casey")
 	drew := testPlayer("Drew")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	_, _ = mgr.JoinRoom(room.Code(), drew)
@@ -67,7 +67,7 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -98,7 +98,7 @@ func TestSubmissionIDsUseRoundSequence(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -181,7 +181,7 @@ func TestRoomResetOnTooFewPlayers(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -206,7 +206,7 @@ func TestJoinDuringPlayingDealsCurrentRoundHandAndAllowsSubmission(t *testing.T)
 	casey := testPlayer("Casey")
 	drew := testPlayer("Drew")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -254,7 +254,7 @@ func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
 	casey := testPlayer("Casey")
 	drew := testPlayer("Drew")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -327,7 +327,7 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	room.reviewDelay = 10 * time.Millisecond
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
@@ -378,7 +378,7 @@ func TestJoinDuringGameRequiresEnoughCardsForAnotherPlayer(t *testing.T) {
 	casey := testPlayer("Casey")
 	drew := testPlayer("Drew")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -399,7 +399,7 @@ func TestJudgeLeavingResetsToLobbyAndHostLeavingReassigns(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -433,7 +433,7 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, _ := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	_, _ = mgr.JoinRoom(room.Code(), bob)
 	_, _ = mgr.JoinRoom(room.Code(), casey)
 	if err := room.Start(alice); err != nil {
@@ -493,5 +493,17 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	}
 	if room.LastGameWinner() != "" || len(room.LastGameScores()) != 0 {
 		t.Fatalf("expected last game results to clear on restart, got %#v", room.LastGameScores())
+	}
+}
+
+func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	host := testPlayer("Alice")
+
+	room, _ := mgr.CreateRoom(host, catalog.DefaultDecks())
+	unknown := &deck.Deck{DeckMetadata: deck.DeckMetadata{ID: "base", Name: "Base copy"}}
+	if err := room.SetDeckEnabled(host, unknown, true); err != ErrUnknownDeck {
+		t.Fatalf("SetDeckEnabled() error = %v, want %v", err, ErrUnknownDeck)
 	}
 }

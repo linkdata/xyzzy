@@ -779,7 +779,7 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	}
 
 	other := &game.Player{Nickname: "Bob", NicknameInput: "Bob"}
-	otherRoom, err := app.Manager.CreateRoom(other, app.Catalog.DefaultDeckIDs())
+	otherRoom, err := app.Manager.CreateRoom(other, app.Catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom(other) error = %v", err)
 	}

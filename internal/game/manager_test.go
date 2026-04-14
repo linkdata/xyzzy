@@ -1,6 +1,10 @@
 package game
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/linkdata/xyzzy/internal/deck"
+)
 
 func TestManagerRoomLifecycle(t *testing.T) {
 	catalog := testCatalog(t)
@@ -9,7 +13,7 @@ func TestManagerRoomLifecycle(t *testing.T) {
 	bob := testPlayer("Bob")
 	casey := testPlayer("Casey")
 
-	room, err := mgr.CreateRoom(alice, catalog.DefaultDeckIDs())
+	room, err := mgr.CreateRoom(alice, catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
@@ -43,7 +47,7 @@ func TestDebugMinPlayersAllowsTwoPlayerStart(t *testing.T) {
 	alice := testPlayer("Alice")
 	bob := testPlayer("Bob")
 
-	room, err := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, err := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
@@ -64,7 +68,7 @@ func TestDebugStartUsesHighestPickBlackCardFirst(t *testing.T) {
 	alice := testPlayer("Alice")
 	bob := testPlayer("Bob")
 
-	room, err := mgr.CreateRoom(alice, []string{"base", "expansion"})
+	room, err := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
@@ -85,7 +89,7 @@ func TestRoomPrivacyLifecycleAndPublicRooms(t *testing.T) {
 	host := testPlayer("Alice")
 	guest := testPlayer("Bob")
 
-	room, err := mgr.CreateRoom(host, catalog.DefaultDeckIDs())
+	room, err := mgr.CreateRoom(host, catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
@@ -135,7 +139,7 @@ func TestNicknameSanitizationAndConflictSuffixing(t *testing.T) {
 	other := testPlayer("A l i c e")
 	third := testPlayer("!!!")
 
-	room, err := mgr.CreateRoom(host, catalog.DefaultDeckIDs())
+	room, err := mgr.CreateRoom(host, catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
@@ -154,5 +158,31 @@ func TestNicknameSanitizationAndConflictSuffixing(t *testing.T) {
 	}
 	if third.Nickname != "Player" {
 		t.Fatalf("third nickname = %q, want %q", third.Nickname, "Player")
+	}
+}
+
+func TestNormalizeDecksFiltersDeduplicatesAndSorts(t *testing.T) {
+	catalog := testCatalog(t)
+	base := catalog.DeckByID("base")
+	expansion := catalog.DeckByID("expansion")
+	unknown := &deck.Deck{DeckMetadata: deck.DeckMetadata{ID: "base", Name: "Base copy"}}
+
+	got := normalizeDecks(catalog, []*deck.Deck{expansion, nil, base, base, unknown})
+	if len(got) != 2 || got[0] != base || got[1] != expansion {
+		t.Fatalf("normalizeDecks() = %#v, want [%p %p]", got, base, expansion)
+	}
+}
+
+func TestNormalizeDecksUsesCatalogDefaultsWhenEmpty(t *testing.T) {
+	catalog := testCatalog(t)
+	got := normalizeDecks(catalog, nil)
+	defaults := catalog.DefaultDecks()
+	if len(got) != len(defaults) {
+		t.Fatalf("normalizeDecks() len = %d, want %d", len(got), len(defaults))
+	}
+	for i := range defaults {
+		if got[i] != defaults[i] {
+			t.Fatalf("normalizeDecks()[%d] = %p, want %p", i, got[i], defaults[i])
+		}
 	}
 }

@@ -84,26 +84,29 @@ func NormalizeNickname(raw string) (result string) {
 	return
 }
 
-func normalizeDeckIDs(catalog *deck.Catalog, ids []string) (result []string) {
+func normalizeDecks(catalog *deck.Catalog, decks []*deck.Deck) (result []*deck.Deck) {
 	if catalog == nil {
 		return
 	}
-	if len(ids) == 0 {
-		ids = catalog.DefaultDeckIDs()
+	if len(decks) == 0 {
+		decks = catalog.DefaultDecks()
 	}
-	result = make([]string, 0, len(ids))
-	seen := make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		if catalog.DeckByID(id) == nil {
+	result = make([]*deck.Deck, 0, len(decks))
+	seen := make(map[*deck.Deck]struct{}, len(decks))
+	for _, selected := range decks {
+		if selected == nil {
 			continue
 		}
-		if _, ok := seen[id]; ok {
+		if canonical := catalog.DeckByID(selected.ID); canonical != selected {
 			continue
 		}
-		seen[id] = struct{}{}
-		result = append(result, id)
+		if _, ok := seen[selected]; ok {
+			continue
+		}
+		seen[selected] = struct{}{}
+		result = append(result, selected)
 	}
-	slices.Sort(result)
+	slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) { cmp = strings.Compare(a.ID, b.ID); return })
 	return
 }
 
@@ -123,14 +126,14 @@ func normalizeWhiteCards(cards []*deck.WhiteCard) (result []*deck.WhiteCard) {
 	return
 }
 
-func sortedSelected(values map[string]bool) (result []string) {
-	result = make([]string, 0, len(values))
-	for id, enabled := range values {
+func sortedSelectedDecks(values map[*deck.Deck]bool) (result []*deck.Deck) {
+	result = make([]*deck.Deck, 0, len(values))
+	for selected, enabled := range values {
 		if enabled {
-			result = append(result, id)
+			result = append(result, selected)
 		}
 	}
-	slices.Sort(result)
+	slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) { cmp = strings.Compare(a.ID, b.ID); return })
 	return
 }
 
