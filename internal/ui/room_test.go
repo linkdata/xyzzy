@@ -193,7 +193,6 @@ func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want 
 		}
 		text := string(body)
 		if strings.Contains(text, `value="`+want+`"`) || strings.Contains(text, `>`+want+`<`) {
-			errResult = nil
 			return
 		}
 		for _, line := range strings.Split(text, "\n") {
@@ -207,12 +206,10 @@ func readUntilScoreTargetUpdate(ctx context.Context, conn *websocket.Conn, want 
 			switch msg.What {
 			case what.Value, what.Inner:
 				if msg.Data == want {
-					errResult = nil
 					return
 				}
 			case what.Append, what.Replace:
 				if strings.Contains(msg.Data, `value="`+want+`"`) || strings.Contains(msg.Data, `>`+want+`<`) {
-					errResult = nil
 					return
 				}
 			}

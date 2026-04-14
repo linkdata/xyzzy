@@ -19,7 +19,6 @@ func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int)
 		return
 	}
 	if len(player.SelectedCards) >= needPick {
-		changed = false
 		return
 	}
 	player.SelectedCards = append(player.SelectedCards, card)

@@ -225,14 +225,12 @@ func loadJSONDir(fsys fs.FS, dir string, fn func(name string, raw []byte) error)
 			return
 		}
 	}
-	errResult = nil
 	return
 }
 
 // OrderedDecks returns the deck list sorted by weight then name.
 func (c *Catalog) OrderedDecks() (result []*Deck) {
 	if c == nil {
-		result = nil
 		return
 	}
 	result = make([]*Deck, len(c.ordered))
@@ -243,7 +241,6 @@ func (c *Catalog) OrderedDecks() (result []*Deck) {
 // DefaultDeckIDs returns the default-selected deck IDs.
 func (c *Catalog) DefaultDeckIDs() (result []string) {
 	if c == nil {
-		result = nil
 		return
 	}
 	result = make([]string, len(c.defaultIDs))
@@ -283,7 +280,6 @@ func (c *Catalog) UnionCards(deckIDs []string) (black []*BlackCard, white []*Whi
 // DeckByID returns a deck by ID.
 func (c *Catalog) DeckByID(id string) (result *Deck) {
 	if c == nil {
-		result = nil
 		return
 	}
 	result = c.Decks[id]

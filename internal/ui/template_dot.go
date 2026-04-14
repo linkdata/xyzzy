@@ -126,7 +126,6 @@ func (d templateDot) DeckToggleAttrs() (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -149,7 +148,6 @@ func (d templateDot) CardAttrs() (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -181,7 +179,6 @@ func (d templateDot) SubmissionAttrs() (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -301,7 +298,6 @@ func (d templateDot) WaitingTitle() (result string) {
 
 func (d templateDot) WaitingDetail() (result string) {
 	if d.Room.State() != game.StatePlaying {
-		result = ""
 		return
 	}
 	if d.Room.IsJudge(d.Player) {
@@ -312,7 +308,6 @@ func (d templateDot) WaitingDetail() (result string) {
 		result = "Your cards are in."
 		return
 	}
-	result = ""
 	return
 }
 
@@ -383,6 +378,5 @@ func selectionOrder(player *game.Player, card *deck.WhiteCard) (result int) {
 			return
 		}
 	}
-	result = 0
 	return
 }

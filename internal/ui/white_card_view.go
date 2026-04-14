@@ -44,6 +44,5 @@ func (d whiteCardView) JawsClick(elem *jaws.Element, name string) (errResult err
 			elem.Dirty(d.Player)
 		}
 	}
-	errResult = nil
 	return
 }

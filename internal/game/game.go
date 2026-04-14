@@ -86,7 +86,6 @@ func NormalizeNickname(raw string) (result string) {
 
 func normalizeDeckIDs(catalog *deck.Catalog, ids []string) (result []string) {
 	if catalog == nil {
-		result = nil
 		return
 	}
 	if len(ids) == 0 {

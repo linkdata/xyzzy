@@ -253,7 +253,6 @@ func writeAssets(outDir string, data *sqlData) (errResult error) {
 			return
 		}
 	}
-	errResult = nil
 	return
 }
 

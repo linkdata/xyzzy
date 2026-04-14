@@ -13,7 +13,6 @@ type submissionView struct {
 
 func (v submissionView) Cards() (result []whiteCardView) {
 	if v.Room == nil || v.Submission == nil {
-		result = nil
 		return
 	}
 	result = submissionCardViews(v.Room, v.Submission)
@@ -22,7 +21,6 @@ func (v submissionView) Cards() (result []whiteCardView) {
 
 func (v submissionView) JawsClick(elem *jaws.Element, name string) (errResult error) {
 	if !v.Room.CanJudge(v.Player) {
-		errResult = nil
 		return
 	}
 	if v.Player.SelectedSubmission == v.Submission {
@@ -31,7 +29,6 @@ func (v submissionView) JawsClick(elem *jaws.Element, name string) (errResult er
 		v.Player.SelectedSubmission = v.Submission
 	}
 	elem.Dirty(v.Player)
-	errResult = nil
 	return
 }
 

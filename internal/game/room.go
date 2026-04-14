@@ -82,7 +82,6 @@ func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) {
 
 func (r *Room) PrivateToggleAttrs(player *Player) (result template.HTMLAttr) {
 	if r.host == player && r.state == StateLobby {
-		result = ""
 		return
 	}
 	result = `disabled`
@@ -91,7 +90,6 @@ func (r *Room) PrivateToggleAttrs(player *Player) (result template.HTMLAttr) {
 
 func (r *Room) ScoreTargetAttrs(player *Player) (result template.HTMLAttr) {
 	if r.IsHost(player) && r.state == StateLobby {
-		result = ""
 		return
 	}
 	result = `disabled`
@@ -107,7 +105,6 @@ func (r *Room) StartGameAttrs(player *Player) (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -116,7 +113,6 @@ func (r *Room) SubmitCardsAttrs(player *Player) (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -137,7 +133,6 @@ func (r *Room) JudgeAttrs(player *Player) (result template.HTMLAttr) {
 		result = `disabled`
 		return
 	}
-	result = ""
 	return
 }
 
@@ -214,7 +209,6 @@ func (r *Room) HostName() (result string) {
 	host := r.host
 	r.mu.RUnlock()
 	if host == nil {
-		result = ""
 		return
 	}
 	result = host.Nickname
@@ -285,12 +279,10 @@ func (r *Room) CanStart(player *Player) (result bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if player == nil || r.host != player || r.state != StateLobby || len(r.players) < r.minPlayers {
-		result = false
 		return
 	}
 	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if err != nil {
-		result = false
 		return
 	}
 	result = blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
@@ -333,7 +325,6 @@ func (r *Room) SelectedDecks() (result []*deck.Deck) {
 
 func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	if d == nil {
-		result = false
 		return
 	}
 	r.mu.RLock()
@@ -446,7 +437,6 @@ func (r *Room) JudgeName() (result string) {
 	judge := r.judgeLocked()
 	r.mu.RUnlock()
 	if judge == nil {
-		result = ""
 		return
 	}
 	result = judge.Nickname
@@ -500,12 +490,10 @@ func (r *Room) ReviewCountdown() (result int) {
 	state := r.state
 	r.mu.RUnlock()
 	if state != StateReview || deadline.IsZero() {
-		result = 0
 		return
 	}
 	remaining := time.Until(deadline)
 	if remaining <= 0 {
-		result = 0
 		return
 	}
 	result = int((remaining + time.Second - time.Nanosecond) / time.Second)
@@ -517,7 +505,6 @@ func (r *Room) ReviewDeadlineUnixMilli() (result int64) {
 	deadline := r.reviewDeadline
 	r.mu.RUnlock()
 	if deadline.IsZero() {
-		result = 0
 		return
 	}
 	result = deadline.UnixMilli()
@@ -546,7 +533,6 @@ func (r *Room) ReviewWaitingText() (result string) {
 	countdown := r.ReviewCountdown()
 	switch {
 	case base == "":
-		result = ""
 		return
 	case countdown <= 0 && base == "Back to Lobby":
 		result = "Returning to the lobby."
@@ -629,7 +615,6 @@ func (r *Room) SetDeckEnabled(player *Player, deck *deck.Deck, enabled bool) (re
 		delete(selected, deck.ID)
 	}
 	r.selectedDeckIDs = sortedSelected(selected)
-	result = nil
 	return
 }
 
@@ -685,7 +670,6 @@ func (r *Room) Start(player *Player) (result error) {
 		current.Submitted = nil
 	}
 	r.advanceRoundLocked()
-	result = nil
 	return
 }
 
@@ -752,7 +736,6 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (result error)
 			r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
 		}
 	}
-	result = nil
 	return
 }
 
@@ -786,7 +769,6 @@ func (r *Room) Judge(player *Player, submission *Submission) (result error) {
 	}
 	r.statusMessage = fmt.Sprintf("%s won the round.", winner.Nickname)
 	r.beginReviewLocked(winner, submission, gameWinner)
-	result = nil
 	return
 }
 
@@ -802,7 +784,6 @@ func (r *Room) ProceedReview(player *Player) (result error) {
 		return
 	}
 	r.finishReviewLocked()
-	result = nil
 	return
 }
 
@@ -810,7 +791,6 @@ func (r *Room) join(player *Player) (result error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.playerLocked(player) != nil {
-		result = nil
 		return
 	}
 	if err := r.canJoinLocked(player); err != nil {
@@ -824,7 +804,6 @@ func (r *Room) join(player *Player) (result error) {
 	}
 	r.dealJoinedPlayerLocked(player)
 	r.statusMessage = fmt.Sprintf("%s joined the room.", player.Nickname)
-	result = nil
 	return
 }
 
@@ -884,7 +863,6 @@ func (r *Room) leave(player *Player) (result bool) {
 	} else {
 		r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
 	}
-	result = false
 	return
 }
 
@@ -925,7 +903,6 @@ func (r *Room) canJoinLocked(player *Player) (result error) {
 		return
 	}
 	if r.state == StateLobby {
-		result = nil
 		return
 	}
 	_, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
@@ -937,7 +914,6 @@ func (r *Room) canJoinLocked(player *Player) (result error) {
 		result = ErrNotEnoughWhiteCards
 		return
 	}
-	result = nil
 	return
 }
 
@@ -984,7 +960,6 @@ func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bo
 			return
 		}
 	}
-	result = false
 	return
 }
 
@@ -1136,7 +1111,6 @@ func (r *Room) clearReviewLocked() {
 
 func (r *Room) reviewButtonBaseLocked() (result string) {
 	if r.state != StateReview {
-		result = ""
 		return
 	}
 	if r.reviewGameWinner {
@@ -1171,7 +1145,6 @@ func (r *Room) drawBlackLocked() (result *deck.BlackCard) {
 
 func (r *Room) judgeLocked() (result *Player) {
 	if len(r.players) == 0 || r.czarIndex < 0 || r.czarIndex >= len(r.players) {
-		result = nil
 		return
 	}
 	result = r.players[r.czarIndex]
@@ -1184,18 +1157,17 @@ func (r *Room) currentBlackLocked() (result *deck.BlackCard) {
 }
 
 func (r *Room) playerLocked(player *Player) (result *Player) {
-	for _, result = range r.players {
-		if result == player {
+	for _, current := range r.players {
+		if current == player {
+			result = current
 			return
 		}
 	}
-	result = nil
 	return
 }
 
 func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) (result []string) {
 	if r == nil || card == nil {
-		result = nil
 		return
 	}
 	r.mu.RLock()
@@ -1206,7 +1178,6 @@ func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) (result []strin
 
 func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) (result []string) {
 	if r == nil || card == nil {
-		result = nil
 		return
 	}
 	r.mu.RLock()
@@ -1217,7 +1188,6 @@ func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) (result []strin
 
 func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result string) {
 	if r == nil || card == nil {
-		result = ""
 		return
 	}
 	r.mu.RLock()
@@ -1228,7 +1198,6 @@ func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result s
 
 func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result string) {
 	if r == nil || card == nil {
-		result = ""
 		return
 	}
 	r.mu.RLock()
@@ -1276,7 +1245,6 @@ func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (re
 			return
 		}
 	}
-	result = ""
 	return
 }
 
@@ -1291,7 +1259,6 @@ func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) (re
 			return
 		}
 	}
-	result = ""
 	return
 }
 
@@ -1310,7 +1277,6 @@ func (r *Room) setTargetScoreLocked(player *Player, score int) (result error) {
 		return
 	}
 	r.targetScore = score
-	result = nil
 	return
 }
 
@@ -1324,7 +1290,6 @@ func (r *Room) setPrivateLocked(player *Player, private bool) (result error) {
 		return
 	}
 	r.private = private
-	result = nil
 	return
 }
 

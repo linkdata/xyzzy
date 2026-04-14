@@ -57,7 +57,6 @@ func (s *section) JawsContains(*jaws.Element) (result []jaws.UI) {
 		return
 	case sectionRoomSidebar:
 		if s.currentRoom() == nil {
-			result = nil
 			return
 		}
 		result = []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
@@ -74,11 +73,9 @@ func (s *section) JawsContains(*jaws.Element) (result []jaws.UI) {
 
 func (s *section) currentRoom() (result *game.Room) {
 	if s.Player.Room == nil {
-		result = nil
 		return
 	}
 	if s.RequestedCode != "" && !strings.EqualFold(s.Player.Room.Code(), s.RequestedCode) {
-		result = nil
 		return
 	}
 	result = s.Player.Room

@@ -58,7 +58,6 @@ func (a *App) SetupRoutes(mux *http.ServeMux) (errResult error) {
 	mux.Handle("GET /", http.HandlerFunc(a.serveLobby))
 	mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
 	mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
-	errResult = nil
 	return
 }
 
@@ -190,17 +189,14 @@ func (a *App) nicknameCookieName() (result string) {
 
 func (a *App) nicknameFromCookie(r *http.Request) (result string) {
 	if r == nil {
-		result = ""
 		return
 	}
 	cookie, err := r.Cookie(a.nicknameCookieName())
 	if err != nil || cookie.Value == "" {
-		result = ""
 		return
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(cookie.Value)
 	if err != nil {
-		result = ""
 		return
 	}
 	result = strings.TrimSpace(string(raw))
@@ -303,7 +299,6 @@ func (a *App) RoomURL(code string) (result string) { result = a.roomURL(code); r
 
 func requestIsSecure(r *http.Request) (result bool) {
 	if r == nil {
-		result = false
 		return
 	}
 	if r.TLS != nil {
