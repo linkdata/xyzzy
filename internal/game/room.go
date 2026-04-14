@@ -284,10 +284,7 @@ func (r *Room) CanStart(player *Player) (result bool) {
 	if player == nil || r.host != player || r.state != StateLobby || len(r.players) < r.minPlayers {
 		return
 	}
-	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
-	if err != nil {
-		return
-	}
+	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
 	result = blackCount >= MinBlackCards && whiteCount >= MinWhiteCardsPerPlayer*len(r.players)
 	return
 }
@@ -338,14 +335,14 @@ func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 
 func (r *Room) BlackCount() (result int) {
 	r.mu.RLock()
-	result, _, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
+	result, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
 	r.mu.RUnlock()
 	return
 }
 
 func (r *Room) WhiteCount() (result int) {
 	r.mu.RLock()
-	_, result, _ = r.catalog.UnionCounts(r.selectedDeckIDs)
+	_, result = r.catalog.UnionCounts(r.selectedDeckIDs)
 	r.mu.RUnlock()
 	return
 }
@@ -632,11 +629,7 @@ func (r *Room) Start(player *Player) (result error) {
 		result = fmt.Errorf("need at least %d players to start", r.minPlayers)
 		return
 	}
-	blackCount, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
-	if err != nil {
-		result = err
-		return
-	}
+	blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if blackCount < MinBlackCards {
 		result = ErrNotEnoughBlackCards
 		return
@@ -645,11 +638,7 @@ func (r *Room) Start(player *Player) (result error) {
 		result = ErrNotEnoughWhiteCards
 		return
 	}
-	blackCards, whiteCards, err := r.catalog.UnionCards(r.selectedDeckIDs)
-	if err != nil {
-		result = err
-		return
-	}
+	blackCards, whiteCards := r.catalog.UnionCards(r.selectedDeckIDs)
 	r.blackDraw = append([]*deck.BlackCard(nil), blackCards...)
 	r.whiteDraw = append([]*deck.WhiteCard(nil), whiteCards...)
 	r.rand.Shuffle(len(r.blackDraw), func(i, j int) { r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] })
@@ -908,11 +897,7 @@ func (r *Room) canJoinLocked(player *Player) (result error) {
 	if r.state == StateLobby {
 		return
 	}
-	_, whiteCount, err := r.catalog.UnionCounts(r.selectedDeckIDs)
-	if err != nil {
-		result = err
-		return
-	}
+	_, whiteCount := r.catalog.UnionCounts(r.selectedDeckIDs)
 	if whiteCount < MinWhiteCardsPerPlayer*(len(r.players)+1) {
 		result = ErrNotEnoughWhiteCards
 	}

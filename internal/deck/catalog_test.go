@@ -41,17 +41,11 @@ func TestLoadFSAndUnion(t *testing.T) {
 	if alpha.WhiteCards[0] != catalog.WhiteCards["w1"] || alpha.WhiteCards[1] != catalog.WhiteCards["w2"] {
 		t.Fatalf("alpha white membership should reference catalog cards, got %#v", alpha.WhiteCards)
 	}
-	blackCount, whiteCount, err := catalog.UnionCounts([]string{"alpha", "beta"})
-	if err != nil {
-		t.Fatalf("UnionCounts() error = %v", err)
-	}
+	blackCount, whiteCount := catalog.UnionCounts([]string{"alpha", "beta"})
 	if blackCount != 2 || whiteCount != 3 {
 		t.Fatalf("UnionCounts() = (%d,%d), want (2,3)", blackCount, whiteCount)
 	}
-	black, white, err := catalog.UnionCards([]string{"beta", "alpha"})
-	if err != nil {
-		t.Fatalf("UnionCards() error = %v", err)
-	}
+	black, white := catalog.UnionCards([]string{"beta", "alpha"})
 	if len(black) != 2 || len(white) != 3 {
 		t.Fatalf("UnionCards() got %d black and %d white", len(black), len(white))
 	}
