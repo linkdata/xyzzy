@@ -108,7 +108,7 @@ func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
 		}).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
 			if err = room.SetDeckEnabled(d.Player, deck, value); err == nil {
-				elem.Dirty(d.Player, room)
+				elem.Dirty(room)
 			}
 			return
 		})

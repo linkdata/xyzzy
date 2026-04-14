@@ -60,24 +60,22 @@ type Room struct {
 	reviewToken      uint64
 }
 
-func (r *Room) ScoreTargetSlider(player *Player) (result bind.Binder[int]) {
-	result = bind.New(&r.mu, &r.targetScore).
+func (r *Room) ScoreTargetSlider(player *Player) bind.Binder[int] {
+	return bind.New(&r.mu, &r.targetScore).
 		SetLocked(func(bind bind.Binder[int], elem *jaws.Element, value int) (err error) {
 			err = r.setTargetScoreLocked(player, value)
 			return
 		})
-	return
 }
 
-func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) {
-	result = bind.New(&r.mu, &r.private).
+func (r *Room) PrivateToggle(player *Player) bind.Binder[bool] {
+	return bind.New(&r.mu, &r.private).
 		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
 			if err = r.setPrivateLocked(player, value); err == nil {
 				elem.Dirty(r.manager, r)
 			}
 			return
 		})
-	return
 }
 
 func (r *Room) PrivateToggleAttrs(player *Player) (result template.HTMLAttr) {
