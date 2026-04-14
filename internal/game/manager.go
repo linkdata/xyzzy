@@ -32,45 +32,32 @@ func (m *Manager) notify(tags ...any) {
 	}
 }
 
-func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (result1 *Room, errResult error) {
-	if player == nil {
-		result1, errResult = nil, ErrAlreadyInRoom
-		return
+func (m *Manager) CreateRoom(player *Player, defaultDeckIDs []string) (room *Room, err error) {
+	err = ErrAlreadyInRoom
+	if player != nil && player.Room == nil {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		var code string
+		if code, err = m.newRoomCodeLocked(); err == nil {
+			room = &Room{
+				manager:         m,
+				code:            code,
+				catalog:         m.catalog,
+				rand:            newCryptoRand(),
+				minPlayers:      m.opts.MinPlayers,
+				debug:           m.opts.Debug,
+				reviewDelay:     ReviewDelay,
+				targetScore:     ScoreGoal,
+				state:           StateLobby,
+				czarIndex:       -1,
+				selectedDeckIDs: normalizeDeckIDs(m.catalog, defaultDeckIDs),
+			}
+			room.seatLocked(player)
+			room.host = player
+			room.players = []*Player{player}
+			m.rooms[code] = room
+		}
 	}
-	if player.Room != nil {
-		result1, errResult = nil, ErrAlreadyInRoom
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	code, err := m.newRoomCodeLocked()
-	if err != nil {
-		result1, errResult = nil, err
-		return
-	}
-	roomRand, err := newCryptoRand()
-	if err != nil {
-		result1, errResult = nil, err
-		return
-	}
-	room := &Room{
-		manager:         m,
-		code:            code,
-		catalog:         m.catalog,
-		rand:            roomRand,
-		minPlayers:      m.opts.MinPlayers,
-		debug:           m.opts.Debug,
-		reviewDelay:     ReviewDelay,
-		targetScore:     ScoreGoal,
-		state:           StateLobby,
-		czarIndex:       -1,
-		selectedDeckIDs: normalizeDeckIDs(m.catalog, defaultDeckIDs),
-	}
-	room.seatLocked(player)
-	room.host = player
-	room.players = []*Player{player}
-	m.rooms[code] = room
-	result1, errResult = room, nil
 	return
 }
 
@@ -81,11 +68,6 @@ func (m *Manager) Room(code string) (result *Room) {
 	return
 }
 
-func (m *Manager) GetRoom(code string) (result *Room) {
-	result = m.Room(code)
-	return
-}
-
 func (m *Manager) Rooms() (result []*Room) {
 	m.mu.RLock()
 	result = make([]*Room, 0, len(m.rooms))
@@ -93,14 +75,12 @@ func (m *Manager) Rooms() (result []*Room) {
 		result = append(result, room)
 	}
 	m.mu.RUnlock()
-	slices.SortFunc(result, func(a, b *Room) (result int) { result = strings.Compare(a.code, b.code); return })
+	slices.SortFunc(result, func(a, b *Room) (result int) { return strings.Compare(a.code, b.code) })
 	return
 }
 
 func (m *Manager) PublicRooms() (result []*Room) {
-	rooms := m.Rooms()
-	result = rooms[:0]
-	for _, room := range rooms {
+	for _, room := range m.Rooms() {
 		if !room.IsPrivate() {
 			result = append(result, room)
 		}
@@ -108,47 +88,31 @@ func (m *Manager) PublicRooms() (result []*Room) {
 	return
 }
 
-func (m *Manager) JoinRoom(code string, player *Player) (result1 *Room, errResult error) {
-	if player == nil {
-		result1, errResult = nil, ErrRoomNotFound
-		return
+func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) {
+	err = ErrRoomNotFound
+	if player != nil {
+		room = m.Room(code)
+		if room != nil {
+			err = ErrAlreadyInRoom
+			if player.Room != room {
+				err = room.join(player)
+			}
+		}
 	}
-	room := m.Room(code)
-	if room == nil {
-		result1, errResult = nil, ErrRoomNotFound
-		return
-	}
-	if player.Room == room {
-		result1, errResult = room, nil
-		return
-	}
-	if player.Room != nil {
-		result1, errResult = nil, ErrAlreadyInRoom
-		return
-	}
-	if err := room.join(player); err != nil {
-		result1, errResult = nil, err
-		return
-	}
-	result1, errResult = room, nil
 	return
 }
 
-func (m *Manager) LeaveRoom(player *Player) (result1 *Room, result2 bool) {
-	if player == nil || player.Room == nil {
-		result1, result2 = nil, false
-		return
-	}
-	room := player.Room
-	destroy := room.leave(player)
-	if destroy {
-		m.mu.Lock()
-		if m.rooms[room.code] == room {
-			delete(m.rooms, room.code)
+func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
+	if player != nil && player.Room != nil {
+		room = player.Room
+		if empty = room.leave(player); empty {
+			m.mu.Lock()
+			if m.rooms[room.code] == room {
+				delete(m.rooms, room.code)
+			}
+			m.mu.Unlock()
 		}
-		m.mu.Unlock()
 	}
-	result1, result2 = room, destroy
 	return
 }
 
@@ -162,8 +126,7 @@ func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 		}
 		result = append(result, room)
 		for _, player := range expired {
-			destroy := room.leave(player)
-			if destroy {
+			if room.leave(player) {
 				m.mu.Lock()
 				if m.rooms[room.code] == room {
 					delete(m.rooms, room.code)

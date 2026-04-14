@@ -12,23 +12,21 @@ type submissionView struct {
 }
 
 func (v submissionView) Cards() (result []whiteCardView) {
-	if v.Room == nil || v.Submission == nil {
-		return
+	if v.Room != nil && v.Submission != nil {
+		result = submissionCardViews(v.Room, v.Submission)
 	}
-	result = submissionCardViews(v.Room, v.Submission)
 	return
 }
 
 func (v submissionView) JawsClick(elem *jaws.Element, name string) (errResult error) {
-	if !v.Room.CanJudge(v.Player) {
-		return
+	if v.Room.CanJudge(v.Player) {
+		if v.Player.SelectedSubmission == v.Submission {
+			v.Player.SelectedSubmission = nil
+		} else {
+			v.Player.SelectedSubmission = v.Submission
+		}
+		elem.Dirty(v.Player)
 	}
-	if v.Player.SelectedSubmission == v.Submission {
-		v.Player.SelectedSubmission = nil
-	} else {
-		v.Player.SelectedSubmission = v.Submission
-	}
-	elem.Dirty(v.Player)
 	return
 }
 

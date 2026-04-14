@@ -775,63 +775,57 @@ func (r *Room) join(player *Player) (err error) {
 	return
 }
 
-func (r *Room) leave(player *Player) (result bool) {
+func (r *Room) leave(player *Player) (empty bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
-	if current == nil {
-		result = len(r.players) == 0
-		return
-	}
-	wasJudge := r.judgeLocked() == current
-	idx := slices.Index(r.players, current)
-	if idx < 0 {
-		result = len(r.players) == 0
-		return
-	}
-	if idx < r.czarIndex {
-		r.czarIndex--
-	}
-	r.whiteDiscard = append(r.whiteDiscard, current.Hand...)
-	r.whiteDiscard = append(r.whiteDiscard, current.Submitted...)
-	current.Room = nil
-	current.Score = 0
-	current.Hand = nil
-	current.Submitted = nil
-	current.SelectedCards = nil
-	current.SelectedSubmission = nil
-	r.players = append(r.players[:idx], r.players[idx+1:]...)
-	r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) { result = sub.Player == current; return })
-	if r.host == current {
-		if len(r.players) > 0 {
-			r.host = r.players[0]
-		} else {
-			r.host = nil
-		}
-	}
-	if len(r.players) == 0 {
-		result = true
-		return
-	}
-	if r.state != StateLobby {
-		switch {
-		case len(r.players) < r.minPlayers:
-			r.resetToLobbyLocked("Not enough players to continue. Room reset to the lobby.")
-		case wasJudge:
-			r.resetToLobbyLocked("The judge left. Room reset to the lobby.")
-		case len(r.submissions) == len(r.players)-1 && r.state == StatePlaying:
-			r.rand.Shuffle(len(r.submissions), func(i, j int) { r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i] })
-			r.state = StateJudging
-			if judge := r.judgeLocked(); judge != nil {
-				r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
+	if current != nil {
+		wasJudge := r.judgeLocked() == current
+		idx := slices.Index(r.players, current)
+		if idx >= 0 {
+			if idx < r.czarIndex {
+				r.czarIndex--
 			}
-		default:
-			r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+			r.whiteDiscard = append(r.whiteDiscard, current.Hand...)
+			r.whiteDiscard = append(r.whiteDiscard, current.Submitted...)
+			current.Room = nil
+			current.Score = 0
+			current.Hand = nil
+			current.Submitted = nil
+			current.SelectedCards = nil
+			current.SelectedSubmission = nil
+			r.players = append(r.players[:idx], r.players[idx+1:]...)
+			r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) { result = sub.Player == current; return })
+			if r.host == current {
+				if len(r.players) > 0 {
+					r.host = r.players[0]
+				} else {
+					r.host = nil
+				}
+			}
+			if len(r.players) > 0 {
+				if r.state != StateLobby {
+					switch {
+					case len(r.players) < r.minPlayers:
+						r.resetToLobbyLocked("Not enough players to continue. Room reset to the lobby.")
+					case wasJudge:
+						r.resetToLobbyLocked("The judge left. Room reset to the lobby.")
+					case len(r.submissions) == len(r.players)-1 && r.state == StatePlaying:
+						r.rand.Shuffle(len(r.submissions), func(i, j int) { r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i] })
+						r.state = StateJudging
+						if judge := r.judgeLocked(); judge != nil {
+							r.statusMessage = fmt.Sprintf("%s is judging the round.", judge.Nickname)
+						}
+					default:
+						r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+					}
+				} else {
+					r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
+				}
+			}
 		}
-	} else {
-		r.statusMessage = fmt.Sprintf("%s left the room.", current.Nickname)
 	}
-	return
+	return len(r.players) == 0
 }
 
 func (r *Room) expiredPlayers() (result []*Player) {

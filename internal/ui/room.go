@@ -10,18 +10,15 @@ import (
 func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool) {
 	if idx := slices.Index(player.SelectedCards, card); idx >= 0 {
 		player.SelectedCards = slices.Delete(player.SelectedCards, idx, idx+1)
-		changed = true
-		return
+		return true
 	}
 	if needPick == 1 {
 		player.SelectedCards = []*deck.WhiteCard{card}
-		changed = true
-		return
+		return true
 	}
 	if len(player.SelectedCards) >= needPick {
-		return
+		return false
 	}
 	player.SelectedCards = append(player.SelectedCards, card)
-	changed = true
-	return
+	return true
 }

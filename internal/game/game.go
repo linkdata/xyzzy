@@ -149,12 +149,8 @@ func randomCode() (result string) {
 	return b.String()
 }
 
-func newCryptoRand() (result1 *mathrand.Rand, errResult error) {
+func newCryptoRand() *mathrand.Rand {
 	var seed [8]byte
-	if _, err := rand.Read(seed[:]); err != nil {
-		result1, errResult = nil, err
-		return
-	}
-	result1, errResult = mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:])))), nil
-	return
+	_, _ = rand.Read(seed[:])
+	return mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))))
 }
