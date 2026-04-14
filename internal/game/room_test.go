@@ -260,6 +260,7 @@ func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
 	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	forceRound(t, room, "b1")
 
 	judge := room.JudgePlayer()
 	if judge == nil {
@@ -270,8 +271,22 @@ func TestJoinDuringJudgingWaitsForNextRound(t *testing.T) {
 			continue
 		}
 		hand := room.HandFor(player)
-		if err := room.PlayCards(player, []*deck.WhiteCard{hand[0]}); err != nil {
-			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		needPick := room.NeedPick()
+		if len(hand) < needPick {
+			t.Fatalf("hand size for %s = %d, need at least %d", player.Nickname, len(hand), needPick)
+		}
+		if err := room.PlayCards(player, hand[:needPick]); err != nil {
+			black := room.CurrentBlack()
+			blackID := "<nil>"
+			blackPick := -1
+			if black != nil {
+				blackID = black.ID
+				blackPick = black.Pick
+			}
+			t.Fatalf(
+				"PlayCards(%s) error = %v (needPick=%d hand=%d submitted=%d state=%s black=%s pick=%d)",
+				player.Nickname, err, needPick, len(hand), len(room.Submissions()), room.State(), blackID, blackPick,
+			)
 		}
 	}
 	if room.State() != StateJudging {
@@ -319,6 +334,7 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 	if err := room.Start(alice); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	forceRound(t, room, "b1")
 
 	judge := room.JudgePlayer()
 	if judge == nil {
@@ -329,7 +345,11 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 			continue
 		}
 		hand := room.HandFor(player)
-		if err := room.PlayCards(player, []*deck.WhiteCard{hand[0]}); err != nil {
+		needPick := room.NeedPick()
+		if len(hand) < needPick {
+			t.Fatalf("hand size for %s = %d, need at least %d", player.Nickname, len(hand), needPick)
+		}
+		if err := room.PlayCards(player, hand[:needPick]); err != nil {
 			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
 		}
 	}
