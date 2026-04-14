@@ -176,25 +176,21 @@ func loadStringList(fsys fs.FS, name string) (ids []string, err error) {
 	return
 }
 
-func loadJSONDir(fsys fs.FS, dir string, c *Catalog, fn func(c *Catalog, name string, raw []byte) error) (errResult error) {
-	entries, err := fs.ReadDir(fsys, dir)
-	if err != nil {
-		errResult = fmt.Errorf("read %s: %w", dir, err)
-		return
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || path.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		name := path.Join(dir, entry.Name())
-		raw, err := fs.ReadFile(fsys, name)
-		if err != nil {
-			errResult = fmt.Errorf("%s: read: %w", name, err)
-			return
-		}
-		if err := fn(c, name, raw); err != nil {
-			errResult = err
-			return
+func loadJSONDir(fsys fs.FS, dir string, c *Catalog, fn func(c *Catalog, name string, raw []byte) error) (err error) {
+	var entries []fs.DirEntry
+	if entries, err = fs.ReadDir(fsys, dir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || path.Ext(entry.Name()) != ".json" {
+				continue
+			}
+			name := path.Join(dir, entry.Name())
+			var raw []byte
+			if raw, err = fs.ReadFile(fsys, name); err == nil {
+				err = fn(c, name, raw)
+			}
+			if err != nil {
+				return
+			}
 		}
 	}
 	return
@@ -266,20 +262,7 @@ func (c *Catalog) unionSet(deckIDs []string) (blackSet map[*BlackCard]struct{}, 
 	return
 }
 
-func uniqueSorted(values []string) (result []string) {
-	set := make(map[string]struct{}, len(values))
-	result = make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := set[value]; ok {
-			continue
-		}
-		set[value] = struct{}{}
-		result = append(result, value)
-	}
-	slices.Sort(result)
-	return
+func uniqueSorted(values []string) []string {
+	slices.Sort(values)
+	return slices.Compact(values)
 }
