@@ -830,13 +830,13 @@ func (r *Room) leave(player *Player) (empty bool) {
 
 func (r *Room) expiredPlayers() (result []*Player) {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
 	result = make([]*Player, 0)
 	for _, player := range r.players {
 		if player == nil || player.Session == nil || player.Session.Cookie().MaxAge < 0 {
 			result = append(result, player)
 		}
 	}
-	r.mu.RUnlock()
 	return
 }
 
@@ -1043,15 +1043,13 @@ func (r *Room) finishReviewLocked() {
 
 func (r *Room) autoProceedReview(token uint64) {
 	r.mu.Lock()
-	if r.state != StateReview || r.reviewToken != token {
-		r.mu.Unlock()
-		return
-	}
-	r.finishReviewLocked()
-	manager := r.manager
-	r.mu.Unlock()
-	if manager != nil {
-		manager.notify(r)
+	defer r.mu.Unlock()
+	if r.state == StateReview && r.reviewToken == token {
+		r.finishReviewLocked()
+		manager := r.manager
+		if manager != nil {
+			manager.notify(r)
+		}
 	}
 }
 
@@ -1068,14 +1066,13 @@ func (r *Room) clearReviewLocked() {
 }
 
 func (r *Room) reviewButtonBaseLocked() (result string) {
-	if r.state != StateReview {
-		return
+	if r.state == StateReview {
+		if r.reviewGameWinner {
+			result = "Back to Lobby"
+		} else {
+			result = "Next Round"
+		}
 	}
-	if r.reviewGameWinner {
-		result = "Back to Lobby"
-		return
-	}
-	result = "Next Round"
 	return
 }
 
@@ -1125,42 +1122,38 @@ func (r *Room) playerLocked(player *Player) (result *Player) {
 }
 
 func (r *Room) SelectedDeckIDsForWhiteCard(card *deck.WhiteCard) (result []string) {
-	if r == nil || card == nil {
-		return
+	if r != nil && card != nil {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		result = r.selectedDeckIDsForWhiteCardLocked(card)
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result = r.selectedDeckIDsForWhiteCardLocked(card)
 	return
 }
 
 func (r *Room) SelectedDeckIDsForBlackCard(card *deck.BlackCard) (result []string) {
-	if r == nil || card == nil {
-		return
+	if r != nil && card != nil {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		result = r.selectedDeckIDsForBlackCardLocked(card)
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result = r.selectedDeckIDsForBlackCardLocked(card)
 	return
 }
 
 func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result string) {
-	if r == nil || card == nil {
-		return
+	if r != nil && card != nil {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		result = r.firstSelectedDeckNameForWhiteCardLocked(card)
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result = r.firstSelectedDeckNameForWhiteCardLocked(card)
 	return
 }
 
 func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result string) {
-	if r == nil || card == nil {
-		return
+	if r != nil && card != nil {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		result = r.firstSelectedDeckNameForBlackCardLocked(card)
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result = r.firstSelectedDeckNameForBlackCardLocked(card)
 	return
 }
 
