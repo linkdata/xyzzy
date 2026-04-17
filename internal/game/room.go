@@ -110,7 +110,7 @@ func (r *Room) SubmitCardsAttrs(player *Player) (result template.HTMLAttr) {
 }
 
 func (r *Room) SubmitCardsClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("Play Selected Cards", func(elem *jaws.Element, name string) (err error) {
+	return ui.New("Play Selected Cards").Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 		selected := append([]*deck.WhiteCard(nil), player.SelectedCards...)
 		if err = r.PlayCards(player, selected); err == nil {
 			player.SelectedCards = nil
@@ -128,13 +128,14 @@ func (r *Room) JudgeAttrs(player *Player) (result template.HTMLAttr) {
 }
 
 func (r *Room) JudgeClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("Pick Winner", func(elem *jaws.Element, name string) (err error) {
+	return ui.New("Pick Winner").Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 		selected := player.SelectedSubmission
 		if err = r.Judge(player, selected); err == nil {
 			player.SelectedSubmission = nil
 			elem.Dirty(player, r)
 		}
 		return
+
 	})
 }
 
@@ -152,7 +153,7 @@ func (r *Room) ProceedReviewAttrs(player *Player) (result template.HTMLAttr) {
 }
 
 func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("", func(elem *jaws.Element, name string) (err error) {
+	return ui.New("").Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 		if err = r.ProceedReview(player); err == nil {
 			elem.Dirty(r)
 		}
@@ -161,7 +162,7 @@ func (r *Room) ProceedReviewClick(player *Player) jaws.ClickHandler {
 }
 
 func (r *Room) StartGameClick(player *Player) jaws.ClickHandler {
-	return ui.Clickable("Start Game", func(elem *jaws.Element, name string) (err error) {
+	return ui.New("Start Game").Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 		if err = r.Start(player); err == nil {
 			player.SelectedCards = nil
 			player.SelectedSubmission = nil

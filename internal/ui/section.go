@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/linkdata/jaws"
-	"github.com/linkdata/jaws/lib/jtag"
+	jtag "github.com/linkdata/jaws/lib/tag"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/game"
 )
