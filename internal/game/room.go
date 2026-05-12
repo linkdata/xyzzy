@@ -766,6 +766,7 @@ func (r *Room) leave(player *Player) (empty bool) {
 	current := r.playerLocked(player)
 	if current != nil {
 		wasJudge := r.judgeLocked() == current
+		wasReviewWinner := r.state == StateReview && r.reviewWinner == current
 		idx := slices.Index(r.players, current)
 		if idx >= 0 {
 			if idx < r.czarIndex {
@@ -800,6 +801,8 @@ func (r *Room) leave(player *Player) (empty bool) {
 						r.resetToLobbyLocked()
 					case wasJudge:
 						r.resetToLobbyLocked()
+					case wasReviewWinner:
+						r.finishReviewLocked()
 					case len(r.submissions) == len(r.players)-1 && r.state == StatePlaying:
 						r.rand.Shuffle(len(r.submissions), func(i, j int) { r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i] })
 						r.state = StateJudging

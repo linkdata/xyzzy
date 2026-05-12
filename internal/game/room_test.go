@@ -575,6 +575,54 @@ func TestJudgeSelectedSubmissionClearsWhenAuthorLeaves(t *testing.T) {
 	}
 }
 
+func TestRoundWinnerLeavingAdvancesReview(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
+	room.reviewDelay = time.Hour
+	for _, player := range []*Player{bob, casey, drew} {
+		if _, err := mgr.JoinRoom(room.Code(), player); err != nil {
+			t.Fatalf("JoinRoom(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	forceRound(t, room, "b1")
+
+	judge := room.JudgePlayer()
+	for _, player := range room.Players() {
+		if player == judge {
+			continue
+		}
+		hand := room.HandFor(player)
+		if err := room.PlayCards(player, hand[:room.NeedPick()]); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		}
+	}
+
+	winningSubmission := room.Submissions()[0]
+	winner := winningSubmission.Player
+	if err := room.Judge(judge, winningSubmission); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if room.State() != StateReview {
+		t.Fatalf("expected review state, got %s", room.State())
+	}
+
+	if _, empty := mgr.LeaveRoom(winner); empty {
+		t.Fatal("expected room to remain populated")
+	}
+	if room.State() != StatePlaying {
+		t.Fatalf("expected round to advance after winner leaves, got %s", room.State())
+	}
+}
+
 func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
