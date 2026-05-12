@@ -781,6 +781,11 @@ func (r *Room) leave(player *Player) (empty bool) {
 			current.SelectedSubmission = nil
 			r.players = append(r.players[:idx], r.players[idx+1:]...)
 			r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) { result = sub.Player == current; return })
+			for _, other := range r.players {
+				if other.SelectedSubmission != nil && other.SelectedSubmission.Player == current {
+					other.SelectedSubmission = nil
+				}
+			}
 			if r.host == current {
 				if len(r.players) > 0 {
 					r.host = r.players[0]

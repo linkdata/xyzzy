@@ -516,6 +516,65 @@ func TestFinishedGameResultsPersistInLobby(t *testing.T) {
 	}
 }
 
+func TestJudgeSelectedSubmissionClearsWhenAuthorLeaves(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+	drew := testPlayer("Drew")
+
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
+	for _, player := range []*Player{bob, casey, drew} {
+		if _, err := mgr.JoinRoom(room.Code(), player); err != nil {
+			t.Fatalf("JoinRoom(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	forceRound(t, room, "b1")
+
+	judge := room.JudgePlayer()
+	var submitters []*Player
+	for _, player := range room.Players() {
+		if player == judge {
+			continue
+		}
+		submitters = append(submitters, player)
+		hand := room.HandFor(player)
+		if err := room.PlayCards(player, hand[:room.NeedPick()]); err != nil {
+			t.Fatalf("PlayCards(%s) error = %v", player.Nickname, err)
+		}
+	}
+	if room.State() != StateJudging {
+		t.Fatalf("State() = %s, want %s", room.State(), StateJudging)
+	}
+
+	leaver := submitters[0]
+	var leaverSubmission *Submission
+	for _, sub := range room.Submissions() {
+		if sub.Player == leaver {
+			leaverSubmission = sub
+			break
+		}
+	}
+	if leaverSubmission == nil {
+		t.Fatal("expected leaver to have a submission")
+	}
+	judge.SelectedSubmission = leaverSubmission
+
+	if _, empty := mgr.LeaveRoom(leaver); empty {
+		t.Fatal("expected room to remain populated after non-judge leave")
+	}
+	if room.State() != StateJudging {
+		t.Fatalf("expected state to stay judging, got %s", room.State())
+	}
+	if judge.SelectedSubmission != nil {
+		t.Fatalf("expected judge SelectedSubmission to clear after submitter left, got %#v", judge.SelectedSubmission)
+	}
+}
+
 func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
