@@ -162,3 +162,42 @@ func TestLoadFSRejectsDuplicateDeckID(t *testing.T) {
 		t.Fatalf("LoadFS() error = %v, want ErrDuplicateDeckID", err)
 	}
 }
+
+func TestLoadFSRejectsInvalidBlackCardPickAndDraw(t *testing.T) {
+	tests := []struct {
+		name string
+		card string
+	}{
+		{
+			name: "negative pick",
+			card: `{"id":"b1","text":"Q1","pick":-1}`,
+		},
+		{
+			name: "too many picks",
+			card: `{"id":"b1","text":"Q1","pick":4}`,
+		},
+		{
+			name: "negative draw",
+			card: `{"id":"b1","text":"Q1","draw":-1}`,
+		},
+		{
+			name: "too many draws",
+			card: `{"id":"b1","text":"Q1","draw":3}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := fstest.MapFS{
+				"assets/cards/black/b1.json":   {Data: []byte(tt.card)},
+				"assets/cards/white/w1.json":   {Data: []byte(`{"id":"w1","text":"A1"}`)},
+				"assets/decks/base/deck.json":  {Data: []byte(`{"id":"base","name":"Base"}`)},
+				"assets/decks/base/black.json": {Data: []byte(`["b1"]`)},
+				"assets/decks/base/white.json": {Data: []byte(`["w1"]`)},
+			}
+			_, err := LoadFS(fsys)
+			if !errors.Is(err, ErrInvalidCard) {
+				t.Fatalf("LoadFS() error = %v, want ErrInvalidCard", err)
+			}
+		})
+	}
+}

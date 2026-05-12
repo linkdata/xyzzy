@@ -40,6 +40,45 @@ func (p *Player) setRoom(r *Room) {
 	p.room.Store(r)
 }
 
+// NicknameValue returns the player's lobby-visible nickname.
+func (p *Player) NicknameValue() (result string) {
+	if p != nil {
+		p.uiMu.Lock()
+		result = p.Nickname
+		p.uiMu.Unlock()
+	}
+	return
+}
+
+// NicknameInputValue returns the player's current nickname input.
+func (p *Player) NicknameInputValue() (result string) {
+	if p != nil {
+		p.uiMu.Lock()
+		result = p.NicknameInput
+		p.uiMu.Unlock()
+	}
+	return
+}
+
+// SetStandaloneNickname updates nickname fields while the player is not in a room.
+func (p *Player) SetStandaloneNickname(nickname string) {
+	if p != nil {
+		p.uiMu.Lock()
+		p.Nickname = nickname
+		p.NicknameInput = nickname
+		p.uiMu.Unlock()
+	}
+}
+
+func (p *Player) setRoomNickname(nickname string) {
+	if p != nil {
+		p.uiMu.Lock()
+		p.Nickname = nickname
+		p.NicknameInput = nickname
+		p.uiMu.Unlock()
+	}
+}
+
 func (p *Player) NicknameField() bind.Binder[string] {
 	return bind.New(&p.uiMu, &p.NicknameInput)
 }

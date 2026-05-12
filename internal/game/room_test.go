@@ -114,6 +114,28 @@ func TestStartRejectsGameInProgress(t *testing.T) {
 	}
 }
 
+func TestStartClearsStaleSelections(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	alice.SelectedSubmission = &Submission{ID: "stale"}
+	bob.SelectedCards = []*deck.WhiteCard{catalog.WhiteCards["w1"]}
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	for _, player := range []*Player{alice, bob, casey} {
+		if len(player.SelectedCards) != 0 || player.SelectedSubmission != nil {
+			t.Fatalf("%s selections after Start() = cards %#v submission %#v, want cleared", player.Nickname, player.SelectedCards, player.SelectedSubmission)
+		}
+	}
+}
+
 func TestSubmissionIDsUseRoundSequence(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
@@ -632,5 +654,15 @@ func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 	unknown := &deck.Deck{DeckMetadata: deck.DeckMetadata{ID: "base", Name: "Base copy"}}
 	if err := room.SetDeckEnabled(host, unknown, true); err != ErrUnknownDeck {
 		t.Fatalf("SetDeckEnabled() error = %v, want %v", err, ErrUnknownDeck)
+	}
+}
+
+func TestDrawLockedReturnsNilWhenPilesEmpty(t *testing.T) {
+	room := &Room{rand: newCryptoRand()}
+	if card := room.drawWhiteLocked(); card != nil {
+		t.Fatalf("drawWhiteLocked() = %#v, want nil", card)
+	}
+	if card := room.drawBlackLocked(); card != nil {
+		t.Fatalf("drawBlackLocked() = %#v, want nil", card)
 	}
 }

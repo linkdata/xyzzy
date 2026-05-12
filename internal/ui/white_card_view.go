@@ -40,10 +40,8 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 }
 
 func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
-	if d.Room.CanSubmit(d.Player) {
-		if applyCardSelection(d.Player, d.Card, d.Room.NeedPick()) {
-			elem.Dirty(d.Player)
-		}
+	if d.Room.ToggleCardSelection(d.Player, d.Card) {
+		elem.Dirty(d.Player)
 	}
 	return
 }

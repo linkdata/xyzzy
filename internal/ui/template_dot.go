@@ -2,7 +2,6 @@ package ui
 
 import (
 	"html/template"
-	"slices"
 	"strings"
 	"sync"
 
@@ -82,7 +81,7 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 
 func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
 	return jui.New("Save Nickname").Clicked(func(obj jui.Object, elem *jaws.Element, click jaws.Click) (err error) {
-		d.App.setNickname(d.Player, d.Player.NicknameInput)
+		d.App.setNickname(d.Player, d.Player.NicknameInputValue())
 		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room())
 		redirectURL := elem.Request.Initial().URL.RequestURI()
 		if redirectURL == "" {
@@ -91,6 +90,19 @@ func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
 		elem.Request.Redirect(redirectURL)
 		return
 	})
+}
+
+func (d templateDot) DisplayNickname() (result string) {
+	if d.Room != nil {
+		result = d.Room.NicknameFor(d.Player)
+		if result != "" {
+			return
+		}
+	}
+	if d.Player != nil {
+		result = d.Player.NicknameValue()
+	}
+	return
 }
 
 func (d templateDot) OrderedDecks() (result []*deck.Deck) {
@@ -124,7 +136,7 @@ func (d templateDot) DeckToggleAttrs() (result template.HTMLAttr) {
 }
 
 func (d templateDot) HandCardView(card *deck.WhiteCard) (result whiteCardView) {
-	result = whiteCardView{Room: d.Room, Player: d.Player, Card: card, SelectionOrder: selectionOrder(d.Player, card)}
+	result = whiteCardView{Room: d.Room, Player: d.Player, Card: card, SelectionOrder: d.Room.SelectionOrderFor(d.Player, card)}
 	return
 }
 
@@ -146,7 +158,7 @@ func (d templateDot) CardAttrs() (result template.HTMLAttr) {
 
 func (d templateDot) CardClass(card *deck.WhiteCard) (result template.HTMLAttr) {
 	class := `class="card-face card-face-white w-100 text-start`
-	if slices.Contains(d.Player.SelectedCards, card) {
+	if d.Room.CardSelected(d.Player, card) {
 		class += ` is-selected`
 	}
 	result = template.HTMLAttr(class + `"`)
@@ -179,7 +191,7 @@ func (d templateDot) SubmissionClass(submission *game.Submission) (result templa
 	if d.Room.IsWinningSubmission(submission) {
 		class += ` is-winning`
 	}
-	if d.Player.SelectedSubmission == submission {
+	if d.Room.SubmissionSelected(d.Player, submission) {
 		class += ` is-selected`
 	}
 	result = template.HTMLAttr(class + `"`)
@@ -363,12 +375,7 @@ func (d templateDot) PlayerSubmitted(player *game.Player) (result bool) {
 	return
 }
 
-func selectionOrder(player *game.Player, card *deck.WhiteCard) (result int) {
-	for i, selected := range player.SelectedCards {
-		if selected == card {
-			result = i + 1
-			return
-		}
-	}
+func (d templateDot) PlayerNickname(player *game.Player) (result string) {
+	result = d.Room.NicknameFor(player)
 	return
 }

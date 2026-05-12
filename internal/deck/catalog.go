@@ -11,14 +11,17 @@ import (
 )
 
 const (
-	blackDir = "assets/cards/black"
-	whiteDir = "assets/cards/white"
-	decksDir = "assets/decks"
+	blackDir         = "assets/cards/black"
+	whiteDir         = "assets/cards/white"
+	decksDir         = "assets/decks"
+	maxBlackCardPick = 3
+	maxBlackCardDraw = 2
 )
 
 var (
 	ErrDuplicateCardID = errors.New("duplicate card id")
 	ErrDuplicateDeckID = errors.New("duplicate deck id")
+	ErrInvalidCard     = errors.New("invalid card")
 	ErrInvalidDeck     = errors.New("invalid deck")
 )
 
@@ -34,8 +37,18 @@ type Catalog struct {
 func loadBlackCard(c *Catalog, name string, raw []byte) (err error) {
 	card := new(BlackCard)
 	if err = json.Unmarshal(raw, card); err == nil {
-		card.Pick = max(card.Pick, 1)
+		if card.Pick == 0 {
+			card.Pick = 1
+		}
 		if card.ID != "" && strings.TrimSpace(card.Text) != "" {
+			if card.Pick < 1 || card.Pick > maxBlackCardPick {
+				err = fmt.Errorf("%s: %w: pick must be between 1 and %d", name, ErrInvalidCard, maxBlackCardPick)
+				return
+			}
+			if card.Draw < 0 || card.Draw > maxBlackCardDraw {
+				err = fmt.Errorf("%s: %w: draw must be between 0 and %d", name, ErrInvalidCard, maxBlackCardDraw)
+				return
+			}
 			card.HTML = formatCardHTML(card.Text)
 			if _, exists := c.BlackCards[card.ID]; exists {
 				err = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)

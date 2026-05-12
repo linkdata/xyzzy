@@ -131,11 +131,12 @@ func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) 
 		if result.Session == nil {
 			result.Session = sess
 		}
-		if result.Nickname == "" {
-			result.Nickname = generateNickname()
-		}
-		if result.NicknameInput == "" {
-			result.NicknameInput = result.Nickname
+		if result.Room() == nil {
+			if nickname := result.NicknameValue(); nickname == "" {
+				result.SetStandaloneNickname(generateNickname())
+			} else if result.NicknameInputValue() == "" {
+				result.SetStandaloneNickname(nickname)
+			}
 		}
 		return
 	}
@@ -205,18 +206,31 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 
 func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player *game.Player) {
 	if player != nil {
-		nickname := strings.TrimSpace(player.Nickname)
+		nickname := strings.TrimSpace(a.playerNickname(player))
 		if nickname == "" {
 			nickname = generateNickname()
-			player.Nickname = nickname
-			if player.NicknameInput == "" {
-				player.NicknameInput = nickname
+			if room := player.Room(); room != nil {
+				room.SetNickname(player, nickname)
+				nickname = room.NicknameFor(player)
+			} else {
+				player.SetStandaloneNickname(nickname)
 			}
 		}
 		if nickname != a.nicknameFromCookie(r) {
 			a.setNicknameCookie(w, r, nickname)
 		}
 	}
+}
+
+func (a *App) playerNickname(player *game.Player) (result string) {
+	if player != nil {
+		if room := player.Room(); room != nil {
+			result = room.NicknameFor(player)
+			return
+		}
+		result = player.NicknameValue()
+	}
+	return
 }
 
 func generateNickname() (result string) {
@@ -233,8 +247,7 @@ func (a *App) setNickname(player *game.Player, nickname string) {
 			room.SetNickname(player, nickname)
 			return
 		}
-		player.Nickname = nickname
-		player.NicknameInput = nickname
+		player.SetStandaloneNickname(nickname)
 	}
 }
 
