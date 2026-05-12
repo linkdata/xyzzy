@@ -98,7 +98,7 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 						if card, ok := tmp_c.BlackCards[cardID]; ok {
 							deck.BlackCards = append(deck.BlackCards, card)
 						} else {
-							err = fmt.Errorf("%s: unknown black card id %q", dir, cardID)
+							err = fmt.Errorf("%s: %w: unknown black card id %q", dir, ErrInvalidDeck, cardID)
 							return
 						}
 					}
@@ -106,7 +106,7 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 						if card, ok := tmp_c.WhiteCards[cardID]; ok {
 							deck.WhiteCards = append(deck.WhiteCards, card)
 						} else {
-							err = fmt.Errorf("%s: unknown white card id %q", dir, cardID)
+							err = fmt.Errorf("%s: %w: unknown white card id %q", dir, ErrInvalidDeck, cardID)
 							return
 						}
 					}

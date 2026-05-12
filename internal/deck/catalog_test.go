@@ -124,9 +124,8 @@ func TestLoadFSRejectsMissingCardReference(t *testing.T) {
 		"assets/decks/alpha/black.json": {Data: []byte(`["b1"]`)},
 		"assets/decks/alpha/white.json": {Data: []byte(`["missing"]`)},
 	}
-	if _, err := LoadFS(fsys); err == nil || !errors.Is(err, ErrInvalidDeck) && err.Error() == "" {
-		// Missing references currently wrap a plain error, so just ensure we fail.
-		t.Fatalf("LoadFS() error = %v, want failure", err)
+	if _, err := LoadFS(fsys); !errors.Is(err, ErrInvalidDeck) {
+		t.Fatalf("LoadFS() error = %v, want ErrInvalidDeck", err)
 	}
 }
 
