@@ -1,6 +1,7 @@
 package game
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -88,6 +89,28 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 		if len(hand) != HandSize+1 {
 			t.Fatalf("non-judge hand size = %d, want %d", len(hand), HandSize+1)
 		}
+	}
+}
+
+func TestStartRejectsGameInProgress(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	alice := testPlayer("Alice")
+	bob := testPlayer("Bob")
+	casey := testPlayer("Casey")
+
+	room, _ := mgr.CreateRoom(alice, testDecks(t, catalog, "base", "expansion"))
+	_, _ = mgr.JoinRoom(room.Code(), bob)
+	_, _ = mgr.JoinRoom(room.Code(), casey)
+	if err := room.Start(alice); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	if err := room.Start(alice); !errors.Is(err, ErrGameInProgress) {
+		t.Fatalf("Start() while playing error = %v, want %v", err, ErrGameInProgress)
+	}
+	if room.State() != StatePlaying {
+		t.Fatalf("State() = %s, want %s", room.State(), StatePlaying)
 	}
 }
 

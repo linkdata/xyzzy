@@ -591,6 +591,10 @@ func (r *Room) Start(player *Player) (err error) {
 		err = ErrOnlyHostCanStart
 		return
 	}
+	if r.state != StateLobby {
+		err = ErrGameInProgress
+		return
+	}
 	if len(r.players) < r.minPlayers {
 		err = fmt.Errorf("need at least %d players to start", r.minPlayers)
 		return
