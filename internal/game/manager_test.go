@@ -1,6 +1,7 @@
 package game
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -183,6 +184,43 @@ func TestNormalizeDecksUsesCatalogDefaultsWhenEmpty(t *testing.T) {
 	for i := range defaults {
 		if got[i] != defaults[i] {
 			t.Fatalf("normalizeDecks()[%d] = %p, want %p", i, got[i], defaults[i])
+		}
+	}
+}
+
+// TestConcurrentLeaveAndJoinNeverSeatsInDeletedRoom races a host's
+// LeaveRoom against another player's JoinRoom on the same code. The
+// manager must hold its lock across the leave-and-delete and across the
+// lookup-and-join so a player never ends up seated in a room that's no
+// longer registered.
+func TestConcurrentLeaveAndJoinNeverSeatsInDeletedRoom(t *testing.T) {
+	catalog := testCatalog(t)
+	for trial := 0; trial < 200; trial++ {
+		mgr := NewManager(catalog)
+		host := testPlayer("Host")
+		room, err := mgr.CreateRoom(host, catalog.DefaultDecks())
+		if err != nil {
+			t.Fatalf("CreateRoom error = %v", err)
+		}
+		code := room.Code()
+		joiner := testPlayer("Joiner")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			mgr.LeaveRoom(host)
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = mgr.JoinRoom(code, joiner)
+		}()
+		wg.Wait()
+
+		if joinerRoom := joiner.Room(); joinerRoom != nil {
+			if mgr.Room(code) != joinerRoom {
+				t.Fatalf("trial %d: joiner seated in deleted room %q", trial, code)
+			}
 		}
 	}
 }
