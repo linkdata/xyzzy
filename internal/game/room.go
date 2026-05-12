@@ -773,7 +773,7 @@ func (r *Room) leave(player *Player) (empty bool) {
 			}
 			r.whiteDiscard = append(r.whiteDiscard, current.Hand...)
 			r.whiteDiscard = append(r.whiteDiscard, current.Submitted...)
-			current.Room = nil
+			current.setRoom(nil)
 			current.Score = 0
 			current.Hand = nil
 			current.Submitted = nil
@@ -821,7 +821,7 @@ func (r *Room) expiredPlayers() (result []*Player) {
 func (r *Room) seatLocked(player *Player) {
 	player.Nickname = r.uniqueNicknameLocked(player)
 	player.NicknameInput = player.Nickname
-	player.Room = r
+	player.setRoom(r)
 	player.Score = 0
 	player.Hand = nil
 	player.Submitted = nil
@@ -834,7 +834,7 @@ func (r *Room) canJoinLocked(player *Player) (err error) {
 		err = ErrRoomNotFound
 		return
 	}
-	if player.Room != nil {
+	if player.Room() != nil {
 		err = ErrAlreadyInRoom
 		return
 	}

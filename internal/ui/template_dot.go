@@ -83,7 +83,7 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
 	return jui.New("Save Nickname").Clicked(func(obj jui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 		d.App.setNickname(d.Player, d.Player.NicknameInput)
-		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room)
+		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room())
 		redirectURL := elem.Request.Initial().URL.RequestURI()
 		if redirectURL == "" {
 			redirectURL = "/"

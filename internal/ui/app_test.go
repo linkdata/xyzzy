@@ -487,7 +487,7 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	if app.Manager.Room(room.Code()) != nil {
 		t.Fatalf("expected room %s to be deleted when returning to lobby", room.Code())
 	}
-	if player.Room != nil {
+	if player.Room() != nil {
 		t.Fatal("expected player to be in lobby")
 	}
 }
@@ -518,14 +518,15 @@ func TestCreateRoomRouteRedirectsToRoom(t *testing.T) {
 	}
 
 	player := app.player(sess, createReq)
-	if player.Room == nil {
+	playerRoom := player.Room()
+	if playerRoom == nil {
 		t.Fatal("expected player to be seated in created room")
 	}
-	if got := app.Manager.Room(player.Room.Code()); got != player.Room {
-		t.Fatalf("Manager.Room(%q) = %v, want created room", player.Room.Code(), got)
+	if got := app.Manager.Room(playerRoom.Code()); got != playerRoom {
+		t.Fatalf("Manager.Room(%q) = %v, want created room", playerRoom.Code(), got)
 	}
-	if location != "/room/"+player.Room.Code() {
-		t.Fatalf("Location = %q, want %q", location, "/room/"+player.Room.Code())
+	if location != "/room/"+playerRoom.Code() {
+		t.Fatalf("Location = %q, want %q", location, "/room/"+playerRoom.Code())
 	}
 }
 

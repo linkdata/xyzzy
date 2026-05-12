@@ -34,7 +34,7 @@ func (m *Manager) notify(tags ...any) {
 
 func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
 	err = ErrAlreadyInRoom
-	if player != nil && player.Room == nil {
+	if player != nil && player.Room() == nil {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		var code string
@@ -94,7 +94,7 @@ func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) 
 		room = m.Room(code)
 		if room != nil {
 			err = ErrAlreadyInRoom
-			if player.Room != room {
+			if player.Room() != room {
 				err = room.join(player)
 			}
 		}
@@ -103,8 +103,8 @@ func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) 
 }
 
 func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
-	if player != nil && player.Room != nil {
-		room = player.Room
+	if player != nil && player.Room() != nil {
+		room = player.Room()
 		if empty = room.leave(player); empty {
 			m.mu.Lock()
 			if m.rooms[room.code] == room {

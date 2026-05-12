@@ -367,7 +367,7 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	if roomRec.Code != http.StatusOK {
 		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
 	}
-	if guest.Room != room {
+	if guest.Room() != room {
 		t.Fatal("expected guest to auto-join lobby room")
 	}
 	body := roomRec.Body.String()
@@ -415,7 +415,7 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	if roomRec.Code != http.StatusOK {
 		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
 	}
-	if guest.Room != room {
+	if guest.Room() != room {
 		t.Fatal("expected guest to auto-join private room by direct URL")
 	}
 	if body := roomRec.Body.String(); !strings.Contains(body, "Card Packs") {
@@ -469,7 +469,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	if roomRec.Code != http.StatusOK {
 		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
 	}
-	if guest.Room != room {
+	if guest.Room() != room {
 		t.Fatal("expected guest to auto-join game in progress")
 	}
 	body := roomRec.Body.String()

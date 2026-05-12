@@ -62,7 +62,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
 	player := a.player(sess, r)
 	a.cleanupExpired()
-	if player.Room != nil {
+	if player.Room() != nil {
 		a.leaveRoom(player)
 	}
 	a.syncNicknameCookie(w, r, player)
@@ -76,11 +76,11 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	player := a.player(sess, r)
 	a.cleanupExpired()
 	roomCode := strings.ToUpper(strings.TrimSpace(r.PathValue("code")))
-	if current := player.Room; current != nil && current.Code() != roomCode {
+	if current := player.Room(); current != nil && current.Code() != roomCode {
 		http.Redirect(w, r, "/room/"+current.Code(), http.StatusSeeOther)
 		return
 	}
-	if player.Room == nil {
+	if player.Room() == nil {
 		if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
 			_, _ = a.joinRoom(player, roomCode)
 		}
@@ -95,8 +95,8 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 	sess := a.session(r)
 	player := a.player(sess, r)
 	a.cleanupExpired()
-	if player.Room != nil {
-		http.Redirect(w, r, a.RoomURL(player.Room.Code()), http.StatusSeeOther)
+	if current := player.Room(); current != nil {
+		http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
 		return
 	}
 	room, err := a.createRoom(player)
@@ -114,7 +114,7 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 }
 
 func (a *App) makeTemplateDot(player *game.Player) (result templateDot) {
-	result = templateDot{App: a, Player: player, Room: player.Room}
+	result = templateDot{App: a, Player: player, Room: player.Room()}
 	return
 }
 
@@ -229,7 +229,7 @@ func generateNickname() (result string) {
 func (a *App) setNickname(player *game.Player, nickname string) {
 	if player != nil {
 		nickname = game.NormalizeNickname(nickname)
-		if room := player.Room; room != nil {
+		if room := player.Room(); room != nil {
 			room.SetNickname(player, nickname)
 			return
 		}

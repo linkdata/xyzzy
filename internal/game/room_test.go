@@ -237,7 +237,7 @@ func TestJoinDuringPlayingDealsCurrentRoundHandAndAllowsSubmission(t *testing.T)
 	if _, err := mgr.JoinRoom(room.Code(), drew); err != nil {
 		t.Fatalf("JoinRoom() during playing error = %v", err)
 	}
-	if drew.Room != room {
+	if drew.Room() != room {
 		t.Fatal("expected joining player to be seated in playing room")
 	}
 	if got := len(room.HandFor(drew)); got != HandSize+1 {
