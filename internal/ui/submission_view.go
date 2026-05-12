@@ -18,7 +18,7 @@ func (v submissionView) Cards() (result []whiteCardView) {
 	return
 }
 
-func (v submissionView) JawsClick(elem *jaws.Element, name string) (err error) {
+func (v submissionView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
 	if v.Room.CanJudge(v.Player) {
 		if v.Player.SelectedSubmission == v.Submission {
 			v.Player.SelectedSubmission = nil

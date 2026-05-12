@@ -529,14 +529,15 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		t.Fatalf("expected non-button hand card template rendering, got %s", html)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+	clickData := jaws.Click{Name: "ignored"}.String()
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(first click) error = %v", err)
 	}
 	if len(guest.SelectedCards) != 1 || guest.SelectedCards[0] != card {
 		t.Fatalf("SelectedCards after first click = %#v, want [%#v]", guest.SelectedCards, card)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(second click) error = %v", err)
 	}
 	if len(guest.SelectedCards) != 0 {
@@ -602,14 +603,15 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		t.Fatalf("expected non-button submission template rendering, got %s", html)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+	clickData := jaws.Click{Name: "ignored"}.String()
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(first click) error = %v", err)
 	}
 	if host.SelectedSubmission != submission {
 		t.Fatalf("SelectedSubmission after first click = %#v, want %#v", host.SelectedSubmission, submission)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, "ignored"); err != nil {
+	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(second click) error = %v", err)
 	}
 	if host.SelectedSubmission != nil {
