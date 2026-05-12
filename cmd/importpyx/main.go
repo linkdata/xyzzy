@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -79,12 +80,21 @@ func parseSQL(path string) (data *sqlData, err error) {
 					err = fmt.Errorf("invalid black card row: %q", line)
 					return
 				}
-				id := mustAtoi(parts[0])
+				var id, draw, pick int
+				if id, err = parseNonNegativeInt(parts[0], "black card id"); err != nil {
+					return
+				}
+				if draw, err = parseNonNegativeInt(parts[1], "black card draw"); err != nil {
+					return
+				}
+				if pick, err = parseNonNegativeInt(parts[2], "black card pick"); err != nil {
+					return
+				}
 				tmp_data.blackCards[id] = deck.BlackCard{
 					ID:        fmt.Sprintf("pyx-b-%d", id),
 					Text:      parts[3],
-					Pick:      mustAtoi(parts[2]),
-					Draw:      mustAtoi(parts[1]),
+					Pick:      pick,
+					Draw:      draw,
 					Watermark: parts[4],
 				}
 			case "white":
@@ -92,7 +102,10 @@ func parseSQL(path string) (data *sqlData, err error) {
 					err = fmt.Errorf("invalid white card row: %q", line)
 					return
 				}
-				id := mustAtoi(parts[0])
+				var id int
+				if id, err = parseNonNegativeInt(parts[0], "white card id"); err != nil {
+					return
+				}
 				tmp_data.whiteCards[id] = deck.WhiteCard{
 					ID:        fmt.Sprintf("pyx-w-%d", id),
 					Text:      parts[1],
@@ -103,7 +116,13 @@ func parseSQL(path string) (data *sqlData, err error) {
 					err = fmt.Errorf("invalid deck row: %q", line)
 					return
 				}
-				id := mustAtoi(parts[0])
+				var id, weight int
+				if id, err = parseNonNegativeInt(parts[0], "deck id"); err != nil {
+					return
+				}
+				if weight, err = parseInt(parts[5], "deck weight"); err != nil {
+					return
+				}
 				name := parts[4]
 				deckID := slugify(name)
 				if deckID == "" {
@@ -119,7 +138,7 @@ func parseSQL(path string) (data *sqlData, err error) {
 						ID:               deckID,
 						Name:             name,
 						Description:      parts[3],
-						Weight:           mustAtoi(parts[5]),
+						Weight:           weight,
 						BaseDeck:         parts[2] == "t",
 						EnabledByDefault: name == "Base Game (US)",
 					},
@@ -129,15 +148,27 @@ func parseSQL(path string) (data *sqlData, err error) {
 					err = fmt.Errorf("invalid deck black row: %q", line)
 					return
 				}
-				deckID := mustAtoi(parts[0])
-				tmp_data.deckBlackLinks[deckID] = append(tmp_data.deckBlackLinks[deckID], mustAtoi(parts[1]))
+				var deckID, cardID int
+				if deckID, err = parseNonNegativeInt(parts[0], "deck black deck id"); err != nil {
+					return
+				}
+				if cardID, err = parseNonNegativeInt(parts[1], "deck black card id"); err != nil {
+					return
+				}
+				tmp_data.deckBlackLinks[deckID] = append(tmp_data.deckBlackLinks[deckID], cardID)
 			case "deck_white":
 				if len(parts) < 2 {
 					err = fmt.Errorf("invalid deck white row: %q", line)
 					return
 				}
-				deckID := mustAtoi(parts[0])
-				tmp_data.deckWhiteLinks[deckID] = append(tmp_data.deckWhiteLinks[deckID], mustAtoi(parts[1]))
+				var deckID, cardID int
+				if deckID, err = parseNonNegativeInt(parts[0], "deck white deck id"); err != nil {
+					return
+				}
+				if cardID, err = parseNonNegativeInt(parts[1], "deck white card id"); err != nil {
+					return
+				}
+				tmp_data.deckWhiteLinks[deckID] = append(tmp_data.deckWhiteLinks[deckID], cardID)
 			}
 		}
 		if err == nil {
@@ -278,9 +309,18 @@ func uniqueStrings(values []string) []string {
 	return slices.Compact(values)
 }
 
-func mustAtoi(s string) (result int) {
-	for _, r := range s {
-		result = (result * 10) + int(r-'0')
+func parseNonNegativeInt(s, name string) (result int, err error) {
+	if result, err = parseInt(s, name); err == nil {
+		if result < 0 {
+			err = fmt.Errorf("invalid %s %q: negative value", name, s)
+		}
+	}
+	return
+}
+
+func parseInt(s, name string) (result int, err error) {
+	if result, err = strconv.Atoi(s); err != nil {
+		err = fmt.Errorf("invalid %s %q: %w", name, s, err)
 	}
 	return
 }
