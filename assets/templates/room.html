@@ -4,7 +4,7 @@
 <body>
 {{with .Dot}}
 <div id="jaws-alerts" class="position-fixed start-50 translate-middle-x" style="top:4rem;z-index:1060;min-width:320px"></div>
-<form autocomplete="off">
+<div>
   <nav class="navbar navbar-dark bg-dark fixed-top px-3">
     <a class="navbar-brand fw-bold" href="/">Pretend You're Xyzzy</a>
     <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#nicknameModal">{{.DisplayNickname}}</button>
@@ -20,7 +20,7 @@
     </div>
   </div>
   {{template "nickname_modal.html" $}}
-</form>
+</div>
 {{end}}
 {{$.TailHTML}}
 </body>

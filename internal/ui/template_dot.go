@@ -32,10 +32,11 @@ type templateDot struct {
 	App *App
 	*game.Player
 	*game.Room
+	CSRFToken string
 }
 
 func (d templateDot) OnlinePlayers() (result int) {
-	result = d.App.Jaws.SessionCount()
+	result = int(d.App.activeWebSockets.Load())
 	return
 }
 
@@ -50,12 +51,12 @@ func (d templateDot) RoomByCode(code string) (result *game.Room) {
 }
 
 func (d templateDot) LobbySidebar() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar}
+	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar, CSRFToken: d.CSRFToken}
 	return
 }
 
 func (d templateDot) LobbyMain() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain}
+	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain, CSRFToken: d.CSRFToken}
 	return
 }
 
@@ -65,6 +66,7 @@ func (d templateDot) RoomSidebar(code string) (result jaws.Container) {
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
 		Kind:          sectionRoomSidebar,
+		CSRFToken:     d.CSRFToken,
 	}
 	return
 }
@@ -75,6 +77,7 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
 		Kind:          sectionRoomMain,
+		CSRFToken:     d.CSRFToken,
 	}
 	return
 }

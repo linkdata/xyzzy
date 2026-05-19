@@ -178,6 +178,17 @@ func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) (resul
 	}
 	result = h.app.Jaws.GetSession(req)
 	if result == nil {
+		resp, err := client.Get(h.server.URL + "/room/MISSING")
+		if err != nil {
+			t.Fatalf("GET /room/MISSING error = %v", err)
+		}
+		resp.Body.Close()
+		for _, cookie := range h.cookiesFor(client) {
+			req.AddCookie(cookie)
+		}
+		result = h.app.Jaws.GetSession(req)
+	}
+	if result == nil {
 		t.Fatal("expected JaWS session")
 	}
 	return

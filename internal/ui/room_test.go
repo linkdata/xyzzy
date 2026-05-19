@@ -174,7 +174,8 @@ func newScoreTargetElement(app *App, slider bind.Binder[int]) (result *jaws.Elem
 func newTestSession(t *testing.T, app *App, handler http.Handler) (result *jaws.Session) {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
+	req.SetPathValue("code", "MISSING")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	result = app.Jaws.GetSession(req)
@@ -286,7 +287,7 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	sess := app.Jaws.GetSession(req)
@@ -335,7 +336,7 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	hostRec := httptest.NewRecorder()
 	handler.ServeHTTP(hostRec, hostReq)
 	hostSess := app.Jaws.GetSession(hostReq)
@@ -349,7 +350,7 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	joinRec := httptest.NewRecorder()
 	handler.ServeHTTP(joinRec, joinReq)
 	joinSess := app.Jaws.GetSession(joinReq)
@@ -380,7 +381,7 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	hostRec := httptest.NewRecorder()
 	handler.ServeHTTP(hostRec, hostReq)
 	hostSess := app.Jaws.GetSession(hostReq)
@@ -397,7 +398,7 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 		t.Fatalf("SetPrivate() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	joinRec := httptest.NewRecorder()
 	handler.ServeHTTP(joinRec, joinReq)
 	joinSess := app.Jaws.GetSession(joinReq)
@@ -427,7 +428,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	hostRec := httptest.NewRecorder()
 	handler.ServeHTTP(hostRec, hostReq)
 	hostSess := app.Jaws.GetSession(hostReq)
@@ -451,7 +452,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	joinRec := httptest.NewRecorder()
 	handler.ServeHTTP(joinRec, joinReq)
 	joinSess := app.Jaws.GetSession(joinReq)
@@ -518,7 +519,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	req := app.Jaws.NewRequest(nil)
 	elem := req.NewElement(jui.Template{Name: "hand_card_clickable.html", Dot: view})
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{dot.CardAttrs(), dot.CardClass(card)}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -592,7 +593,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	req := app.Jaws.NewRequest(nil)
 	elem := req.NewElement(jui.Template{Name: "submission_clickable.html", Dot: view})
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{dot.SubmissionAttrs(), dot.SubmissionClass(submission)}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -740,7 +741,7 @@ func TestMissingRoomRendersMissingPanel(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	sess := app.Jaws.GetSession(req)
@@ -766,7 +767,7 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	sess := app.Jaws.GetSession(req)
