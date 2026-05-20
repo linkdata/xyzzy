@@ -480,6 +480,11 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	if strings.Contains(body, `<button class="card-face card-face-white`) {
 		t.Fatalf("expected hand cards to render as clickable template elements instead of buttons, got %s", body)
 	}
+	if !strings.Contains(body, `data-jawstemplate class="card-face card-face-white`) ||
+		!strings.Contains(body, `role="button"`) ||
+		!strings.Contains(body, "White card") {
+		t.Fatalf("expected hand cards to render as clickable template elements, got %s", body)
+	}
 }
 
 func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
