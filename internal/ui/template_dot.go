@@ -32,7 +32,6 @@ type templateDot struct {
 	App *App
 	*game.Player
 	*game.Room
-	CSRFToken string
 }
 
 func (d templateDot) OnlinePlayers() (result int) {
@@ -51,12 +50,12 @@ func (d templateDot) RoomByCode(code string) (result *game.Room) {
 }
 
 func (d templateDot) LobbySidebar() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar, CSRFToken: d.CSRFToken}
+	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar}
 	return
 }
 
 func (d templateDot) LobbyMain() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain, CSRFToken: d.CSRFToken}
+	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain}
 	return
 }
 
@@ -66,7 +65,6 @@ func (d templateDot) RoomSidebar(code string) (result jaws.Container) {
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
 		Kind:          sectionRoomSidebar,
-		CSRFToken:     d.CSRFToken,
 	}
 	return
 }
@@ -77,7 +75,6 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
 		Kind:          sectionRoomMain,
-		CSRFToken:     d.CSRFToken,
 	}
 	return
 }
@@ -91,6 +88,24 @@ func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
 			redirectURL = "/"
 		}
 		elem.Request.Redirect(redirectURL)
+		return
+	})
+}
+
+func (d templateDot) CreateRoomClick() jaws.ClickHandler {
+	return jui.New("Create Room").Clicked(func(obj jui.Object, elem *jaws.Element, click jaws.Click) (err error) {
+		if current := d.Player.Room(); current != nil {
+			elem.Request.Redirect(d.App.RoomURL(current.Code()))
+			return
+		}
+		if _, ok := d.App.createRoomLimiter.Allow(clientIP(elem.Request.Initial())); !ok {
+			elem.Request.Alert("warning", "Please wait before creating another room.")
+			return
+		}
+		var room *game.Room
+		if room, err = d.App.createRoom(d.Player); err == nil {
+			elem.Request.Redirect(d.App.RoomURL(room.Code()))
+		}
 		return
 	})
 }

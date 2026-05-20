@@ -27,7 +27,6 @@ type section struct {
 	Player        *game.Player
 	RequestedCode string
 	Kind          sectionKind
-	CSRFToken     string
 }
 
 func (s *section) JawsGetTag(jtag.Context) any {
@@ -44,7 +43,7 @@ func (s *section) JawsGetTag(jtag.Context) any {
 }
 
 func (s *section) JawsContains(*jaws.Element) []jaws.UI {
-	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom(), CSRFToken: s.CSRFToken}
+	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
 		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}

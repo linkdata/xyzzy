@@ -55,10 +55,9 @@ func TestApplyCardSelectionKeepsMultiPickLimit(t *testing.T) {
 }
 
 func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
+	app, _ := testPlayableApp(t)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -66,7 +65,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guestSess := newTestSession(t, app, handler)
+	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
 	app.setNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
@@ -106,7 +105,7 @@ func TestRoomScoreTargetSliderAllowsOneInDebug(t *testing.T) {
 	app, mux := testPlayableAppWithOptions(t, game.Options{MinPlayers: 2, Debug: true})
 	handler := app.Middleware(mux)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -171,14 +170,12 @@ func newScoreTargetElement(app *App, slider bind.Binder[int]) (result *jaws.Elem
 	return
 }
 
-func newTestSession(t *testing.T, app *App, handler http.Handler) (result *jaws.Session) {
+func newTestSession(t *testing.T, app *App) (result *jaws.Session) {
 	t.Helper()
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	req.SetPathValue("code", "MISSING")
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	result = app.Jaws.GetSession(req)
+	result = app.Jaws.NewSession(rec, req)
 	if result == nil {
 		t.Fatal("expected JaWS session")
 	}
@@ -287,13 +284,8 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sess := newTestSession(t, app)
 	player := app.player(sess, req)
 	app.setNickname(player, "Alice")
 	room, err := app.createRoom(player)
@@ -336,13 +328,8 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	hostRec := httptest.NewRecorder()
-	handler.ServeHTTP(hostRec, hostReq)
-	hostSess := app.Jaws.GetSession(hostReq)
-	if hostSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -350,13 +337,8 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	joinRec := httptest.NewRecorder()
-	handler.ServeHTTP(joinRec, joinReq)
-	joinSess := app.Jaws.GetSession(joinReq)
-	if joinSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
 	app.setNickname(guest, "Bob")
 
@@ -381,13 +363,8 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	hostRec := httptest.NewRecorder()
-	handler.ServeHTTP(hostRec, hostReq)
-	hostSess := app.Jaws.GetSession(hostReq)
-	if hostSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -398,13 +375,8 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 		t.Fatalf("SetPrivate() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	joinRec := httptest.NewRecorder()
-	handler.ServeHTTP(joinRec, joinReq)
-	joinSess := app.Jaws.GetSession(joinReq)
-	if joinSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
 	app.setNickname(guest, "Bob")
 
@@ -428,13 +400,8 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	hostRec := httptest.NewRecorder()
-	handler.ServeHTTP(hostRec, hostReq)
-	hostSess := app.Jaws.GetSession(hostReq)
-	if hostSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -442,7 +409,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guest1Sess := newTestSession(t, app, handler)
+	guest1Sess := newTestSession(t, app)
 	guest1 := app.player(guest1Sess, nil)
 	app.setNickname(guest1, "Bob")
 	if _, err := app.joinRoom(guest1, room.Code()); err != nil {
@@ -452,13 +419,8 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	joinRec := httptest.NewRecorder()
-	handler.ServeHTTP(joinRec, joinReq)
-	joinSess := app.Jaws.GetSession(joinReq)
-	if joinSess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
 	app.setNickname(guest, "Drew")
 
@@ -488,10 +450,9 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 }
 
 func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
+	app, _ := testPlayableApp(t)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -499,7 +460,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guestSess := newTestSession(t, app, handler)
+	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
 	app.setNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
@@ -552,10 +513,9 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 }
 
 func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
+	app, _ := testPlayableApp(t)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -563,7 +523,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guestSess := newTestSession(t, app, handler)
+	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
 	app.setNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
@@ -629,7 +589,7 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -637,7 +597,7 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guestSess := newTestSession(t, app, handler)
+	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
 	app.setNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
@@ -683,7 +643,7 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
-	hostSess := newTestSession(t, app, handler)
+	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
 	app.setNickname(host, "Alice")
 	room, err := app.createRoom(host)
@@ -691,7 +651,7 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guestSess := newTestSession(t, app, handler)
+	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
 	app.setNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
@@ -746,13 +706,7 @@ func TestMissingRoomRendersMissingPanel(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	sess := newTestSession(t, app)
 
 	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
 	roomReq.SetPathValue("code", "MISSING")
@@ -772,13 +726,8 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sess := newTestSession(t, app)
 	player := app.player(sess, req)
 	app.setNickname(player, "Alice")
 	room, err := app.createRoom(player)

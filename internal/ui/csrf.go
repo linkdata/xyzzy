@@ -2,7 +2,6 @@ package ui
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -11,18 +10,6 @@ import (
 )
 
 const csrfFieldName = "csrf"
-
-func (a *App) ensureCSRF(w http.ResponseWriter, r *http.Request) (token string) {
-	cookieValue := a.sessionCookieValue(r)
-	if cookieValue == "" {
-		cookie := a.newPreSessionCookie(r)
-		cookieValue = cookie.Value
-		http.SetCookie(w, cookie)
-		r.AddCookie(cookie)
-	}
-	token = a.csrfToken(cookieValue)
-	return
-}
 
 func (a *App) validCSRF(r *http.Request) (ok bool) {
 	cookieValue := a.sessionCookieValue(r)
@@ -45,22 +32,6 @@ func (a *App) csrfMAC(cookieValue string) []byte {
 	mac := hmac.New(sha256.New, a.csrfSecret[:])
 	_, _ = mac.Write([]byte(cookieValue))
 	return mac.Sum(nil)
-}
-
-func (a *App) newPreSessionCookie(r *http.Request) (cookie *http.Cookie) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	cookie = &http.Cookie{
-		Name:     a.sessionCookieName(),
-		Value:    "p." + base64.RawURLEncoding.EncodeToString(b[:]),
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   requestIsSecure(r),
-	}
-	return
 }
 
 func (a *App) sessionCookieValue(r *http.Request) (result string) {

@@ -34,6 +34,9 @@ type App struct {
 }
 
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
+	if jw != nil {
+		jw.AutoSession = true
+	}
 	if manager != nil && jw != nil {
 		manager.SetDirty(jw.Dirty)
 	}
@@ -93,32 +96,29 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	if sess != nil {
 		a.syncNicknameCookie(w, r, player)
 	}
-	csrfToken := a.ensureCSRF(w, r)
-	if err := a.renderTemplate(w, r, "index.html", a.makeTemplateDot(player, csrfToken)); err != nil {
+	if err := a.renderTemplate(w, r, "index.html", a.makeTemplateDot(player)); err != nil {
 		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
 	}
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	sess := a.Jaws.GetSession(r)
-	if sess == nil {
-		sess = a.Jaws.NewSession(w, r)
-	}
-	player := a.player(sess, r)
+	player := a.pagePlayer(sess, r)
 	a.cleanupExpired()
 	roomCode := strings.ToUpper(strings.TrimSpace(r.PathValue("code")))
-	if current := player.Room(); current != nil && current.Code() != roomCode {
-		http.Redirect(w, r, "/room/"+current.Code(), http.StatusSeeOther)
-		return
-	}
-	if player.Room() == nil {
-		if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
-			_, _ = a.joinRoom(player, roomCode)
+	if sess != nil {
+		if current := player.Room(); current != nil && current.Code() != roomCode {
+			http.Redirect(w, r, "/room/"+current.Code(), http.StatusSeeOther)
+			return
 		}
+		if player.Room() == nil {
+			if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
+				_, _ = a.joinRoom(player, roomCode)
+			}
+		}
+		a.syncNicknameCookie(w, r, player)
 	}
-	a.syncNicknameCookie(w, r, player)
-	csrfToken := a.ensureCSRF(w, r)
-	if err := a.renderTemplate(w, r, "room.html", a.makeTemplateDot(player, csrfToken)); err != nil {
+	if err := a.renderTemplate(w, r, "room.html", a.makeTemplateDot(player)); err != nil {
 		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
 	}
 }
@@ -140,7 +140,8 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	sess := a.Jaws.GetSession(r)
 	if sess == nil {
-		sess = a.Jaws.NewSession(w, r)
+		http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
+		return
 	}
 	player := a.player(sess, r)
 	a.cleanupExpired()
@@ -162,14 +163,17 @@ func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string
 	if d, ok := dot.(templateDot); ok {
 		req.SetConnectFn(func(rq *jaws.Request) (err error) {
 			a.attachPlayer(rq, d.Player)
+			if name == "room.html" {
+				a.joinRoomOnConnect(rq, d.Player)
+			}
 			return
 		})
 	}
 	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
 }
 
-func (a *App) makeTemplateDot(player *game.Player, csrfToken string) (result templateDot) {
-	result = templateDot{App: a, Player: player, Room: player.Room(), CSRFToken: csrfToken}
+func (a *App) makeTemplateDot(player *game.Player) (result templateDot) {
+	result = templateDot{App: a, Player: player, Room: player.Room()}
 	return
 }
 
@@ -178,6 +182,23 @@ func (a *App) attachPlayer(rq *jaws.Request, player *game.Player) {
 		if sess := rq.Session(); sess != nil && sess.Get(sessionKeyPlayer) == nil {
 			player.Session = sess
 			sess.Set(sessionKeyPlayer, player)
+		}
+	}
+}
+
+func (a *App) joinRoomOnConnect(rq *jaws.Request, player *game.Player) {
+	if rq != nil && player != nil {
+		roomCode := normalizeRoomCode(rq.Initial().PathValue("code"))
+		if current := player.Room(); current != nil {
+			if !strings.EqualFold(current.Code(), roomCode) {
+				rq.Redirect(a.RoomURL(current.Code()))
+			}
+			return
+		}
+		if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
+			if _, err := a.Manager.JoinRoom(roomCode, player); err == nil {
+				rq.Dirty(a.Manager, room, player)
+			}
 		}
 	}
 }

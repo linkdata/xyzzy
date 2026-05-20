@@ -178,11 +178,15 @@ func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) (resul
 	}
 	result = h.app.Jaws.GetSession(req)
 	if result == nil {
-		resp, err := client.Get(h.server.URL + "/room/MISSING")
-		if err != nil {
-			t.Fatalf("GET /room/MISSING error = %v", err)
-		}
-		resp.Body.Close()
+		html := h.getWithClient(t, client, "/")
+		conn, cancel := h.connectWithClient(t, client, html)
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+		cancel()
+		req = httptest.NewRequest(http.MethodGet, h.server.URL+"/", nil)
+		req.Host = h.base.Host
+		req.URL.Host = h.base.Host
+		req.URL.Scheme = h.base.Scheme
+		req.RemoteAddr = "127.0.0.1:12345"
 		for _, cookie := range h.cookiesFor(client) {
 			req.AddCookie(cookie)
 		}
@@ -195,11 +199,25 @@ func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) (resul
 }
 
 func (h *liveHarness) connect(t *testing.T, html string) (result1 *websocket.Conn, result2 context.CancelFunc) {
-	result1, result2 = h.connectWithCookies(t, html, h.cookies())
+	result1, result2 = h.connectWithClient(t, h.client, html)
+	return
+}
+
+func (h *liveHarness) connectWithClient(t *testing.T, client *http.Client, html string) (result1 *websocket.Conn, result2 context.CancelFunc) {
+	var resp *http.Response
+	result1, result2, resp = h.dial(t, html, h.cookiesFor(client))
+	if resp != nil && client != nil && client.Jar != nil {
+		client.Jar.SetCookies(h.base, resp.Cookies())
+	}
 	return
 }
 
 func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*http.Cookie) (result1 *websocket.Conn, result2 context.CancelFunc) {
+	result1, result2, _ = h.dial(t, html, cookies)
+	return
+}
+
+func (h *liveHarness) dial(t *testing.T, html string, cookies []*http.Cookie) (result1 *websocket.Conn, result2 context.CancelFunc, result3 *http.Response) {
 	t.Helper()
 	match := jawsKeyRe.FindStringSubmatch(html)
 	if len(match) != 2 {
@@ -210,7 +228,7 @@ func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*h
 	hdr.Set("Origin", h.server.URL)
 	hdr.Set("Cookie", cookieHeader(cookies))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
+	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
 	if err != nil {
 		cancel()
 		t.Fatalf("websocket.Dial() error = %v", err)
@@ -219,7 +237,7 @@ func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*h
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 		cancel()
 	})
-	result1, result2 = conn, cancel
+	result1, result2, result3 = conn, cancel, resp
 	return
 }
 

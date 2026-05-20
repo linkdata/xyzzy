@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -21,16 +19,10 @@ import (
 )
 
 func TestSessionMapsToSinglePlayer(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
+	app, _ := testApp(t)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sess := newTestSession(t, app)
 
 	player1 := app.player(sess, req)
 	player2 := app.player(sess, req)
@@ -175,15 +167,8 @@ func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (result1 *j
 	return
 }
 
-var csrfTokenRe = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
-
-func csrfTokenFromHTML(t *testing.T, html string) (result string) {
-	t.Helper()
-	match := csrfTokenRe.FindStringSubmatch(html)
-	if len(match) != 2 || match[1] == "" {
-		t.Fatalf("did not find CSRF token in html: %s", html)
-	}
-	result = match[1]
+func csrfTokenForSession(app *App, sess *jaws.Session) (result string) {
+	result = app.csrfToken(sess.CookieValue())
 	return
 }
 
@@ -356,8 +341,9 @@ func TestCreateRoomWhileLobbyIsLiveStillOpensRoomPage(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 	_ = conn
+	sess := h.session(t)
 
-	resp, err := h.client.PostForm(h.server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenFromHTML(t, html)}})
+	resp, err := h.client.PostForm(h.server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenForSession(h.app, sess)}})
 	if err != nil {
 		t.Fatalf("GET /create-room error = %v", err)
 	}
@@ -408,8 +394,8 @@ func TestLobbyRenders(t *testing.T) {
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
-	if token := csrfTokenFromHTML(t, body); token == "" {
-		t.Fatal("expected lobby to include CSRF token")
+	if !strings.Contains(body, "Create Room") {
+		t.Fatalf("expected lobby body to include create-room button, got %s", body)
 	}
 }
 
@@ -456,7 +442,7 @@ func TestLobbyShowsCurrentOnlinePlayerCount(t *testing.T) {
 
 	client2 := h.newClient(t)
 	html2 := h.getWithClient(t, client2, "/")
-	conn2, cancel2 := h.connectWithCookies(t, html2, h.cookiesFor(client2))
+	conn2, cancel2 := h.connectWithClient(t, client2, html2)
 	defer cancel2()
 	_ = conn2
 
@@ -470,14 +456,8 @@ func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sess := newTestSession(t, app)
 	player := app.player(sess, req)
 	app.setNickname(player, "Alice")
 
@@ -529,13 +509,8 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	sess := app.Jaws.GetSession(req)
-	if sess == nil {
-		t.Fatal("expected JaWS session")
-	}
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sess := newTestSession(t, app)
 	player := app.player(sess, req)
 	app.setNickname(player, "Alice")
 	room, err := app.createRoom(player)
@@ -560,12 +535,10 @@ func TestCreateRoomRouteRedirectsToRoom(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	token := csrfTokenFromHTML(t, rec.Body.String())
+	sess := newTestSession(t, app)
+	token := csrfTokenForSession(app, sess)
 
-	createReq := createRoomPostRequest(t, token, rec.Result().Cookies())
+	createReq := createRoomPostRequest(t, token, []*http.Cookie{sess.Cookie()})
 	createRec := httptest.NewRecorder()
 	handler.ServeHTTP(createRec, createReq)
 
@@ -577,10 +550,6 @@ func TestCreateRoomRouteRedirectsToRoom(t *testing.T) {
 		t.Fatalf("Location = %q, want /room/<code>", location)
 	}
 
-	sess := app.Jaws.GetSession(createReq)
-	if sess == nil {
-		t.Fatal("expected JaWS session after valid create-room POST")
-	}
 	player := app.player(sess, createReq)
 	playerRoom := player.Room()
 	if playerRoom == nil {
@@ -625,11 +594,9 @@ func TestCreateRoomRejectsCrossOriginPost(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	sess := newTestSession(t, app)
 
-	createReq := createRoomPostRequest(t, csrfTokenFromHTML(t, rec.Body.String()), rec.Result().Cookies())
+	createReq := createRoomPostRequest(t, csrfTokenForSession(app, sess), []*http.Cookie{sess.Cookie()})
 	createReq.Header.Set("Origin", "https://evil.example")
 	createRec := httptest.NewRecorder()
 	handler.ServeHTTP(createRec, createReq)
@@ -646,11 +613,12 @@ func TestCreateRoomRateLimit(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	token := csrfTokenFromHTML(t, rec.Body.String())
-	cookies := rec.Result().Cookies()
+	sessReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	sessReq.RemoteAddr = "203.0.113.9:12345"
+	sessRec := httptest.NewRecorder()
+	sess := app.Jaws.NewSession(sessRec, sessReq)
+	token := csrfTokenForSession(app, sess)
+	cookies := []*http.Cookie{sess.Cookie()}
 
 	var limited *httptest.ResponseRecorder
 	for range 11 {
@@ -672,33 +640,21 @@ func TestCreateRoomRateLimit(t *testing.T) {
 }
 
 func TestCreateRoomRouteFollowRedirectShowsRoomPage(t *testing.T) {
-	app, mux := testApp(t)
-	server := httptest.NewServer(app.Middleware(mux))
-	defer server.Close()
+	h := newLiveHarness(t)
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatalf("cookiejar.New() error = %v", err)
-	}
-	client := &http.Client{Jar: jar}
+	html := h.get(t, "/")
+	conn, cancel := h.connect(t, html)
+	defer cancel()
+	_ = conn
+	sess := h.session(t)
 
-	resp, err := client.Get(server.URL + "/")
-	if err != nil {
-		t.Fatalf("GET / error = %v", err)
-	}
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		t.Fatalf("ReadAll(/) error = %v", err)
-	}
-
-	resp, err = client.PostForm(server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenFromHTML(t, string(body))}})
+	resp, err := h.client.PostForm(h.server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenForSession(h.app, sess)}})
 	if err != nil {
 		t.Fatalf("POST /create-room error = %v", err)
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("ReadAll() error = %v", err)
 	}

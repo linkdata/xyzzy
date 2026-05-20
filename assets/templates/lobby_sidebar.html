@@ -1,9 +1,8 @@
 {{with .Dot}}
 <div id="{{$.Jid}}">
-  <form method="POST" action="/create-room" class="d-grid mb-3">
-    <input type="hidden" name="csrf" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-primary">Create Room</button>
-  </form>
+  <div class="d-grid mb-3">
+    {{$.Button "Create Room" .CreateRoomClick `class="btn btn-primary"`}}
+  </div>
   {{if .PublicRooms}}
   <div class="list-group">
     {{range .PublicRooms}}
