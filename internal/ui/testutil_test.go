@@ -151,11 +151,6 @@ func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path stri
 	return
 }
 
-func (h *liveHarness) cookies() (result []*http.Cookie) {
-	result = h.cookiesFor(h.client)
-	return
-}
-
 func (h *liveHarness) cookiesFor(client *http.Client) (result []*http.Cookie) {
 	result = client.Jar.Cookies(h.base)
 	return
@@ -209,11 +204,6 @@ func (h *liveHarness) connectWithClient(t *testing.T, client *http.Client, html 
 	if resp != nil && client != nil && client.Jar != nil {
 		client.Jar.SetCookies(h.base, resp.Cookies())
 	}
-	return
-}
-
-func (h *liveHarness) connectWithCookies(t *testing.T, html string, cookies []*http.Cookie) (result1 *websocket.Conn, result2 context.CancelFunc) {
-	result1, result2, _ = h.dial(t, html, cookies)
 	return
 }
 

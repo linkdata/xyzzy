@@ -483,9 +483,9 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	view := dot.HandCardView(card)
 
 	req := app.Jaws.NewRequest(nil)
-	elem := req.NewElement(jui.Template{Name: "hand_card_clickable.html", Dot: view})
+	elem := req.NewElement(jui.NewTemplate("div", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -556,9 +556,9 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	view := dot.SubmissionView(submission)
 
 	req := app.Jaws.NewRequest(nil)
-	elem := req.NewElement(jui.Template{Name: "submission_clickable.html", Dot: view})
+	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()

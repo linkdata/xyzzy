@@ -46,12 +46,12 @@ func (s *section) JawsContains(*jaws.Element) []jaws.UI {
 	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
 	switch s.Kind {
 	case sectionLobbySidebar:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_sidebar.html", dot)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "lobby_sidebar.html", dot)}}
 	case sectionLobbyMain:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("lobby_welcome_panel.html", dot)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "lobby_welcome_panel.html", dot)}}
 	case sectionRoomSidebar:
 		if s.currentRoom() != nil {
-			return []jaws.UI{&templateFrame{Template: jui.NewTemplate("room_summary_panel.html", dot)}}
+			return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "room_summary_panel.html", dot)}}
 		}
 		return nil
 	default:
@@ -59,7 +59,7 @@ func (s *section) JawsContains(*jaws.Element) []jaws.UI {
 		if s.currentRoom() != nil {
 			templateName = "room_game_panel.html"
 		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate(templateName, dot)}}
+		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", templateName, dot)}}
 	}
 }
 
