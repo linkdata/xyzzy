@@ -166,7 +166,7 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 }
 
 func newScoreTargetElement(app *App, slider bind.Binder[int]) (result *jaws.Element) {
-	result = app.Jaws.NewRequest(nil).NewElement(jui.NewRange(bind.MakeSetterFloat64(slider)))
+	result = app.Jaws.NewRequest(nil).NewElement(jui.NewRange(slider))
 	return
 }
 
@@ -497,14 +497,14 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 
 	clickData := jaws.Click{Name: "ignored"}.String()
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(first click) error = %v", err)
 	}
 	if len(guest.SelectedCards) != 1 || guest.SelectedCards[0] != card {
 		t.Fatalf("SelectedCards after first click = %#v, want [%#v]", guest.SelectedCards, card)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(second click) error = %v", err)
 	}
 	if len(guest.SelectedCards) != 0 {
@@ -570,14 +570,14 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 
 	clickData := jaws.Click{Name: "ignored"}.String()
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(first click) error = %v", err)
 	}
 	if host.SelectedSubmission != submission {
 		t.Fatalf("SelectedSubmission after first click = %#v, want %#v", host.SelectedSubmission, submission)
 	}
 
-	if err := jaws.CallEventHandlers(elem.Ui(), elem, what.Click, clickData); err != nil {
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
 		t.Fatalf("CallEventHandlers(second click) error = %v", err)
 	}
 	if host.SelectedSubmission != nil {

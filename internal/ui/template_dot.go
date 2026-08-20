@@ -7,7 +7,6 @@ import (
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
-	jtag "github.com/linkdata/jaws/lib/tag"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
@@ -18,7 +17,7 @@ type taggedBinder[T comparable] struct {
 	tag any
 }
 
-func (b taggedBinder[T]) JawsGetTag(jtag.Context) (result any) {
+func (b taggedBinder[T]) JawsGetTag() (result any) {
 	result = b.tag
 	return
 }

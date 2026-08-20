@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/linkdata/jaws"
-	jtag "github.com/linkdata/jaws/lib/tag"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -29,7 +28,7 @@ type section struct {
 	Kind          sectionKind
 }
 
-func (s *section) JawsGetTag(jtag.Context) any {
+func (s *section) JawsGetTag() any {
 	result := []any{s.Player}
 	switch s.Kind {
 	case sectionLobbySidebar:
