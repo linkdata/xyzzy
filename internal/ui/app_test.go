@@ -365,7 +365,7 @@ func TestCreateRoomWhileLobbyIsLiveStillOpensRoomPage(t *testing.T) {
 }
 
 func newPrivateToggleElement(app *App, toggle bind.Binder[bool]) (result *jaws.Element) {
-	result = app.Jaws.NewRequest(nil).NewElement(jui.NewCheckbox(toggle))
+	result = app.Jaws.NewRequest(httptest.NewRecorder(), nil).NewElement(jui.NewCheckbox(toggle))
 	return
 }
 

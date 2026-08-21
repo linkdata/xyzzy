@@ -166,7 +166,7 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 }
 
 func newScoreTargetElement(app *App, slider bind.Binder[int]) (result *jaws.Element) {
-	result = app.Jaws.NewRequest(nil).NewElement(jui.NewRange(slider))
+	result = app.Jaws.NewRequest(httptest.NewRecorder(), nil).NewElement(jui.NewRange(slider))
 	return
 }
 
@@ -482,7 +482,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	dot := templateDot{App: app, Player: guest, Room: room}
 	view := dot.HandCardView(card)
 
-	req := app.Jaws.NewRequest(nil)
+	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
 	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
@@ -555,7 +555,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	dot := templateDot{App: app, Player: host, Room: room}
 	view := dot.SubmissionView(submission)
 
-	req := app.Jaws.NewRequest(nil)
+	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
 	var rendered bytes.Buffer
 	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {

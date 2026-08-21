@@ -159,7 +159,7 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) (err error) {
-	req := a.Jaws.NewRequest(r)
+	req := a.Jaws.NewRequest(w, r)
 	if d, ok := dot.(templateDot); ok {
 		req.SetConnectFn(func(rq *jaws.Request) (err error) {
 			a.attachPlayer(rq, d.Player)
