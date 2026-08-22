@@ -385,17 +385,81 @@ func TestLobbyRenders(t *testing.T) {
 	if !strings.Contains(body, `id="nicknameModal"`) || !strings.Contains(body, "Change Nickname") {
 		t.Fatalf("expected lobby body to include nickname modal, got %s", body)
 	}
-	if app.Jaws.GetSession(req) != nil {
-		t.Fatal("plain lobby GET unexpectedly allocated a JaWS session")
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected lobby GET to establish a JaWS session")
 	}
-	if !strings.Contains(body, "0 online players") {
-		t.Fatalf("expected lobby body to show zero online players, got %s", body)
+	if player, _ := sess.Get(sessionKeyPlayer).(*game.Player); player == nil {
+		t.Fatal("expected lobby GET to store its Player before rendering")
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
 	if !strings.Contains(body, "Create Room") {
 		t.Fatalf("expected lobby body to include create-room button, got %s", body)
+	}
+}
+
+func TestPageHandlersRequireSessionMiddleware(t *testing.T) {
+	app, _ := testApp(t)
+	tests := []struct {
+		name  string
+		path  string
+		serve http.HandlerFunc
+	}{
+		{name: "lobby", path: "http://example.test/", serve: app.serveLobby},
+		{name: "room", path: "http://example.test/room/MISSING", serve: app.serveRoom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			if tt.name == "room" {
+				req.SetPathValue("code", "MISSING")
+			}
+			rec := httptest.NewRecorder()
+
+			tt.serve.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("ServeHTTP() status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+			}
+		})
+	}
+}
+
+func TestAnonymousRoomPageJoinsBeforeRendering(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostSession := newTestSession(t, app)
+	host := app.player(hostSession, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected room GET to establish a JaWS session")
+	}
+	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
+	if player == nil || player.Room() != room || !room.HasPlayer(player) {
+		t.Fatalf("expected room GET to seat its Player, got %#v", player)
+	}
+	if room.PlayerCount() != 2 {
+		t.Fatalf("PlayerCount() = %d, want 2", room.PlayerCount())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Card Packs") || !strings.Contains(body, room.Code()) {
+		t.Fatalf("expected initial room document to contain seated regions, got %s", body)
 	}
 }
 
@@ -424,31 +488,6 @@ func TestStaticMetadataAndUnknownRoutes(t *testing.T) {
 		if tt.contentType != "" && !strings.HasPrefix(rec.Header().Get("Content-Type"), tt.contentType) {
 			t.Fatalf("GET %s Content-Type = %q, want prefix %q", tt.path, rec.Header().Get("Content-Type"), tt.contentType)
 		}
-	}
-}
-
-func TestLobbyShowsCurrentOnlinePlayerCount(t *testing.T) {
-	h := newLiveHarness(t)
-
-	html := h.get(t, "/")
-	conn, cancel := h.connect(t, html)
-	defer cancel()
-	_ = conn
-
-	body := h.getWithClient(t, h.newClient(t), "/")
-	if !strings.Contains(body, "1 online player") {
-		t.Fatalf("expected lobby body to show one online player, got %s", body)
-	}
-
-	client2 := h.newClient(t)
-	html2 := h.getWithClient(t, client2, "/")
-	conn2, cancel2 := h.connectWithClient(t, client2, html2)
-	defer cancel2()
-	_ = conn2
-
-	body = h.getWithClient(t, h.newClient(t), "/")
-	if !strings.Contains(body, "2 online players") {
-		t.Fatalf("expected lobby body to show two online players, got %s", body)
 	}
 }
 
@@ -497,8 +536,13 @@ func TestLobbyRestoresNicknameFromCookie(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if app.Jaws.GetSession(req) != nil {
-		t.Fatal("plain lobby GET unexpectedly allocated a JaWS session")
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected lobby GET to establish a JaWS session")
+	}
+	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
+	if player == nil || player.NicknameValue() != "Alice" {
+		t.Fatalf("expected restored nickname on session Player, got %#v", player)
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "Alice") {
 		t.Fatalf("expected restored nickname in lobby body, got %s", body)

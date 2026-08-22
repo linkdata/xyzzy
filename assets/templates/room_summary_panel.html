@@ -1,29 +1,32 @@
 {{with .Dot}}
-<div id="{{$.Jid}}">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="fw-bold font-monospace">{{.Room.Code}}</div>
-    <span class="badge {{.StateBadgeClass}}">
-      {{.Room.State}}
+{{$dot := .}}
+{{$room := .Room}}
+{{$state := $room.State}}
+{{$players := $room.Players}}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="fw-bold font-monospace">{{$room.Code}}</div>
+  <span class="badge {{$dot.StateBadgeClass}}">
+    {{$state}}
+  </span>
+</div>
+
+<div class="d-grid mb-3">
+  <a class="btn btn-outline-danger btn-sm" href="/">Lobby</a>
+</div>
+
+<div class="list-group list-group-flush">
+  {{range $players}}
+  {{$winner := $room.IsRoundWinner .}}
+  <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+    <span>
+      <span{{if $winner}} class="room-player-winner"{{end}}>{{$room.NicknameFor .}}</span>
+      {{if $room.IsHost .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
+      {{if $room.IsJudge .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
+      {{if $winner}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
+      {{if $room.SubmittedBy .}}<span class="badge bg-success ms-1">✓</span>{{end}}
     </span>
+    <span class="badge bg-primary rounded-pill">{{$room.ScoreFor .}}</span>
   </div>
-
-  <div class="d-grid mb-3">
-    <a class="btn btn-outline-danger btn-sm" href="/">Lobby</a>
-  </div>
-
-  <div class="list-group list-group-flush">
-    {{range .Room.Players}}
-    <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-      <span>
-        <span{{if $.Dot.IsRoundWinner .}} class="room-player-winner"{{end}}>{{$.Dot.PlayerNickname .}}</span>
-        {{if $.Dot.PlayerHost .}}<span class="badge bg-secondary ms-1">host</span>{{end}}
-        {{if $.Dot.PlayerJudge .}}<span class="badge bg-warning text-dark ms-1">czar</span>{{end}}
-        {{if $.Dot.IsRoundWinner .}}<span class="badge bg-warning text-dark ms-1">winner</span>{{end}}
-        {{if $.Dot.PlayerSubmitted .}}<span class="badge bg-success ms-1">✓</span>{{end}}
-      </span>
-      <span class="badge bg-primary rounded-pill">{{$.Dot.PlayerScore .}}</span>
-    </div>
-    {{end}}
-  </div>
+  {{end}}
 </div>
 {{end}}

@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	"github.com/linkdata/jaws"
-	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
@@ -77,8 +76,4 @@ func (p *Player) setRoomNickname(nickname string) {
 		p.NicknameInput = nickname
 		p.uiMu.Unlock()
 	}
-}
-
-func (p *Player) NicknameField() bind.Binder[string] {
-	return bind.New(&p.uiMu, &p.NicknameInput)
 }

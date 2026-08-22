@@ -8,63 +8,56 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type templateFrame struct {
-	jui.Template
-}
-
-type sectionKind string
+type roomSectionKind uint8
 
 const (
-	sectionLobbySidebar sectionKind = "lobby-sidebar"
-	sectionLobbyMain    sectionKind = "lobby-main"
-	sectionRoomSidebar  sectionKind = "room-sidebar"
-	sectionRoomMain     sectionKind = "room-main"
+	roomSectionSidebar roomSectionKind = iota
+	roomSectionMain
 )
 
-type section struct {
+type roomSection struct {
 	App           *App
 	Player        *game.Player
 	RequestedCode string
-	Kind          sectionKind
+	Kind          roomSectionKind
 }
 
-func (s *section) JawsGetTag() any {
-	result := []any{s.Player}
-	switch s.Kind {
-	case sectionLobbySidebar:
-		result = append(result, s.App.Manager)
-	case sectionRoomSidebar, sectionRoomMain:
-		if room := s.currentRoom(); room != nil {
-			result = append(result, room)
-		}
+func (s roomSection) JawsGetTag() any {
+	if s.Kind == roomSectionSidebar {
+		return s.Player
 	}
-	return result
+	return []any{s.Player, s.App.Manager}
 }
 
-func (s *section) JawsContains(*jaws.Element) []jaws.UI {
-	dot := templateDot{App: s.App, Player: s.Player, Room: s.currentRoom()}
-	switch s.Kind {
-	case sectionLobbySidebar:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "lobby_sidebar.html", dot)}}
-	case sectionLobbyMain:
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "lobby_welcome_panel.html", dot)}}
-	case sectionRoomSidebar:
-		if s.currentRoom() != nil {
-			return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", "room_summary_panel.html", dot)}}
+func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
+	root := templateDot{App: s.App, Player: s.Player}
+	room := s.currentRoom()
+	if s.Kind == roomSectionSidebar {
+		if room != nil {
+			dot := roomTemplateDot{templateDot: root, Room: room}
+			result = []jaws.UI{jui.NewTemplate("div", "room_summary_panel.html", dot)}
 		}
-		return nil
-	default:
-		templateName := "room_single_panel.html"
-		if s.currentRoom() != nil {
-			templateName = "room_game_panel.html"
-		}
-		return []jaws.UI{&templateFrame{Template: jui.NewTemplate("", templateName, dot)}}
+		return
 	}
+
+	if room != nil {
+		roomDot := roomTemplateDot{templateDot: root, Room: room}
+		dot := gameTemplateDot{roomTemplateDot: roomDot}
+		result = []jaws.UI{jui.NewTemplate("div", "room_game_panel.html", dot)}
+		return
+	}
+
+	dot := roomTemplateDot{
+		templateDot: root,
+		Room:        s.App.Manager.Room(s.RequestedCode),
+	}
+	result = []jaws.UI{jui.NewTemplate("div", "room_single_panel.html", dot)}
+	return
 }
 
-func (s *section) currentRoom() (result *game.Room) {
-	if room := s.Player.Room(); room != nil {
-		if s.RequestedCode == "" || strings.EqualFold(room.Code(), s.RequestedCode) {
+func (s roomSection) currentRoom() (result *game.Room) {
+	if s.Player != nil {
+		if room := s.Player.Room(); room != nil && room.Code() == s.RequestedCode {
 			result = room
 		}
 	}

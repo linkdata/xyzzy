@@ -12,10 +12,10 @@
   <div class="container-fluid" style="margin-top:4.5rem">
     <div class="row g-3">
       <div class="col-md-3">
-        {{$.Container "div" .LobbySidebar}}
+        {{$.Template "div" "lobby_sidebar.html" . .App.Manager}}
       </div>
       <div class="col-md-9">
-        {{$.Container "div" .LobbyMain}}
+        {{template "lobby_welcome_panel.html"}}
       </div>
     </div>
   </div>

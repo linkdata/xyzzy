@@ -1,85 +1,62 @@
 package ui
 
 import (
-	"html/template"
-	"strings"
-	"sync"
-
 	"github.com/linkdata/jaws"
-	"github.com/linkdata/jaws/lib/bind"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-type taggedBinder[T comparable] struct {
-	bind.Binder[T]
-	tag any
-}
-
-func (b taggedBinder[T]) JawsGetTag() (result any) {
-	result = b.tag
-	return
-}
-
-type roomDeckTag struct {
-	Room *game.Room
-	Deck *deck.Deck
-}
-
 type templateDot struct {
-	App *App
-	*game.Player
-	*game.Room
+	App    *App
+	Player *game.Player
 }
 
-func (d templateDot) OnlinePlayers() (result int) {
-	result = int(d.App.activeWebSockets.Load())
+// JawsGetTag leaves live-region dependencies to the rendered children.
+func (templateDot) JawsGetTag() any { return nil }
+
+type roomTemplateDot struct {
+	templateDot
+	Room *game.Room
+}
+
+func (d roomTemplateDot) JawsGetTag() (result any) {
+	if d.Room != nil {
+		result = d.Room
+	}
 	return
 }
 
-func (d templateDot) PublicRooms() (result []*game.Room) {
-	result = d.App.Manager.PublicRooms()
-	return
+type gameTemplateDot struct {
+	roomTemplateDot
 }
 
-func (d templateDot) RoomByCode(code string) (result *game.Room) {
-	result = d.App.Manager.Room(code)
-	return
-}
-
-func (d templateDot) LobbySidebar() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbySidebar}
-	return
-}
-
-func (d templateDot) LobbyMain() (result jaws.Container) {
-	result = &section{App: d.App, Player: d.Player, Kind: sectionLobbyMain}
-	return
+func (d gameTemplateDot) JawsGetTag() any {
+	return []any{d.Player, d.Room}
 }
 
 func (d templateDot) RoomSidebar(code string) (result jaws.Container) {
-	result = &section{
+	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
-		Kind:          sectionRoomSidebar,
+		Kind:          roomSectionSidebar,
 	}
 	return
 }
 
 func (d templateDot) RoomMain(code string) (result jaws.Container) {
-	result = &section{
+	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
 		RequestedCode: normalizeRoomCode(code),
-		Kind:          sectionRoomMain,
+		Kind:          roomSectionMain,
 	}
 	return
 }
 
-func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
-	return jui.New("Save Nickname").Clicked(func(obj jui.Object, elem *jaws.Element, click jaws.Click) (err error) {
+func (d templateDot) SaveNicknameButton() (result jui.Object) {
+	result = jui.New("Save Nickname").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) {
 		d.App.setNickname(d.Player, d.Player.NicknameInputValue())
 		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room())
 		redirectURL := elem.Request.Initial().URL.RequestURI()
@@ -89,10 +66,11 @@ func (d templateDot) SaveNicknameClick() jaws.ClickHandler {
 		elem.Request.Redirect(redirectURL)
 		return
 	})
+	return
 }
 
-func (d templateDot) CreateRoomClick() jaws.ClickHandler {
-	return jui.New("Create Room").Clicked(func(obj jui.Object, elem *jaws.Element, click jaws.Click) (err error) {
+func (d templateDot) CreateRoomButton() (result jui.Object) {
+	result = jui.New("Create Room").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) {
 		if current := d.Player.Room(); current != nil {
 			elem.Request.Redirect(d.App.RoomURL(current.Code()))
 			return
@@ -107,195 +85,51 @@ func (d templateDot) CreateRoomClick() jaws.ClickHandler {
 		}
 		return
 	})
+	return
 }
 
 func (d templateDot) DisplayNickname() (result string) {
-	if d.Room != nil {
-		result = d.Room.NicknameFor(d.Player)
-		if result != "" {
-			return
-		}
-	}
 	if d.Player != nil {
+		if room := d.Player.Room(); room != nil {
+			result = room.NicknameFor(d.Player)
+			if result != "" {
+				return
+			}
+		}
 		result = d.Player.NicknameValue()
 	}
 	return
 }
 
-func (d templateDot) OrderedDecks() (result []*deck.Deck) {
-	result = d.App.Catalog.OrderedDecks()
+func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) {
+	result = deckInput{Room: d.Room, Player: d.Player, Deck: selectedDeck}
 	return
 }
 
-func (d templateDot) DeckToggle(deck *deck.Deck) (result bind.Binder[bool]) {
-	value := false
-	room := d.Room
-	binder := bind.New(&sync.Mutex{}, &value).
-		GetLocked(func(bind bind.Binder[bool], elem *jaws.Element) (result bool) {
-			result = room.DeckEnabled(deck)
-			return
-		}).
-		SetLocked(func(bind bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
-			if err = room.SetDeckEnabled(d.Player, deck, value); err == nil {
-				elem.Dirty(room)
-			}
-			return
-		})
-	result = taggedBinder[bool]{Binder: binder, tag: roomDeckTag{Room: room, Deck: deck}}
-	return
-}
-
-func (d templateDot) DeckToggleAttrs() (result template.HTMLAttr) {
-	if !d.Room.IsHost(d.Player) || d.Room.State() != game.StateLobby {
-		result = `disabled`
-	}
-	return
-}
-
-func (d templateDot) HandCardView(card *deck.WhiteCard) (result whiteCardView) {
-	result = whiteCardView{Room: d.Room, Player: d.Player, Card: card, SelectionOrder: d.Room.SelectionOrderFor(d.Player, card)}
-	return
-}
-
-func (d templateDot) HandCardViews() (result []whiteCardView) {
+func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
 	cards := d.Room.HandFor(d.Player)
 	result = make([]whiteCardView, 0, len(cards))
 	for _, card := range cards {
-		result = append(result, d.HandCardView(card))
+		result = append(result, whiteCardView{
+			Room:           d.Room,
+			Player:         d.Player,
+			Card:           card,
+			SelectionOrder: d.Room.SelectionOrderFor(d.Player, card),
+		})
 	}
 	return
 }
 
-func (d templateDot) CardAttrs() (result template.HTMLAttr) {
-	if !d.Room.CanSubmit(d.Player) {
-		result = `disabled`
-	}
-	return
-}
-
-func (d templateDot) CardClass(card *deck.WhiteCard) (result template.HTMLAttr) {
-	class := `class="card-face card-face-white w-100 text-start`
-	if d.Room.CardSelected(d.Player, card) {
-		class += ` is-selected`
-	}
-	result = template.HTMLAttr(class + `"`)
-	return
-}
-
-func (d templateDot) SubmissionView(submission *game.Submission) (result submissionView) {
-	result = submissionView{Room: d.Room, Player: d.Player, Submission: submission}
-	return
-}
-
-func (d templateDot) SubmissionViews() (result []submissionView) {
+func (d gameTemplateDot) SubmissionViews() (result []submissionView) {
 	submissions := d.Room.Submissions()
 	result = make([]submissionView, 0, len(submissions))
 	for _, submission := range submissions {
-		result = append(result, d.SubmissionView(submission))
+		result = append(result, submissionView{Room: d.Room, Player: d.Player, Submission: submission})
 	}
 	return
 }
 
-func (d templateDot) SubmissionAttrs() (result template.HTMLAttr) {
-	if !d.Room.CanJudge(d.Player) {
-		result = `disabled`
-	}
-	return
-}
-
-func (d templateDot) SubmissionClass(submission *game.Submission) (result template.HTMLAttr) {
-	class := `class="card-face card-face-white w-100 text-start`
-	if d.Room.IsWinningSubmission(submission) {
-		class += ` is-winning`
-	}
-	if d.Room.SubmissionSelected(d.Player, submission) {
-		class += ` is-selected`
-	}
-	result = template.HTMLAttr(class + `"`)
-	return
-}
-
-func (d templateDot) PrivateToggle() (result bind.Binder[bool]) {
-	result = d.Room.PrivateToggle(d.Player)
-	return
-}
-
-func (d templateDot) PrivateToggleAttrs() (result template.HTMLAttr) {
-	result = d.Room.PrivateToggleAttrs(d.Player)
-	return
-}
-
-func (d templateDot) ScoreTargetSlider() (result bind.Binder[int]) {
-	result = d.Room.ScoreTargetSlider(d.Player)
-	return
-}
-
-func (d templateDot) ScoreTargetAttrs() (result template.HTMLAttr) {
-	result = d.Room.ScoreTargetAttrs(d.Player)
-	return
-}
-
-func (d templateDot) StartGameClick() (result jaws.ClickHandler) {
-	result = d.Room.StartGameClick(d.Player)
-	return
-}
-
-func (d templateDot) StartGameAttrs() (result template.HTMLAttr) {
-	result = d.Room.StartGameAttrs(d.Player)
-	return
-}
-
-func (d templateDot) CanSubmit() (result bool) {
-	result = d.Room.CanSubmit(d.Player)
-	return
-}
-
-func (d templateDot) SubmitCardsClick() (result jaws.ClickHandler) {
-	result = d.Room.SubmitCardsClick(d.Player)
-	return
-}
-
-func (d templateDot) SubmitCardsAttrs() (result template.HTMLAttr) {
-	result = d.Room.SubmitCardsAttrs(d.Player)
-	return
-}
-
-func (d templateDot) HandFor() (result []*deck.WhiteCard) {
-	result = d.Room.HandFor(d.Player)
-	return
-}
-
-func (d templateDot) CanJudge() (result bool) {
-	result = d.Room.CanJudge(d.Player)
-	return
-}
-
-func (d templateDot) JudgeClick() (result jaws.ClickHandler) {
-	result = d.Room.JudgeClick(d.Player)
-	return
-}
-
-func (d templateDot) JudgeAttrs() (result template.HTMLAttr) {
-	result = d.Room.JudgeAttrs(d.Player)
-	return
-}
-
-func (d templateDot) CanProceed() (result bool) {
-	result = d.Room.CanProceed(d.Player)
-	return
-}
-
-func (d templateDot) ProceedReviewClick() (result jaws.ClickHandler) {
-	result = d.Room.ProceedReviewClick(d.Player)
-	return
-}
-
-func (d templateDot) ProceedReviewAttrs() (result template.HTMLAttr) {
-	result = d.Room.ProceedReviewAttrs(d.Player)
-	return
-}
-
-func (d templateDot) WaitingTitle() (result string) {
+func (d gameTemplateDot) WaitingTitle() (result string) {
 	switch d.Room.State() {
 	case game.StateJudging:
 		if judge := d.Room.JudgeName(); judge != "" {
@@ -303,21 +137,19 @@ func (d templateDot) WaitingTitle() (result string) {
 			return
 		}
 		result = "Waiting for the judge"
-		return
 	case game.StatePlaying:
 		if d.Room.IsJudge(d.Player) {
 			result = "Waiting for answers"
 			return
 		}
 		result = "Waiting for the rest of the table"
-		return
 	default:
 		result = "Waiting"
-		return
 	}
+	return
 }
 
-func (d templateDot) WaitingDetail() (result string) {
+func (d gameTemplateDot) WaitingDetail() (result string) {
 	if d.Room.State() != game.StatePlaying {
 		return
 	}
@@ -331,68 +163,21 @@ func (d templateDot) WaitingDetail() (result string) {
 	return
 }
 
-func (d templateDot) BlackFootnote(card *deck.BlackCard) (result string) {
-	deckName := d.Room.FirstSelectedDeckNameForBlackCard(card)
-	number := strings.Map(func(r rune) (result rune) {
-		if r >= '0' && r <= '9' {
-			result = r
-			return
-		}
-		result = -1
-		return
-
-	}, card.ID)
-	switch {
-	case deckName == "":
-		result = number
-		return
-	case number == "":
-		result = deckName
-		return
-	default:
-		result = deckName + " · " + number
-		return
-	}
+func (d gameTemplateDot) BlackFootnote(card *deck.BlackCard) (result string) {
+	result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
+	return
 }
 
-func (d templateDot) StateBadgeClass() (result string) {
+func (d roomTemplateDot) StateBadgeClass() (result string) {
 	switch d.Room.State() {
 	case game.StateLobby:
 		result = "bg-secondary"
-		return
 	case game.StatePlaying:
 		result = "bg-success"
-		return
 	case game.StateReview:
 		result = "bg-info text-dark"
-		return
 	default:
 		result = "bg-warning text-dark"
-		return
 	}
-}
-
-func (d templateDot) PlayerHost(player *game.Player) (result bool) {
-	result = d.Room.IsHost(player)
-	return
-}
-
-func (d templateDot) PlayerJudge(player *game.Player) (result bool) {
-	result = d.Room.IsJudge(player)
-	return
-}
-
-func (d templateDot) PlayerScore(player *game.Player) (result int) {
-	result = d.Room.ScoreFor(player)
-	return
-}
-
-func (d templateDot) PlayerSubmitted(player *game.Player) (result bool) {
-	result = d.Room.SubmittedBy(player)
-	return
-}
-
-func (d templateDot) PlayerNickname(player *game.Player) (result string) {
-	result = d.Room.NicknameFor(player)
 	return
 }

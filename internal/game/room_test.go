@@ -2,7 +2,9 @@ package game
 
 import (
 	"errors"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -410,6 +412,139 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("expected review timer to auto-advance, got %s", room.State())
+}
+
+func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := &Manager{}
+		judge := testPlayer("Judge")
+		winner := testPlayer("Winner")
+		room := &Room{
+			manager:     manager,
+			state:       StateJudging,
+			players:     []*Player{judge, winner},
+			host:        judge,
+			czarIndex:   0,
+			reviewDelay: 2500 * time.Millisecond,
+		}
+
+		var notificationsMu sync.Mutex
+		var notifications [][]any
+		manager.SetDirty(func(tags ...any) {
+			notificationsMu.Lock()
+			notifications = append(notifications, append([]any(nil), tags...))
+			notificationsMu.Unlock()
+		})
+		notificationSnapshot := func() (result [][]any) {
+			notificationsMu.Lock()
+			defer notificationsMu.Unlock()
+			result = append([][]any(nil), notifications...)
+			return
+		}
+
+		room.mu.Lock()
+		room.beginReviewLocked(winner, nil, true)
+		room.mu.Unlock()
+		countdown := room.Review(winner).Status
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 3 seconds." {
+			t.Fatalf("initial Countdown = %q", got)
+		}
+
+		synctest.Wait()
+		if got := notificationSnapshot(); len(got) != 0 {
+			t.Fatalf("notifications before first boundary = %#v", got)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+		synctest.Wait()
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 2 seconds." {
+			t.Fatalf("Countdown after first boundary = %q", got)
+		}
+		gotNotifications := notificationSnapshot()
+		if len(gotNotifications) != 1 || len(gotNotifications[0]) != 1 || gotNotifications[0][0] != &room.reviewDeadline {
+			t.Fatalf("notifications after first boundary = %#v", gotNotifications)
+		}
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 1 second." {
+			t.Fatalf("Countdown after second boundary = %q", got)
+		}
+		gotNotifications = notificationSnapshot()
+		if len(gotNotifications) != 2 || len(gotNotifications[1]) != 1 || gotNotifications[1][0] != &room.reviewDeadline {
+			t.Fatalf("notifications after second boundary = %#v", gotNotifications)
+		}
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if got := room.State(); got != StateLobby {
+			t.Fatalf("State() at deadline = %s, want %s", got, StateLobby)
+		}
+		gotNotifications = notificationSnapshot()
+		if len(gotNotifications) != 3 || len(gotNotifications[2]) != 1 || gotNotifications[2][0] != room {
+			t.Fatalf("notifications at deadline = %#v", gotNotifications)
+		}
+		if room.reviewTimer != nil {
+			t.Fatalf("reviewTimer at deadline = %v, want nil", room.reviewTimer)
+		}
+
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		if got := notificationSnapshot(); len(got) != 3 {
+			t.Fatalf("notifications after review ended = %#v", got)
+		}
+	})
+}
+
+func TestProceedReviewStopsCountdownUpdates(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := &Manager{}
+		judge := testPlayer("Judge")
+		winner := testPlayer("Winner")
+		room := &Room{
+			manager:     manager,
+			state:       StateJudging,
+			players:     []*Player{judge, winner},
+			host:        judge,
+			czarIndex:   0,
+			reviewDelay: 2500 * time.Millisecond,
+		}
+
+		var notificationsMu sync.Mutex
+		var notifications int
+		manager.SetDirty(func(...any) {
+			notificationsMu.Lock()
+			notifications++
+			notificationsMu.Unlock()
+		})
+		notificationCount := func() (result int) {
+			notificationsMu.Lock()
+			result = notifications
+			notificationsMu.Unlock()
+			return
+		}
+
+		room.mu.Lock()
+		room.beginReviewLocked(winner, nil, true)
+		room.mu.Unlock()
+		time.Sleep(500 * time.Millisecond)
+		synctest.Wait()
+		if got := notificationCount(); got != 1 {
+			t.Fatalf("notification count after first boundary = %d, want 1", got)
+		}
+
+		if err := room.ProceedReview(judge); err != nil {
+			t.Fatalf("ProceedReview() error = %v", err)
+		}
+		if room.reviewTimer != nil {
+			t.Fatalf("reviewTimer after ProceedReview = %v, want nil", room.reviewTimer)
+		}
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		if got := notificationCount(); got != 1 {
+			t.Fatalf("notification count after ProceedReview = %d, want 1", got)
+		}
+	})
 }
 
 func TestJoinDuringGameRequiresEnoughCardsForAnotherPlayer(t *testing.T) {

@@ -1,24 +1,52 @@
 package ui
 
 import (
-	"slices"
+	"strings"
 
+	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-func applyCardSelection(player *game.Player, card *deck.WhiteCard, needPick int) (changed bool) {
-	if idx := slices.Index(player.SelectedCards, card); idx >= 0 {
-		player.SelectedCards = slices.Delete(player.SelectedCards, idx, idx+1)
-		return true
+type deckInput struct {
+	Room   *game.Room
+	Player *game.Player
+	Deck   *deck.Deck
+}
+
+func (d deckInput) JawsGet(*jaws.Element) (result bool) {
+	result = d.Room.DeckEnabled(d.Deck)
+	return
+}
+
+func (d deckInput) JawsSet(_ *jaws.Element, value bool) (err error) {
+	err = d.Room.SetDeckEnabled(d.Player, d.Deck, value)
+	return
+}
+
+func (d deckInput) JawsGetTag() (result any) {
+	if d.Room != nil {
+		result = d.Room
 	}
-	if needPick == 1 {
-		player.SelectedCards = []*deck.WhiteCard{card}
-		return true
+	return
+}
+
+func cardFootnote(deckName, cardID string) (result string) {
+	number := strings.Map(func(r rune) (result rune) {
+		if r >= '0' && r <= '9' {
+			result = r
+			return
+		}
+		result = -1
+		return
+	}, cardID)
+	switch {
+	case deckName == "":
+		result = number
+	case number == "":
+		result = deckName
+	default:
+		result = deckName + " · " + number
 	}
-	if len(player.SelectedCards) >= needPick {
-		return false
-	}
-	player.SelectedCards = append(player.SelectedCards, card)
-	return true
+	return
 }

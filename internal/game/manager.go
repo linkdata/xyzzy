@@ -91,6 +91,24 @@ func (m *Manager) PublicRooms() (result []*Room) {
 	return
 }
 
+// SetNickname updates the player's nickname for its current membership state.
+//
+// Membership cannot change until the update completes. A seated nickname is
+// made unique within its [Room]; a standalone nickname is only normalized. A
+// nil player is ignored.
+func (m *Manager) SetNickname(player *Player, nickname string) {
+	if player != nil {
+		nickname = NormalizeNickname(nickname)
+		m.mu.Lock()
+		if room := player.Room(); room != nil {
+			room.SetNickname(player, nickname)
+		} else {
+			player.SetStandaloneNickname(nickname)
+		}
+		m.mu.Unlock()
+	}
+}
+
 // JoinRoom seats the player in the room with the given code. The manager
 // lock is held for the whole operation so the room cannot be removed from
 // the registry by a concurrent leave between lookup and join.

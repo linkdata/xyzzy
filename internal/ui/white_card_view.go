@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"strings"
+	"html/template"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -16,27 +16,20 @@ type whiteCardView struct {
 }
 
 func (v whiteCardView) WhiteFootnote() (result string) {
-	deckName := v.Room.FirstSelectedDeckNameForWhiteCard(v.Card)
-	number := strings.Map(func(r rune) (result rune) {
-		if r >= '0' && r <= '9' {
-			result = r
-			return
-		}
-		result = -1
-		return
+	result = cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
+	return
+}
 
-	}, v.Card.ID)
-	switch {
-	case deckName == "":
-		result = number
-		return
-	case number == "":
-		result = deckName
-		return
-	default:
-		result = deckName + " · " + number
-		return
+func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
+	class := `class="card-face card-face-white w-100 text-start`
+	if v.Room.CardSelected(v.Player, v.Card) {
+		class += ` is-selected`
 	}
+	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
+	if !v.Room.CanSubmit(v.Player) {
+		result += ` disabled`
+	}
+	return
 }
 
 func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {

@@ -23,38 +23,7 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-func TestApplyCardSelectionReplacesSinglePickSelection(t *testing.T) {
-	w1 := &deck.WhiteCard{ID: "w1"}
-	w2 := &deck.WhiteCard{ID: "w2"}
-	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1}}
-
-	changed := applyCardSelection(player, w2, 1)
-
-	if len(player.SelectedCards) != 1 || player.SelectedCards[0] != w2 {
-		t.Fatalf("SelectedCards = %v, want [w2]", player.SelectedCards)
-	}
-	if !changed {
-		t.Fatalf("applyCardSelection() = (%v), want (true)", changed)
-	}
-}
-
-func TestApplyCardSelectionKeepsMultiPickLimit(t *testing.T) {
-	w1 := &deck.WhiteCard{ID: "w1"}
-	w2 := &deck.WhiteCard{ID: "w2"}
-	w3 := &deck.WhiteCard{ID: "w3"}
-	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1, w2}}
-
-	changed := applyCardSelection(player, w3, 2)
-
-	if len(player.SelectedCards) != 2 || player.SelectedCards[0] != w1 || player.SelectedCards[1] != w2 {
-		t.Fatalf("SelectedCards = %v, want unchanged", player.SelectedCards)
-	}
-	if changed {
-		t.Fatalf("applyCardSelection() = (%v), want no mutation", changed)
-	}
-}
-
-func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
+func TestRoomTargetScoreBinderRespectsPermissions(t *testing.T) {
 	app, _ := testPlayableApp(t)
 
 	hostSess := newTestSession(t, app)
@@ -72,7 +41,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
 
-	guestSlider := room.ScoreTargetSlider(guest)
+	guestSlider := room.TargetScoreBinder(guest)
 	if err := guestSlider.JawsSet(newScoreTargetElement(app, guestSlider), 8); err != game.ErrOnlyHostCanEdit {
 		t.Fatalf("guestSlider.JawsSet() error = %v, want %v", err, game.ErrOnlyHostCanEdit)
 	}
@@ -80,7 +49,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("TargetScore after non-host set = %d, want %d", got, game.ScoreGoal)
 	}
 
-	hostSlider := room.ScoreTargetSlider(host)
+	hostSlider := room.TargetScoreBinder(host)
 	if err := hostSlider.JawsSet(newScoreTargetElement(app, hostSlider), 8); err != nil {
 		t.Fatalf("hostSlider.JawsSet() error = %v", err)
 	}
@@ -92,7 +61,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	lockedSlider := room.ScoreTargetSlider(host)
+	lockedSlider := room.TargetScoreBinder(host)
 	if err := lockedSlider.JawsSet(newScoreTargetElement(app, lockedSlider), 10); err != game.ErrGameInProgress {
 		t.Fatalf("lockedSlider.JawsSet() error = %v, want %v", err, game.ErrGameInProgress)
 	}
@@ -101,7 +70,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	}
 }
 
-func TestRoomScoreTargetSliderAllowsOneInDebug(t *testing.T) {
+func TestRoomTargetScoreBinderAllowsOneInDebug(t *testing.T) {
 	app, mux := testPlayableAppWithOptions(t, game.Options{MinPlayers: 2, Debug: true})
 	handler := app.Middleware(mux)
 
@@ -113,7 +82,7 @@ func TestRoomScoreTargetSliderAllowsOneInDebug(t *testing.T) {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	slider := room.ScoreTargetSlider(host)
+	slider := room.TargetScoreBinder(host)
 	if err := slider.JawsSet(newScoreTargetElement(app, slider), 1); err != nil {
 		t.Fatalf("slider.JawsSet() error = %v", err)
 	}
@@ -150,18 +119,55 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
-	slider := room.ScoreTargetSlider(player)
+	slider := room.TargetScoreBinder(player)
 	if err := slider.JawsSet(newScoreTargetElement(h.app, slider), 7); err != nil {
 		t.Fatalf("slider.JawsSet() error = %v", err)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 5*time.Second)
 	defer done()
 	if err := readUntilScoreTargetUpdate(ctx, conn, "7"); err != nil {
 		t.Fatalf("readUntilScoreTargetUpdate() error = %v", err)
 	}
 	if got := room.TargetScore(); got != 7 {
 		t.Fatalf("TargetScore = %d, want 7", got)
+	}
+}
+
+func TestDeckInputReadsWritesAndTagsRoom(t *testing.T) {
+	app, _ := testPlayableApp(t)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	base := app.Catalog.DeckByID("base")
+	input := deckInput{Room: room, Player: host, Deck: base}
+	elem := app.Jaws.NewRequest(httptest.NewRecorder(), nil).NewElement(jui.NewCheckbox(input))
+	if got := input.JawsGet(elem); !got {
+		t.Fatalf("JawsGet() = %v, want selected", got)
+	}
+	if got := input.JawsGetTag(); got != room {
+		t.Fatalf("JawsGetTag() = %v, want Room", got)
+	}
+	if err := input.JawsSet(elem, false); err != nil {
+		t.Fatalf("JawsSet(false) error = %v", err)
+	}
+	if got := input.JawsGet(elem); got {
+		t.Fatalf("JawsGet() after disable = %v, want unselected", got)
+	}
+	if err := input.JawsSet(elem, true); err != nil {
+		t.Fatalf("JawsSet(true) error = %v", err)
+	}
+	if got := input.JawsGet(elem); !got {
+		t.Fatalf("JawsGet() after enable = %v, want selected", got)
+	}
+	if got := (deckInput{}).JawsGetTag(); got != nil {
+		t.Fatalf("zero deckInput JawsGetTag() = %v, want nil", got)
 	}
 }
 
@@ -442,9 +448,16 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	if strings.Contains(body, `<button class="card-face card-face-white`) {
 		t.Fatalf("expected hand cards to render as clickable template elements instead of buttons, got %s", body)
 	}
-	if !strings.Contains(body, `data-jawstemplate class="card-face card-face-white`) ||
-		!strings.Contains(body, `role="button"`) ||
-		!strings.Contains(body, "White card") {
+	hasHandCard := false
+	for _, tag := range regexp.MustCompile(`<div\b[^>]*>`).FindAllString(body, -1) {
+		if strings.Contains(tag, `data-jawstemplate`) &&
+			strings.Contains(tag, `class="card-face card-face-white`) &&
+			strings.Contains(tag, `role="button"`) {
+			hasHandCard = true
+			break
+		}
+	}
+	if !hasHandCard || !strings.Contains(body, "White card") {
 		t.Fatalf("expected hand cards to render as clickable template elements, got %s", body)
 	}
 }
@@ -479,13 +492,17 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	card := hand[0]
 
-	dot := templateDot{App: app, Player: guest, Room: room}
-	view := dot.HandCardView(card)
+	view := whiteCardView{
+		Room:           room,
+		Player:         guest,
+		Card:           card,
+		SelectionOrder: room.SelectionOrderFor(guest, card),
+	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -509,6 +526,49 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	if len(guest.SelectedCards) != 0 {
 		t.Fatalf("SelectedCards after second click = %#v, want empty", guest.SelectedCards)
+	}
+}
+
+func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
+	app, _ := testPlayableApp(t)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	card := room.HandFor(guest)[0]
+	view := whiteCardView{Room: room, Player: guest, Card: card}
+	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("initial attributes = %q, want enabled unselected card", attr)
+	}
+
+	if !room.ToggleCardSelection(guest, card) {
+		t.Fatal("ToggleCardSelection() did not select card")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("selected attributes = %q, want enabled selected card", attr)
+	}
+
+	blocked := whiteCardView{Room: room, Player: host, Card: card}
+	if attr = string(blocked.JawsInitialHTMLAttr(new(jaws.Element))); !strings.Contains(attr, "disabled") {
+		t.Fatalf("judge attributes = %q, want disabled", attr)
 	}
 }
 
@@ -552,13 +612,12 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	submission := submissions[0]
 
-	dot := templateDot{App: app, Player: host, Room: room}
-	view := dot.SubmissionView(submission)
+	view := submissionView{Room: room, Player: host, Submission: submission}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -582,6 +641,55 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	if host.SelectedSubmission != nil {
 		t.Fatalf("SelectedSubmission after second click = %#v, want nil", host.SelectedSubmission)
+	}
+}
+
+func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
+	app, _ := testPlayableApp(t)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.setNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.setNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	hand := room.HandFor(guest)
+	if err := room.PlayCards(guest, []*deck.WhiteCard{hand[0]}); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	submission := room.Submissions()[0]
+	view := submissionView{Room: room, Player: host, Submission: submission}
+	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
+		t.Fatalf("initial attributes = %q, want enabled unselected submission", attr)
+	}
+
+	if !room.ToggleSubmissionSelection(host, submission) {
+		t.Fatal("ToggleSubmissionSelection() did not select submission")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
+	}
+
+	if err := room.Judge(host, submission); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
+		t.Fatalf("review attributes = %q, want disabled winning submission", attr)
 	}
 }
 
@@ -678,27 +786,47 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 		t.Fatalf("State() = %s, want %s", room.State(), game.StateReview)
 	}
 
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(hostSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	renderRoom := func(sess *jaws.Session) (result string) {
+		t.Helper()
+		roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+		roomReq.SetPathValue("code", room.Code())
+		roomReq.AddCookie(sess.Cookie())
+		roomRec := httptest.NewRecorder()
+		handler.ServeHTTP(roomRec, roomReq)
+		if roomRec.Code != http.StatusOK {
+			t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+		}
+		result = roomRec.Body.String()
+		return
 	}
 
-	body := roomRec.Body.String()
+	body := renderRoom(hostSess)
 	if !strings.Contains(body, "Bob won the round!") {
 		t.Fatalf("expected round winner title, got %s", body)
 	}
-	if !strings.Contains(body, "review-countdown-button") || !strings.Contains(body, "data-review-deadline=") {
-		t.Fatalf("expected review proceed button with countdown data, got %s", body)
+	if !strings.Contains(body, `class="btn btn-primary review-countdown-button"`) {
+		t.Fatalf("expected review proceed button, got %s", body)
+	}
+	if !regexp.MustCompile(`>Next Round \([1-9][0-9]*\)</button>`).MatchString(body) {
+		t.Fatalf("expected server-rendered review countdown label, got %s", body)
+	}
+	if strings.Contains(body, "data-review-") {
+		t.Fatalf("judge review used client-side countdown attributes: %s", body)
 	}
 	if !strings.Contains(body, "room-player-winner") || !strings.Contains(body, "winner</span>") {
 		t.Fatalf("expected sidebar winner highlight, got %s", body)
 	}
 	if !strings.Contains(body, "is-winning") {
 		t.Fatalf("expected winning submission highlight, got %s", body)
+	}
+
+	body = renderRoom(guestSess)
+	if !strings.Contains(body, `class="small text-muted"`) ||
+		!regexp.MustCompile(`>Next round in [1-9][0-9]* seconds\.</span>`).MatchString(body) {
+		t.Fatalf("expected non-judge JaWS countdown span, got %s", body)
+	}
+	if strings.Contains(body, "review-countdown-button") || strings.Contains(body, "data-review-") {
+		t.Fatalf("non-judge review rendered a button or client-side countdown attributes: %s", body)
 	}
 }
 
