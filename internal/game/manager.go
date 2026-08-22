@@ -99,13 +99,13 @@ func (m *Manager) PublicRooms() (result []*Room) {
 func (m *Manager) SetNickname(player *Player, nickname string) {
 	if player != nil {
 		nickname = NormalizeNickname(nickname)
-		m.mu.Lock()
+		m.mu.RLock()
 		if room := player.Room(); room != nil {
 			room.SetNickname(player, nickname)
 		} else {
 			player.SetStandaloneNickname(nickname)
 		}
-		m.mu.Unlock()
+		m.mu.RUnlock()
 	}
 }
 

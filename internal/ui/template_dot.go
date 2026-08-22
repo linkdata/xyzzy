@@ -31,6 +31,11 @@ type gameTemplateDot struct {
 	roomTemplateDot
 }
 
+func (d templateDot) OnlineCount() (result int) {
+	_, result = d.App.Jaws.RequestCounts()
+	return
+}
+
 func (d gameTemplateDot) JawsGetTag() any {
 	return []any{d.Player, d.Room}
 }
@@ -108,6 +113,7 @@ func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) {
 
 func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
 	cards := d.Room.HandFor(d.Player)
+	enabled := d.Room.CanSubmit(d.Player)
 	result = make([]whiteCardView, 0, len(cards))
 	for _, card := range cards {
 		result = append(result, whiteCardView{
@@ -115,6 +121,7 @@ func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
 			Player:         d.Player,
 			Card:           card,
 			SelectionOrder: d.Room.SelectionOrderFor(d.Player, card),
+			Enabled:        enabled,
 		})
 	}
 	return

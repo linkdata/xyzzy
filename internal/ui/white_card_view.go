@@ -13,6 +13,7 @@ type whiteCardView struct {
 	Room           *game.Room
 	Card           *deck.WhiteCard
 	SelectionOrder int
+	Enabled        bool
 }
 
 func (v whiteCardView) WhiteFootnote() (result string) {
@@ -21,12 +22,20 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 }
 
 func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
+	result = cardInitialHTMLAttr(v.SelectionOrder > 0, false, !v.Enabled)
+	return
+}
+
+func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTMLAttr) {
 	class := `class="card-face card-face-white w-100 text-start`
-	if v.Room.CardSelected(v.Player, v.Card) {
+	if winning {
+		class += ` is-winning`
+	}
+	if selected {
 		class += ` is-selected`
 	}
 	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-	if !v.Room.CanSubmit(v.Player) {
+	if disabled {
 		result += ` disabled`
 	}
 	return

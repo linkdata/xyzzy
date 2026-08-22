@@ -392,11 +392,37 @@ func TestLobbyRenders(t *testing.T) {
 	if player, _ := sess.Get(sessionKeyPlayer).(*game.Player); player == nil {
 		t.Fatal("expected lobby GET to store its Player before rendering")
 	}
+	if !strings.Contains(body, "0 online") {
+		t.Fatalf("expected lobby body to show zero online, got %s", body)
+	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
 	if !strings.Contains(body, "Create Room") {
 		t.Fatalf("expected lobby body to include create-room button, got %s", body)
+	}
+}
+
+func TestLobbyShowsCurrentOnlineRequestCount(t *testing.T) {
+	h := newLiveHarness(t)
+
+	firstHTML := h.get(t, "/")
+	session := h.session(t)
+	_, firstCancel := h.connect(t, firstHTML)
+	defer firstCancel()
+
+	secondHTML := h.get(t, "/")
+	if h.session(t) != session {
+		t.Fatal("second tab did not reuse the first tab's session")
+	}
+	if !strings.Contains(secondHTML, "1 online") {
+		t.Fatalf("expected second tab to show one online, got %s", secondHTML)
+	}
+	_, secondCancel := h.connect(t, secondHTML)
+	defer secondCancel()
+
+	if body := h.getWithClient(t, h.newClient(t), "/"); !strings.Contains(body, "2 online") {
+		t.Fatalf("expected lobby body to show two online, got %s", body)
 	}
 }
 

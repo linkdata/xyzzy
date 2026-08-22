@@ -161,7 +161,6 @@ type ReviewRender struct {
 // review, Review returns the zero value.
 func (r *Room) Review(player *Player) (result ReviewRender) {
 	var active bool
-	var base string
 	var canProceed bool
 	var deadline time.Time
 	var gameWinner bool
@@ -170,7 +169,6 @@ func (r *Room) Review(player *Player) (result ReviewRender) {
 	r.mu.RLock()
 	if r.state == StateReview && r.reviewWinner != nil {
 		active = true
-		base = r.reviewButtonBaseLocked()
 		canProceed = player != nil && r.judgeLocked() == player
 		deadline = r.reviewDeadline
 		gameWinner = r.reviewGameWinner
@@ -187,11 +185,11 @@ func (r *Room) Review(player *Player) (result ReviewRender) {
 		result.Title = fmt.Sprintf("%s won the round!", winnerName)
 	}
 	if !canProceed {
-		result.Status = r.reviewCountdownGetter(deadline, base, gameWinner, false)
+		result.Status = r.reviewCountdownGetter(deadline, gameWinner, false)
 		return
 	}
 
-	result.Button = ui.New(r.reviewCountdownGetter(deadline, base, gameWinner, true)).
+	result.Button = ui.New(r.reviewCountdownGetter(deadline, gameWinner, true)).
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 			if err = r.ProceedReview(player); err == nil {
 				elem.Dirty(r)
@@ -201,9 +199,9 @@ func (r *Room) Review(player *Player) (result ReviewRender) {
 	return
 }
 
-func (r *Room) reviewCountdownGetter(deadline time.Time, base string, gameWinner, actionable bool) (result bind.Getter[string]) {
+func (r *Room) reviewCountdownGetter(deadline time.Time, gameWinner, actionable bool) (result bind.Getter[string]) {
 	result = bind.StringGetterFunc(func(*jaws.Element) string {
-		return reviewCountdownText(base, gameWinner, reviewCountdown(time.Now(), deadline), actionable)
+		return reviewCountdownText(gameWinner, reviewCountdown(time.Now(), deadline), actionable)
 	}, &r.reviewDeadline)
 	return
 }
@@ -216,11 +214,14 @@ func reviewCountdown(now, deadline time.Time) (result int) {
 	return
 }
 
-func reviewCountdownText(base string, gameWinner bool, countdown int, actionable bool) (result string) {
+func reviewCountdownText(gameWinner bool, countdown int, actionable bool) (result string) {
 	if actionable {
-		result = base
+		result = "Next Round"
+		if gameWinner {
+			result = "Back to Lobby"
+		}
 		if countdown > 0 {
-			result = fmt.Sprintf("%s (%d)", base, countdown)
+			result = fmt.Sprintf("%s (%d)", result, countdown)
 		}
 		return
 	}

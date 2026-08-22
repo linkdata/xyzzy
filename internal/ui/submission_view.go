@@ -21,17 +21,11 @@ func (v submissionView) Cards() (result []whiteCardView) {
 }
 
 func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	class := `class="card-face card-face-white w-100 text-start`
-	if v.Room.IsWinningSubmission(v.Submission) {
-		class += ` is-winning`
-	}
-	if v.Room.SubmissionSelected(v.Player, v.Submission) {
-		class += ` is-selected`
-	}
-	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-	if !v.Room.CanJudge(v.Player) {
-		result += ` disabled`
-	}
+	result = cardInitialHTMLAttr(
+		v.Room.SubmissionSelected(v.Player, v.Submission),
+		v.Room.IsWinningSubmission(v.Submission),
+		!v.Room.CanJudge(v.Player),
+	)
 	return
 }
 

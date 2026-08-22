@@ -10,11 +10,6 @@
     {{template "room_game_judging.html" $}}
   {{else if eq $state "results"}}
     {{template "room_game_review.html" $}}
-  {{else}}
-  <div class="text-center py-5">
-    <h5>{{.WaitingTitle}}</h5>
-    {{with .WaitingDetail}}<p class="text-muted">{{.}}</p>{{end}}
-  </div>
   {{end}}
 {{end}}
 {{end}}

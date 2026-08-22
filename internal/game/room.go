@@ -267,12 +267,6 @@ func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result i
 	return
 }
 
-// CardSelected reports whether card is selected by player.
-func (r *Room) CardSelected(player *Player, card *deck.WhiteCard) (result bool) {
-	result = r.SelectionOrderFor(player, card) > 0
-	return
-}
-
 // ToggleCardSelection toggles card in player's current room selection.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
 	r.mu.Lock()
@@ -990,17 +984,6 @@ func (r *Room) clearReviewLocked() {
 	r.reviewWinner = nil
 	r.reviewSubmission = nil
 	r.reviewGameWinner = false
-}
-
-func (r *Room) reviewButtonBaseLocked() (result string) {
-	if r.state == StateReview {
-		if r.reviewGameWinner {
-			result = "Back to Lobby"
-		} else {
-			result = "Next Round"
-		}
-	}
-	return
 }
 
 func (r *Room) drawWhiteLocked() (result *deck.WhiteCard) {

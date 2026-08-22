@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"html/template"
 	"io"
+	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/linkdata/jaws"
+	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/jaws/lib/jid"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/jaws/lib/what"
@@ -438,6 +442,139 @@ func TestRoomMembershipChangesReconcileSectionChildren(t *testing.T) {
 	newSingleJID := immediateModeRootJID(t, leftMain.appended[0].Data)
 	if newSingleJID == singleJID || newSingleJID == summaryJID || newSingleJID == gameJID {
 		t.Fatalf("recreated single-panel child Jid = %v, want a new identity", newSingleJID)
+	}
+}
+
+func TestCleanupRefreshesRemainingPlayerRoomSummary(t *testing.T) {
+	h := newLiveHarness(t)
+	hostSession, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestClient := h.newClient(t)
+	h.getWithClient(t, guestClient, "/")
+	guestSession := h.sessionForClient(t, guestClient)
+	guest := h.app.player(guestSession, nil)
+	h.app.setNickname(guest, "Bob")
+	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+
+	pageHTML := h.getWithClient(t, guestClient, "/room/"+room.Code())
+	rq := immediateModeRequestForHTML(t, guestSession, pageHTML)
+	sidebarJID, mainJID := immediateModeRoomSectionJIDs(t, rq, guest, h.app.Manager)
+	summaryJID := immediateModeTemplateJID(t, rq, pageHTML, "room_summary_panel.html")
+	conn, cancel := h.connectWithClient(t, guestClient, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "cleanup-connected")
+
+	hostSession.Close()
+	h.app.cleanupExpired()
+	var summary wire.WsMsg
+	var sidebarChanges, mainChanges immediateModeChildChanges
+	observe := func(msg wire.WsMsg) {
+		sidebarChanges.observe(sidebarJID, msg)
+		mainChanges.observe(mainJID, msg)
+	}
+	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer done()
+	if err = reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		observe(msg)
+		if msg.Jid == summaryJID && msg.What == what.Inner {
+			summary = msg
+			return true
+		}
+		return false
+	}); err != nil {
+		t.Fatalf("waiting for room summary cleanup update: %v", err)
+	}
+	drainImmediateModeAlert(t, rq, reader, "cleanup-refreshed", observe)
+
+	if strings.Contains(summary.Data, "Alice") || !strings.Contains(summary.Data, "Bob") {
+		t.Fatalf("room summary after cleanup = %q, want Bob without Alice", summary.Data)
+	}
+	if len(sidebarChanges.removed) != 0 || len(sidebarChanges.appended) != 0 ||
+		len(mainChanges.removed) != 0 || len(mainChanges.appended) != 0 {
+		t.Fatalf("cleanup changed room-section children: sidebar=%+v main=%+v", sidebarChanges, mainChanges)
+	}
+}
+
+func TestCreateRoomDirtiesPlayerMembershipAcrossLiveRequests(t *testing.T) {
+	app, mux := testApp(t)
+	player := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}
+	roomCode := bind.StringGetterFunc(func(*jaws.Element) (result string) {
+		result = "Not seated"
+		if room := player.Room(); room != nil {
+			result = room.Code()
+		}
+		return
+	}, player)
+
+	const templateName = "player_room_membership_test.html"
+	templates, err := template.New(templateName).Parse(`<!doctype html>
+<html><head>{{$.HeadHTML}}</head><body>{{$.Span .Dot}}{{$.TailHTML}}</body></html>`)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if err = app.Jaws.AddTemplateLookuper(templates); err != nil {
+		t.Fatalf("AddTemplateLookuper() error = %v", err)
+	}
+	mux.Handle("GET /player-room-membership-test", jui.Handler(app.Jaws, templateName, roomCode))
+
+	server := httptest.NewServer(app.Middleware(mux))
+	t.Cleanup(server.Close)
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("url.Parse() error = %v", err)
+	}
+	h := &liveHarness{app: app, server: server, base: base}
+	h.client = h.newClient(t)
+	otherClient := h.newClient(t)
+	firstHTML := h.get(t, "/player-room-membership-test")
+	secondHTML := h.getWithClient(t, otherClient, "/player-room-membership-test")
+	spanJID := func(markup string) jid.Jid {
+		return immediateModeElementJID(t, markup, immediateModeSpanRE, func(map[string]string) bool { return true })
+	}
+	firstJID := spanJID(firstHTML)
+	secondJID := spanJID(secondHTML)
+
+	firstConn, firstCancel := h.connect(t, firstHTML)
+	defer firstCancel()
+	secondConn, secondCancel := h.connectWithClient(t, otherClient, secondHTML)
+	defer secondCancel()
+	firstReader := newImmediateModeWireReader(t, firstConn)
+	secondReader := newImmediateModeWireReader(t, secondConn)
+	for i, conn := range []*websocket.Conn{firstConn, secondConn} {
+		ctx, cancel := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+		if err = conn.Ping(ctx); err != nil {
+			cancel()
+			t.Fatalf("connection %d Ping() error = %v", i, err)
+		}
+		cancel()
+	}
+
+	room, err := app.createRoom(player)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+	for i, peer := range []struct {
+		jid    jid.Jid
+		reader immediateModeWireReader
+	}{
+		{jid: firstJID, reader: firstReader},
+		{jid: secondJID, reader: secondReader},
+	} {
+		ctx, cancel := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+		err = peer.reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+			return msg.Jid == peer.jid && msg.What == what.Inner && msg.Data == room.Code()
+		})
+		cancel()
+		if err != nil {
+			t.Fatalf("waiting for player membership on connection %d: %v", i, err)
+		}
 	}
 }
 

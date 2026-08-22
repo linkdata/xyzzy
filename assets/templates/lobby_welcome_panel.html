@@ -1,3 +1,4 @@
+{{$online := .OnlineCount}}
 <div class="card mb-4">
   <div class="card-body">
     <h5 class="card-title">How to Play</h5>
@@ -12,5 +13,8 @@
       <li>The room host selects card packs and starts the game.</li>
       <li>Returning to the lobby leaves your current room immediately.</li>
     </ul>
+    <div class="mt-3 text-end">
+      <small class="text-muted">{{$online}} online</small>
+    </div>
   </div>
 </div>

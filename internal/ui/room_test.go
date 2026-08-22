@@ -497,6 +497,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		Player:         guest,
 		Card:           card,
 		SelectionOrder: room.SelectionOrderFor(guest, card),
+		Enabled:        true,
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
@@ -551,7 +552,7 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 	}
 
 	card := room.HandFor(guest)[0]
-	view := whiteCardView{Room: room, Player: guest, Card: card}
+	view := whiteCardView{Room: room, Player: guest, Card: card, Enabled: true}
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
 		strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
@@ -561,14 +562,20 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 	if !room.ToggleCardSelection(guest, card) {
 		t.Fatal("ToggleCardSelection() did not select card")
 	}
-	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	selected := view
+	selected.SelectionOrder = room.SelectionOrderFor(guest, card)
+	if !room.ToggleCardSelection(guest, card) {
+		t.Fatal("ToggleCardSelection() did not clear the captured selection")
+	}
+	attr = string(selected.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
-		t.Fatalf("selected attributes = %q, want enabled selected card", attr)
+		t.Fatalf("captured selected attributes = %q, want enabled selected card", attr)
 	}
 
-	blocked := whiteCardView{Room: room, Player: host, Card: card}
+	blocked := view
+	blocked.Enabled = false
 	if attr = string(blocked.JawsInitialHTMLAttr(new(jaws.Element))); !strings.Contains(attr, "disabled") {
-		t.Fatalf("judge attributes = %q, want disabled", attr)
+		t.Fatalf("disabled snapshot attributes = %q, want disabled", attr)
 	}
 }
 
