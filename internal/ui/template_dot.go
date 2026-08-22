@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"errors"
+	"strconv"
+
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	jui "github.com/linkdata/jaws/lib/ui"
@@ -11,6 +14,37 @@ import (
 type templateDot struct {
 	App    *App
 	Player *game.Player
+}
+
+type roomPageDot struct {
+	templateDot
+}
+
+var _ jaws.ConnectHandler = roomPageDot{}
+
+func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) {
+	roomCode := normalizeRoomCode(rq.Initial().PathValue("code"))
+	if _, err = d.App.joinRoom(d.Player, roomCode); err == nil {
+		return
+	}
+	if current := d.Player.Room(); current != nil {
+		err = nil
+		if current.Code() != roomCode {
+			rq.Redirect(d.App.RoomURL(current.Code()))
+		}
+		return
+	}
+	// These failures are normal rendered observer states. Returning one would
+	// close the WebSocket. Any intervening state change has already published its
+	// dependencies to pending and active Requests.
+	switch {
+	case errors.Is(err, game.ErrAlreadyInRoom),
+		errors.Is(err, game.ErrRoomNotFound),
+		errors.Is(err, game.ErrRoomFull),
+		errors.Is(err, game.ErrNotEnoughWhiteCards):
+		err = nil
+	}
+	return
 }
 
 // JawsGetTag leaves live-region dependencies to the rendered children.
@@ -98,6 +132,14 @@ func (d templateDot) DisplayNickname() (result bind.Getter[string]) {
 		nickname = d.App.playerNickname(d.Player)
 		return
 	}, d.Player)
+	return
+}
+
+func (d templateDot) OnlineCount() (result bind.Getter[string]) {
+	result = bind.StringGetterFunc(func(*jaws.Element) (count string) {
+		count = strconv.Itoa(d.App.Jaws.ActiveSessionCount())
+		return
+	}, d.App.Jaws.ActiveSessionCountTag())
 	return
 }
 

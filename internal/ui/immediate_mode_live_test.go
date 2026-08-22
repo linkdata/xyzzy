@@ -339,7 +339,7 @@ func immediateModeContainerMutation(msg wire.WsMsg) (result bool) {
 	return
 }
 
-func TestFullRoomViewerJoinsOnlyOnNextPageRequest(t *testing.T) {
+func TestRoomConnectClaimsSeatOpenedAfterGET(t *testing.T) {
 	h := newLiveHarness(t)
 	room, players := immediateModeFullRoom(t, h)
 	leaver := players[len(players)-1]
@@ -354,6 +354,9 @@ func TestFullRoomViewerJoinsOnlyOnNextPageRequest(t *testing.T) {
 	if !strings.Contains(fullHTML, "Not seated at this table") {
 		t.Fatalf("full-room page did not render the unseated panel: %s", fullHTML)
 	}
+	rq := immediateModeRequestForHTML(t, viewerSession, fullHTML)
+	sidebarJID, mainJID := immediateModeRoomSectionJIDs(t, rq, viewer, h.app.Manager)
+	singleJID := immediateModeTemplateJID(t, rq, fullHTML, "room_single_panel.html")
 
 	if leftRoom, empty := h.app.Manager.LeaveRoom(leaver); leftRoom != room || empty {
 		t.Fatalf("LeaveRoom() = (%v, %v), want (%v, false)", leftRoom, empty, room)
@@ -361,21 +364,34 @@ func TestFullRoomViewerJoinsOnlyOnNextPageRequest(t *testing.T) {
 	conn, cancel := h.connectWithClient(t, viewerClient, fullHTML)
 	defer cancel()
 	reader := newImmediateModeWireReader(t, conn)
-	rq := immediateModeRequestForHTML(t, viewerSession, fullHTML)
-	syncImmediateModeRequest(t, conn, rq, reader, "connected-after-seat-opened")
-	if viewer.Room() != nil || room.HasPlayer(viewer) {
-		t.Fatal("WebSocket connection joined a viewer after a seat opened")
+	var sidebarChanges, mainChanges immediateModeChildChanges
+	observe := func(msg wire.WsMsg) {
+		sidebarChanges.observe(sidebarJID, msg)
+		mainChanges.observe(mainJID, msg)
 	}
+	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		observe(msg)
+		return sidebarChanges.appendedContaining(room.Code()) &&
+			mainChanges.removedChild(singleJID) && mainChanges.appendedContaining("Card Packs")
+	}); err != nil {
+		done()
+		t.Fatalf("waiting for connect-time room reconciliation: %v", err)
+	}
+	done()
+	drainImmediateModeAlert(t, rq, reader, "connected-after-seat-opened", observe)
 
-	joinedHTML := h.getWithClient(t, viewerClient, "/room/"+room.Code())
 	if viewer.Room() != room || !room.HasPlayer(viewer) {
-		t.Fatal("next room GET did not join the viewer")
+		t.Fatal("JaWS connection did not join the viewer")
 	}
 	if got := room.PlayerCount(); got != game.MaxPlayers {
-		t.Fatalf("PlayerCount() after reload = %d, want %d", got, game.MaxPlayers)
+		t.Fatalf("PlayerCount() after connect = %d, want %d", got, game.MaxPlayers)
 	}
-	if !strings.Contains(joinedHTML, "Card Packs") {
-		t.Fatalf("joined page did not render the seated game panel: %s", joinedHTML)
+	if len(sidebarChanges.removed) != 0 || len(sidebarChanges.appended) != 1 {
+		t.Fatalf("sidebar child changes = removed %v, appended %d; want 0/1", sidebarChanges.removed, len(sidebarChanges.appended))
+	}
+	if len(mainChanges.removed) != 1 || mainChanges.removed[0] != singleJID || len(mainChanges.appended) != 1 {
+		t.Fatalf("main child changes = removed %v, appended %d; want [%v]/1", mainChanges.removed, len(mainChanges.appended), singleJID)
 	}
 }
 
@@ -395,6 +411,12 @@ func TestRoomMembershipChangesReconcileSectionChildren(t *testing.T) {
 	defer cancel()
 	reader := newImmediateModeWireReader(t, conn)
 	syncImmediateModeRequest(t, conn, rq, reader, "membership-connected")
+	if viewer.Room() != nil || room.HasPlayer(viewer) {
+		t.Fatal("full-room connection seated its viewer")
+	}
+	if got := room.PlayerCount(); got != game.MaxPlayers {
+		t.Fatalf("PlayerCount() after full-room connection = %d, want %d", got, game.MaxPlayers)
+	}
 
 	leaver := players[len(players)-1]
 	if leftRoom, empty := h.app.Manager.LeaveRoom(leaver); leftRoom != room || empty {

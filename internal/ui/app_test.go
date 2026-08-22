@@ -15,6 +15,8 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/jaws/lib/what"
+	"github.com/linkdata/jaws/lib/wire"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -392,8 +394,8 @@ func TestLobbyRenders(t *testing.T) {
 	if player, _ := sess.Get(sessionKeyPlayer).(*game.Player); player == nil {
 		t.Fatal("expected lobby GET to store its Player before rendering")
 	}
-	if !strings.Contains(body, ">1 online</small>") {
-		t.Fatalf("expected lobby body to show one online session, got %s", body)
+	if !strings.Contains(body, ">0</span> online</small>") {
+		t.Fatalf("expected a GET-only lobby to show no online sessions, got %s", body)
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
@@ -403,44 +405,83 @@ func TestLobbyRenders(t *testing.T) {
 	}
 }
 
-func TestLobbyShowsCurrentOnlineSessionCount(t *testing.T) {
+func TestLobbyShowsLiveOnlineSessionCount(t *testing.T) {
 	h := newLiveHarness(t)
+	if enabled := h.app.Jaws.StatusMetrics.Load(); enabled&jaws.StatusMetricActiveSessions == 0 {
+		t.Fatalf("StatusMetrics = %b, want StatusMetricActiveSessions", enabled)
+	}
 
 	firstHTML := h.get(t, "/")
-	if !strings.Contains(firstHTML, ">1 online</small>") {
-		t.Fatalf("expected first page to show one online session, got %s", firstHTML)
+	if !strings.Contains(firstHTML, ">0</span> online</small>") {
+		t.Fatalf("expected first GET to precede its live session, got %s", firstHTML)
 	}
 	session := h.session(t)
-	if count := h.app.Jaws.SessionCount(); count != 1 {
-		t.Fatalf("SessionCount() = %d, want 1", count)
+	if count := h.app.Jaws.ActiveSessionCount(); count != 0 {
+		t.Fatalf("ActiveSessionCount() before connect = %d, want 0", count)
 	}
-	_, firstCancel := h.connect(t, firstHTML)
+	firstRequest := immediateModeRequestForHTML(t, session, firstHTML)
+	countElements := firstRequest.GetElements(h.app.Jaws.ActiveSessionCountTag())
+	if len(countElements) != 1 {
+		t.Fatalf("active-session-count Elements = %d, want 1", len(countElements))
+	}
+	countJID := countElements[0].Jid()
+	firstConn, firstCancel := h.connect(t, firstHTML)
 	defer firstCancel()
+	firstReader := newImmediateModeWireReader(t, firstConn)
+	ctx, cancel := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "1"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for first active session: %v", err)
+	}
+	cancel()
 
 	secondHTML := h.get(t, "/")
 	if h.session(t) != session {
 		t.Fatal("second tab did not reuse the first tab's session")
 	}
-	if !strings.Contains(secondHTML, ">1 online</small>") {
+	if !strings.Contains(secondHTML, ">1</span> online</small>") {
 		t.Fatalf("expected second tab to keep one online session, got %s", secondHTML)
 	}
-	_, secondCancel := h.connect(t, secondHTML)
+	secondRequest := immediateModeRequestForHTML(t, session, secondHTML)
+	secondConn, secondCancel := h.connect(t, secondHTML)
 	defer secondCancel()
-
-	if body := h.get(t, "/"); !strings.Contains(body, ">1 online</small>") {
-		t.Fatalf("expected two live tabs to keep one online session, got %s", body)
+	secondReader := newImmediateModeWireReader(t, secondConn)
+	syncImmediateModeRequest(t, secondConn, secondRequest, secondReader, "second-tab-connected")
+	if count := h.app.Jaws.ActiveSessionCount(); count != 1 {
+		t.Fatalf("ActiveSessionCount() with two tabs = %d, want 1", count)
 	}
 
 	otherClient := h.newClient(t)
-	if body := h.getWithClient(t, otherClient, "/"); !strings.Contains(body, ">2 online</small>") {
-		t.Fatalf("expected a second client to show two online sessions, got %s", body)
+	otherHTML := h.getWithClient(t, otherClient, "/")
+	if !strings.Contains(otherHTML, ">1</span> online</small>") {
+		t.Fatalf("expected a GET-only second client not to count yet, got %s", otherHTML)
 	}
-	if h.sessionForClient(t, otherClient) == session {
+	otherSession := h.sessionForClient(t, otherClient)
+	if otherSession == session {
 		t.Fatal("second client unexpectedly reused the first client's session")
 	}
-	if count := h.app.Jaws.SessionCount(); count != 2 {
-		t.Fatalf("SessionCount() = %d, want 2", count)
+	_, otherCancel := h.connectWithClient(t, otherClient, otherHTML)
+	defer otherCancel()
+	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "2"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for online count increase: %v", err)
 	}
+	cancel()
+
+	otherSession.Close()
+	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "1"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for online count decrease: %v", err)
+	}
+	cancel()
 }
 
 func TestPageHandlersRequireSessionMiddleware(t *testing.T) {
@@ -470,7 +511,7 @@ func TestPageHandlersRequireSessionMiddleware(t *testing.T) {
 	}
 }
 
-func TestAnonymousRoomPageJoinsBeforeRendering(t *testing.T) {
+func TestAnonymousRoomPageDoesNotJoinBeforeConnecting(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
@@ -494,15 +535,47 @@ func TestAnonymousRoomPageJoinsBeforeRendering(t *testing.T) {
 		t.Fatal("expected room GET to establish a JaWS session")
 	}
 	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
-	if player == nil || player.Room() != room || !room.HasPlayer(player) {
-		t.Fatalf("expected room GET to seat its Player, got %#v", player)
+	if player == nil {
+		t.Fatal("expected room GET to create its Player")
 	}
-	if room.PlayerCount() != 2 {
-		t.Fatalf("PlayerCount() = %d, want 2", room.PlayerCount())
+	if player.Room() != nil || room.HasPlayer(player) {
+		t.Fatalf("room GET seated its Player: %#v", player)
+	}
+	if room.PlayerCount() != 1 {
+		t.Fatalf("PlayerCount() = %d, want 1", room.PlayerCount())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Card Packs") || !strings.Contains(body, room.Code()) {
-		t.Fatalf("expected initial room document to contain seated regions, got %s", body)
+	if !strings.Contains(body, "Not seated at this table") || !strings.Contains(body, "An open seat is available") {
+		t.Fatalf("expected initial room document to contain observer state, got %s", body)
+	}
+	if request := immediateModeRequestForHTML(t, sess, body); request.GetConnectFn() == nil {
+		t.Fatal("room page Request has no ConnectHandler callback")
+	}
+}
+
+func TestCookielessRoomGETsDoNotTakeSeats(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostSession := newTestSession(t, app)
+	host := app.player(hostSession, nil)
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	for i := 0; i < game.MaxPlayers-1; i++ {
+		req := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+		req.SetPathValue("code", room.Code())
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %d status = %d, want %d", i, rec.Code, http.StatusOK)
+		}
+	}
+
+	if count := room.PlayerCount(); count != 1 {
+		t.Fatalf("PlayerCount() after cookieless GETs = %d, want 1", count)
 	}
 }
 

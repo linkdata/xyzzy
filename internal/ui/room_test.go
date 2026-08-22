@@ -335,135 +335,75 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	}
 }
 
-func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.Manager.SetNickname(host, "Alice")
-	room, err := app.createRoom(host)
-	if err != nil {
-		t.Fatalf("createRoom() error = %v", err)
+func connectRoomPage(t *testing.T, h *liveHarness, client *http.Client, room *game.Room) (result *game.Player) {
+	t.Helper()
+	pageHTML := h.getWithClient(t, client, h.app.RoomURL(room.Code()))
+	sess := h.sessionForClient(t, client)
+	result = h.app.player(sess, nil)
+	if result.Room() != nil || room.HasPlayer(result) {
+		t.Fatal("room GET seated the viewer before its JaWS connection")
+	}
+	if !strings.Contains(pageHTML, "Not seated at this table") {
+		t.Fatalf("room GET did not render observer state: %s", pageHTML)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.Manager.SetNickname(guest, "Bob")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	conn, cancel := h.connectWithClient(t, client, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	rq := immediateModeRequestForHTML(t, sess, pageHTML)
+	syncImmediateModeRequest(t, conn, rq, reader, "room-connect-joined")
+	if result.Room() != room || !room.HasPlayer(result) {
+		t.Fatal("JaWS connection did not seat the viewer")
 	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join lobby room")
-	}
-	body := roomRec.Body.String()
-	if !strings.Contains(body, "Card Packs") {
-		t.Fatalf("expected joined room body, got %s", body)
-	}
+	return
 }
 
-func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.Manager.SetNickname(host, "Alice")
-	room, err := app.createRoom(host)
+func TestRoomConnectJoinsLobbyRoom(t *testing.T) {
+	h := newLiveHarness(t)
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
-	if err := room.SetPrivate(host, true); err != nil {
+
+	connectRoomPage(t, h, h.newClient(t), room)
+}
+
+func TestPrivateRoomConnectStillJoinsByDirectURL(t *testing.T) {
+	h := newLiveHarness(t)
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+	if err = room.SetPrivate(host, true); err != nil {
 		t.Fatalf("SetPrivate() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.Manager.SetNickname(guest, "Bob")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join private room by direct URL")
-	}
-	if body := roomRec.Body.String(); !strings.Contains(body, "Card Packs") {
-		t.Fatalf("expected private room body, got %s", body)
-	}
+	connectRoomPage(t, h, h.newClient(t), room)
 }
 
-func TestRoomAutoJoinsGameInProgress(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.Manager.SetNickname(host, "Alice")
-	room, err := app.createRoom(host)
+func TestRoomConnectJoinsGameInProgress(t *testing.T) {
+	h := newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{MinPlayers: 2})
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guest1Sess := newTestSession(t, app)
-	guest1 := app.player(guest1Sess, nil)
-	app.Manager.SetNickname(guest1, "Bob")
-	if _, err := app.joinRoom(guest1, room.Code()); err != nil {
+	guest1Sess := newTestSession(t, h.app)
+	guest1 := h.app.player(guest1Sess, nil)
+	h.app.Manager.SetNickname(guest1, "Bob")
+	if _, err = h.app.joinRoom(guest1, room.Code()); err != nil {
 		t.Fatalf("JoinRoom(guest1) error = %v", err)
 	}
-	if err := room.Start(host); err != nil {
+	if err = room.Start(host); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.Manager.SetNickname(guest, "Drew")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join game in progress")
-	}
-	body := roomRec.Body.String()
-	if !strings.Contains(body, "Your Hand") {
-		t.Fatalf("expected in-progress room body for joined player, got %s", body)
-	}
-	if strings.Contains(body, `<button class="card-face card-face-white`) {
-		t.Fatalf("expected hand cards to render as clickable template elements instead of buttons, got %s", body)
-	}
-	hasHandCard := false
-	for _, tag := range regexp.MustCompile(`<div\b[^>]*>`).FindAllString(body, -1) {
-		if strings.Contains(tag, `data-jawstemplate`) &&
-			strings.Contains(tag, `class="card-face card-face-white`) &&
-			strings.Contains(tag, `role="button"`) {
-			hasHandCard = true
-			break
-		}
-	}
-	if !hasHandCard || !strings.Contains(body, "White card") {
-		t.Fatalf("expected hand cards to render as clickable template elements, got %s", body)
+	guest := connectRoomPage(t, h, h.newClient(t), room)
+	if hand := room.HandFor(guest); len(hand) != game.HandSize {
+		t.Fatalf("connected guest hand size = %d, want %d", len(hand), game.HandSize)
 	}
 }
 
@@ -841,23 +781,23 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 	}
 }
 
-func TestMissingRoomRendersMissingPanel(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	sess := newTestSession(t, app)
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	roomReq.SetPathValue("code", "MISSING")
-	roomReq.AddCookie(sess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	body := roomRec.Body.String()
+func TestMissingRoomConnectionRemainsUsable(t *testing.T) {
+	h := newLiveHarness(t)
+	client := h.newClient(t)
+	body := h.getWithClient(t, client, "/room/MISSING")
 	if !strings.Contains(body, "Room not found") {
 		t.Fatalf("expected missing-room panel text: %s", body)
+	}
+
+	sess := h.sessionForClient(t, client)
+	player := h.app.player(sess, nil)
+	rq := immediateModeRequestForHTML(t, sess, body)
+	conn, cancel := h.connectWithClient(t, client, body)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "missing-room-connected")
+	if player.Room() != nil {
+		t.Fatalf("missing-room connection seated its Player in %v", player.Room())
 	}
 }
 

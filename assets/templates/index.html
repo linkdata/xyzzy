@@ -15,7 +15,6 @@
         {{$.Template "div" "lobby_sidebar.html" . .App.Manager}}
       </div>
       <div class="col-md-9">
-        {{$online := .App.Jaws.SessionCount}}
         <div class="card mb-4">
           <div class="card-body">
             <h5 class="card-title">How to Play</h5>
@@ -31,7 +30,7 @@
               <li>Returning to the lobby leaves your current room immediately.</li>
             </ul>
             <div class="mt-3 text-end">
-              <small class="text-muted">{{$online}} online</small>
+              <small class="text-muted">{{$.Span .OnlineCount}} online</small>
             </div>
           </div>
         </div>

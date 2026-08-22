@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/linkdata/jaws v0.800.0
+	github.com/linkdata/jaws v0.801.0
 	github.com/linkdata/staticserve v1.1.8
 	github.com/linkdata/webserv v1.1.2
 )

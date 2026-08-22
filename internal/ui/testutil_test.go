@@ -202,7 +202,7 @@ func (h *liveHarness) dial(t *testing.T, html string, cookies []*http.Cookie) (r
 	hdr := http.Header{}
 	hdr.Set("Origin", h.server.URL)
 	hdr.Set("Cookie", cookieHeader(cookies))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
 	if err != nil {
 		cancel()

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/jawsboot"
@@ -30,13 +31,18 @@ type App struct {
 	Manager           *game.Manager
 	csrfSecret        [32]byte
 	createRoomLimiter *createRoomLimiter
+	playerMu          sync.Mutex
 }
 
 // New returns an App using the supplied JaWS server, catalog, and manager.
 //
-// It installs the JaWS dirty notifier on manager. New panics if the operating
-// system cannot provide cryptographic randomness for CSRF protection.
+// It enables [jaws.StatusMetricActiveSessions] and installs the JaWS dirty
+// notifier on manager. New panics if the operating system cannot provide
+// cryptographic randomness for CSRF protection.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
+	if jw != nil {
+		jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
+	}
 	if manager != nil && jw != nil {
 		manager.SetDirty(jw.Dirty)
 	}
@@ -105,15 +111,12 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	player := a.player(sess, r)
 	a.cleanupExpired()
 	roomCode := normalizeRoomCode(r.PathValue("code"))
-	if player.Room() == nil {
-		_, _ = a.joinRoom(player, roomCode)
-	}
 	if current := player.Room(); current != nil && current.Code() != roomCode {
 		http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
 		return
 	}
 	a.syncNicknameCookie(w, r, player)
-	jui.Handler(a.Jaws, "room.html", templateDot{App: a, Player: player}).ServeHTTP(w, r)
+	jui.Handler(a.Jaws, "room.html", roomPageDot{templateDot: templateDot{App: a, Player: player}}).ServeHTTP(w, r)
 }
 
 func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -152,6 +155,9 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
+	a.playerMu.Lock()
+	defer a.playerMu.Unlock()
+
 	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result != nil {
 		if result.Session == nil {
 			result.Session = sess

@@ -67,6 +67,7 @@ The templates use each live primitive for one distinct job:
 | Need | Primitive | Example in this repository |
 | --- | --- | --- |
 | Render a full document | `ui.Handler` | `serveLobby` and `serveRoom` |
+| Run behavior when the JaWS client connects | `jaws.ConnectHandler` | `roomPageDot` joins the requested room |
 | Include static structure | native `{{template ...}}` | the head, nickname modal, and shared black-card markup |
 | Rerender a fixed live region | `ui.Template` via `$.Template` or `ui.NewTemplate` | the lobby sidebar and current room-state panel |
 | Change direct child identity or presence | `ui.Container` via `$.Container` | `roomSection` selects the sidebar and main room child |
@@ -100,10 +101,12 @@ relevant `Room` or `Player` tag so JaWS converges the retained element tree.
 This keeps the immediate-mode projection direct instead of introducing a
 screen-shaped DTO.
 
-A full-page template may still read request-time data directly. The inlined
-lobby welcome panel reads the app-wide registered-session count once during
-page rendering; session middleware registers the current visitor first, and
-the panel has no independent update boundary.
+The lobby's online count is a bound `Span` getter over
+`Jaws.ActiveSessionCount`. The application constructor enables
+`StatusMetricActiveSessions`, and the getter registers
+`ActiveSessionCountTag`, so JaWS dirties the span when its maintenance loop
+observes a different count. Multiple connected tabs sharing one session still
+count once.
 
 This keeps wrapper ownership unambiguous: the template emits the contents of a
 JaWS wrapper, not a competing copy of the wrapper itself.
@@ -128,6 +131,7 @@ read.
 | `roomDeckTag{Room, Deck}` | that deck's checkboxes in one room |
 | field pointers such as `&r.targetScore` | independently bound controls and labels |
 | `&r.reviewDeadline` | the judge's countdown button and every other player's countdown span |
+| `Jaws.ActiveSessionCountTag()` | the live lobby presence count |
 
 Calling `Dirty` with one of these tags fans the update out to matching elements
 in every live JaWS request. Dirtying an element itself is request-local. The
@@ -200,17 +204,21 @@ the authoritative server deadline, and JaWS transports targeted DOM operations.
 `SessionMiddleware` wraps the page handlers, so a `Player` exists before
 `ui.Handler` performs the initial render. A JaWS session identifies the player;
 an independent HttpOnly cookie restores only the nickname after an ephemeral
-session expires.
+session expires. `App.player` serializes the session's get-or-create operation,
+so concurrent page requests cannot create different players for one session.
 
-Visiting `GET /room/{code}` is intentionally a join attempt. The handler
-completes that attempt before rendering, so the first UI description already
-represents the resulting membership or observer state. This means the GET may
-mutate state; `robots.txt` discourages crawlers, but link unfurlers do not
-necessarily honor it.
+`GET /room/{code}` does not take a seat. Its top-level `roomPageDot` implements
+`jaws.ConnectHandler`, so the initial document describes the unseated state and
+the join runs only after JaWS accepts the page's WebSocket. A successful join
+dirties the existing `Player`, `Room`, and room-list dependencies; the retained
+sidebar and main `Container` values then reconcile into the seated UI. Plain
+crawlers, prefetchers, and link unfurlers therefore cannot fill a room by
+fetching its URL. A client that runs the JaWS script and opens the WebSocket can
+still join, because connection is the intended lifecycle boundary rather than
+proof of human intent.
 
 Visiting `GET /` likewise leaves the player's current room before rendering the
-lobby. Page navigation therefore establishes membership before the initial UI
-description instead of deferring it to the WebSocket connection.
+lobby.
 
 ### Concurrency without retained presentation state
 
@@ -237,15 +245,16 @@ them and remain tagged on the authoritative deadline field.
   across restarts.
 - A private room is omitted from the public list; possession of its URL is the
   access mechanism, not an authorization boundary.
-- A viewer who loads a full room does not automatically take a seat when one
-  becomes free; reloading retries the join.
+- A room page tries to join once, when its JaWS connection starts. A seat that
+  opens before that connection is accepted can be claimed; a seat that opens
+  after a failed attempt requires a reload.
 - The first lobby or room visit from an anonymous browser creates an ephemeral
   session and player. Expired seated players are removed from rooms during
   later page requests; an unseated player has the JaWS session's lifetime.
-- The lobby reads the app-wide registered JaWS session count once per page render.
-  Requests sharing one valid session count once. A session can remain registered
-  for roughly a minute after its last Request ends, so this is an approximate
-  presence count that changes only on a later page render.
+- The lobby's live presence count uses distinct sessions attached to active
+  JaWS Requests. Connected tabs sharing one session count once, while GET-only
+  and disconnected sessions do not count. Maintenance sampling may coalesce
+  intermediate changes, so the display can lag briefly.
 - JaWS-managed buttons and inputs require the WebSocket connection. The server
   does not replay actions performed while a browser is offline.
 
