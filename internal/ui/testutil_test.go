@@ -173,21 +173,6 @@ func (h *liveHarness) sessionForClient(t *testing.T, client *http.Client) (resul
 	}
 	result = h.app.Jaws.GetSession(req)
 	if result == nil {
-		html := h.getWithClient(t, client, "/")
-		conn, cancel := h.connectWithClient(t, client, html)
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-		cancel()
-		req = httptest.NewRequest(http.MethodGet, h.server.URL+"/", nil)
-		req.Host = h.base.Host
-		req.URL.Host = h.base.Host
-		req.URL.Scheme = h.base.Scheme
-		req.RemoteAddr = "127.0.0.1:12345"
-		for _, cookie := range h.cookiesFor(client) {
-			req.AddCookie(cookie)
-		}
-		result = h.app.Jaws.GetSession(req)
-	}
-	if result == nil {
 		t.Fatal("expected JaWS session")
 	}
 	return
@@ -217,7 +202,7 @@ func (h *liveHarness) dial(t *testing.T, html string, cookies []*http.Cookie) (r
 	hdr := http.Header{}
 	hdr.Set("Origin", h.server.URL)
 	hdr.Set("Cookie", cookieHeader(cookies))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	conn, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
 	if err != nil {
 		cancel()

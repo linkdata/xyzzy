@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"strings"
+	"html/template"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -9,34 +9,39 @@ import (
 )
 
 type whiteCardView struct {
-	Player         *game.Player
-	Room           *game.Room
-	Card           *deck.WhiteCard
-	SelectionOrder int
+	Player *game.Player
+	Room   *game.Room
+	Card   *deck.WhiteCard
+}
+
+func (v whiteCardView) SelectionOrder() (result int) {
+	result = v.Room.SelectionOrderFor(v.Player, v.Card)
+	return
 }
 
 func (v whiteCardView) WhiteFootnote() (result string) {
-	deckName := v.Room.FirstSelectedDeckNameForWhiteCard(v.Card)
-	number := strings.Map(func(r rune) (result rune) {
-		if r >= '0' && r <= '9' {
-			result = r
-			return
-		}
-		result = -1
-		return
+	result = cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
+	return
+}
 
-	}, v.Card.ID)
-	switch {
-	case deckName == "":
-		result = number
-		return
-	case number == "":
-		result = deckName
-		return
-	default:
-		result = deckName + " · " + number
-		return
+func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
+	result = cardInitialHTMLAttr(v.SelectionOrder() > 0, false, false)
+	return
+}
+
+func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTMLAttr) {
+	class := `class="card-face card-face-white w-100 text-start`
+	if winning {
+		class += ` is-winning`
 	}
+	if selected {
+		class += ` is-selected`
+	}
+	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
+	if disabled {
+		result += ` disabled`
+	}
+	return
 }
 
 func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {

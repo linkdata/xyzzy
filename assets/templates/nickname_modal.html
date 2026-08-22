@@ -11,8 +11,8 @@
           This is shown to other players. Nicknames are sanitized to letters and numbers, then made unique when you join a room.
         </p>
         <div class="input-group">
-          {{$.Text .NicknameField `class="form-control" placeholder="Enter nickname"`}}
-          {{$.Button "Save Nickname" .SaveNicknameClick `class="btn btn-primary"`}}
+          {{$.Text .Player.NicknameField `class="form-control" placeholder="Enter nickname"`}}
+          {{$.Button .SaveNicknameButton `class="btn btn-primary"`}}
         </div>
       </div>
     </div>

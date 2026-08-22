@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/jawsboot"
@@ -24,18 +24,24 @@ const (
 	nicknameCookieTTL = 365 * 24 * 60 * 60
 )
 
+// App serves the xyzzy HTTP and JaWS user interface.
 type App struct {
 	Jaws              *jaws.Jaws
 	Catalog           *deck.Catalog
 	Manager           *game.Manager
 	csrfSecret        [32]byte
 	createRoomLimiter *createRoomLimiter
-	activeWebSockets  atomic.Int64
+	playerMu          sync.Mutex
 }
 
+// New returns an App using the supplied JaWS server, catalog, and manager.
+//
+// It enables [jaws.StatusMetricActiveSessions] and connects manager changes to
+// JaWS updates. New panics if the operating system cannot provide cryptographic
+// randomness for CSRF protection.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 	if jw != nil {
-		jw.AutoSession = true
+		jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
 	}
 	if manager != nil && jw != nil {
 		manager.SetDirty(jw.Dirty)
@@ -52,21 +58,23 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 	return result
 }
 
+// SetupRoutes registers the App's HTTP routes and templates on mux.
 func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
 	var templates *template.Template
 	if templates, err = template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html"); err == nil {
 		if err = a.Jaws.AddTemplateLookuper(templates); err == nil {
-			if err = a.Jaws.Setup(mux.Handle, "/static",
+			if err = a.Jaws.Setup(
+				mux.Handle, "/static",
 				jawsboot.Setup,
-				staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css", "app.js"),
+				staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
 			); err == nil {
-				mux.Handle("GET /jaws/", http.HandlerFunc(a.serveJaws))
+				mux.Handle("GET /jaws/", a.Jaws)
 				mux.Handle("GET /robots.txt", http.HandlerFunc(a.serveRobots))
 				mux.Handle("GET /.well-known/security.txt", http.HandlerFunc(a.serveSecurityTxt))
-				mux.Handle("GET /{$}", http.HandlerFunc(a.serveLobby))
+				mux.Handle("GET /{$}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveLobby)))
 				mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
 				mux.Handle("POST /create-room", http.HandlerFunc(a.serveCreateRoom))
-				mux.Handle("GET /room/{code}", http.HandlerFunc(a.serveRoom))
+				mux.Handle("GET /room/{code}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveRoom)))
 				mux.Handle("GET /{path...}", http.HandlerFunc(a.serveNotFound))
 			}
 		}
@@ -74,53 +82,46 @@ func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
 	return
 }
 
+// Middleware applies the App's HTTP security headers to next.
 func (a *App) Middleware(next http.Handler) http.Handler {
 	return a.Jaws.SecureHeadersMiddleware(next)
 }
 
-func (a *App) serveJaws(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Sec-WebSocket-Key") != "" {
-		a.activeWebSockets.Add(1)
-		defer a.activeWebSockets.Add(-1)
-	}
-	a.Jaws.ServeHTTP(w, r)
-}
-
 func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	sess := a.Jaws.GetSession(r)
-	player := a.pagePlayer(sess, r)
+	if sess == nil {
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
+	player := a.player(sess, r)
 	a.cleanupExpired()
-	if sess != nil && player.Room() != nil {
+	if player.Room() != nil {
 		a.leaveRoom(player)
 	}
-	if sess != nil {
-		a.syncNicknameCookie(w, r, player)
-	}
-	if err := a.renderTemplate(w, r, "index.html", a.makeTemplateDot(player)); err != nil {
-		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
-	}
+	a.syncNicknameCookie(w, r, player)
+	jui.Handler(a.Jaws, "index.html", templateDot{App: a, Player: player}).ServeHTTP(w, r)
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	sess := a.Jaws.GetSession(r)
-	player := a.pagePlayer(sess, r)
+	if sess == nil {
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
+	player := a.player(sess, r)
 	a.cleanupExpired()
-	roomCode := strings.ToUpper(strings.TrimSpace(r.PathValue("code")))
-	if sess != nil {
-		if current := player.Room(); current != nil && current.Code() != roomCode {
-			http.Redirect(w, r, "/room/"+current.Code(), http.StatusSeeOther)
-			return
-		}
-		if player.Room() == nil {
-			if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
-				_, _ = a.joinRoom(player, roomCode)
-			}
-		}
-		a.syncNicknameCookie(w, r, player)
+	roomCode := normalizeRoomCode(r.PathValue("code"))
+	if current := player.Room(); current != nil && current.Code() != roomCode {
+		http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
+		return
 	}
-	if err := a.renderTemplate(w, r, "room.html", a.makeTemplateDot(player)); err != nil {
-		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
-	}
+	requestedRoom := a.Manager.Room(roomCode)
+	a.syncNicknameCookie(w, r, player)
+	jui.Handler(a.Jaws, "room.html", roomPageDot{
+		templateDot:   templateDot{App: a, Player: player},
+		RequestedCode: roomCode,
+		RequestedRoom: requestedRoom,
+	}).ServeHTTP(w, r)
 }
 
 func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -158,94 +159,34 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.RoomURL(room.Code()), http.StatusSeeOther)
 }
 
-func (a *App) renderTemplate(w http.ResponseWriter, r *http.Request, name string, dot any) (err error) {
-	req := a.Jaws.NewRequest(w, r)
-	if d, ok := dot.(templateDot); ok {
-		req.SetConnectFn(func(rq *jaws.Request) (err error) {
-			a.attachPlayer(rq, d.Player)
-			if name == "room.html" {
-				a.joinRoomOnConnect(rq, d.Player)
-			}
-			return
-		})
-	}
-	return req.NewElement(jui.Template{Name: name, Dot: dot}).JawsRender(w, nil)
-}
-
-func (a *App) makeTemplateDot(player *game.Player) (result templateDot) {
-	result = templateDot{App: a, Player: player, Room: player.Room()}
-	return
-}
-
-func (a *App) attachPlayer(rq *jaws.Request, player *game.Player) {
-	if rq != nil && player != nil {
-		if sess := rq.Session(); sess != nil && sess.Get(sessionKeyPlayer) == nil {
-			player.Session = sess
-			sess.Set(sessionKeyPlayer, player)
-		}
-	}
-}
-
-func (a *App) joinRoomOnConnect(rq *jaws.Request, player *game.Player) {
-	if rq != nil && player != nil {
-		roomCode := normalizeRoomCode(rq.Initial().PathValue("code"))
-		if current := player.Room(); current != nil {
-			if !strings.EqualFold(current.Code(), roomCode) {
-				rq.Redirect(a.RoomURL(current.Code()))
-			}
-			return
-		}
-		if room := a.Manager.Room(roomCode); room != nil && room.CanJoin(player) {
-			if _, err := a.Manager.JoinRoom(roomCode, player); err == nil {
-				rq.Dirty(a.Manager, room, player)
-			}
-		}
-	}
-}
-
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
+	a.playerMu.Lock()
 	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result != nil {
 		if result.Session == nil {
 			result.Session = sess
 		}
-		if result.Room() == nil {
-			if nickname := result.NicknameValue(); nickname == "" {
-				result.SetStandaloneNickname(generateNickname())
-			} else if result.NicknameInputValue() == "" {
-				result.SetStandaloneNickname(nickname)
-			}
+	} else {
+		nickname := a.nicknameFromCookie(r)
+		if nickname == "" {
+			nickname = generateNickname()
+		} else {
+			nickname = game.NormalizeNickname(nickname)
 		}
-		return
+		result = &game.Player{
+			Session:       sess,
+			Nickname:      nickname,
+			NicknameInput: nickname,
+		}
+		sess.Set(sessionKeyPlayer, result)
 	}
-	nickname := a.nicknameFromCookie(r)
-	if nickname == "" {
-		nickname = generateNickname()
-	} else {
-		nickname = game.NormalizeNickname(nickname)
-	}
-	result = &game.Player{
-		Session:       sess,
-		Nickname:      nickname,
-		NicknameInput: nickname,
-	}
-	sess.Set(sessionKeyPlayer, result)
-	return
-}
+	a.playerMu.Unlock()
 
-func (a *App) pagePlayer(sess *jaws.Session, r *http.Request) (result *game.Player) {
-	if sess != nil {
-		result = a.player(sess, r)
-		return
-	}
-	nickname := a.nicknameFromCookie(r)
-	if nickname == "" {
-		nickname = generateNickname()
-	} else {
-		nickname = game.NormalizeNickname(nickname)
-	}
-	result = &game.Player{
-		Nickname:      nickname,
-		NicknameInput: nickname,
+	if result.Room() == nil {
+		if nickname := result.NicknameValue(); nickname == "" {
+			a.Manager.SetNickname(result, generateNickname())
+		} else if result.NicknameInputValue() == "" {
+			a.Manager.SetNickname(result, nickname)
+		}
 	}
 	return
 }
@@ -284,7 +225,7 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 	if nickname != "" {
 		value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the request scheme; HttpOnly and SameSite are set below.
 		Name:     a.nicknameCookieName(),
 		Value:    value,
 		Path:     "/",
@@ -299,13 +240,8 @@ func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player 
 	if player != nil {
 		nickname := strings.TrimSpace(a.playerNickname(player))
 		if nickname == "" {
-			nickname = generateNickname()
-			if room := player.Room(); room != nil {
-				room.SetNickname(player, nickname)
-				nickname = room.NicknameFor(player)
-			} else {
-				player.SetStandaloneNickname(nickname)
-			}
+			a.Manager.SetNickname(player, generateNickname())
+			nickname = a.playerNickname(player)
 		}
 		if nickname != a.nicknameFromCookie(r) {
 			a.setNicknameCookie(w, r, nickname)
@@ -331,20 +267,9 @@ func generateNickname() (result string) {
 	return
 }
 
-func (a *App) setNickname(player *game.Player, nickname string) {
-	if player != nil {
-		nickname = game.NormalizeNickname(nickname)
-		if room := player.Room(); room != nil {
-			room.SetNickname(player, nickname)
-			return
-		}
-		player.SetStandaloneNickname(nickname)
-	}
-}
-
 func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {
 	if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDecks()); err == nil {
-		a.Jaws.Dirty(a.Manager, room)
+		a.Jaws.Dirty(a.Manager, room, player)
 	}
 	return
 }
@@ -362,6 +287,7 @@ func (a *App) leaveRoom(player *game.Player) (room *game.Room) {
 	return
 }
 
+// RoomURL returns the canonical path for code, or the lobby path for an empty code.
 func (a *App) RoomURL(code string) (result string) {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" {

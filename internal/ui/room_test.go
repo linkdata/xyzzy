@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,43 +24,12 @@ import (
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
-func TestApplyCardSelectionReplacesSinglePickSelection(t *testing.T) {
-	w1 := &deck.WhiteCard{ID: "w1"}
-	w2 := &deck.WhiteCard{ID: "w2"}
-	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1}}
-
-	changed := applyCardSelection(player, w2, 1)
-
-	if len(player.SelectedCards) != 1 || player.SelectedCards[0] != w2 {
-		t.Fatalf("SelectedCards = %v, want [w2]", player.SelectedCards)
-	}
-	if !changed {
-		t.Fatalf("applyCardSelection() = (%v), want (true)", changed)
-	}
-}
-
-func TestApplyCardSelectionKeepsMultiPickLimit(t *testing.T) {
-	w1 := &deck.WhiteCard{ID: "w1"}
-	w2 := &deck.WhiteCard{ID: "w2"}
-	w3 := &deck.WhiteCard{ID: "w3"}
-	player := &game.Player{SelectedCards: []*deck.WhiteCard{w1, w2}}
-
-	changed := applyCardSelection(player, w3, 2)
-
-	if len(player.SelectedCards) != 2 || player.SelectedCards[0] != w1 || player.SelectedCards[1] != w2 {
-		t.Fatalf("SelectedCards = %v, want unchanged", player.SelectedCards)
-	}
-	if changed {
-		t.Fatalf("applyCardSelection() = (%v), want no mutation", changed)
-	}
-}
-
-func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
+func TestRoomTargetScoreBinderRespectsPermissions(t *testing.T) {
 	app, _ := testPlayableApp(t)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -67,12 +37,12 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
 
-	guestSlider := room.ScoreTargetSlider(guest)
+	guestSlider := room.TargetScoreBinder(guest)
 	if err := guestSlider.JawsSet(newScoreTargetElement(app, guestSlider), 8); err != game.ErrOnlyHostCanEdit {
 		t.Fatalf("guestSlider.JawsSet() error = %v, want %v", err, game.ErrOnlyHostCanEdit)
 	}
@@ -80,7 +50,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("TargetScore after non-host set = %d, want %d", got, game.ScoreGoal)
 	}
 
-	hostSlider := room.ScoreTargetSlider(host)
+	hostSlider := room.TargetScoreBinder(host)
 	if err := hostSlider.JawsSet(newScoreTargetElement(app, hostSlider), 8); err != nil {
 		t.Fatalf("hostSlider.JawsSet() error = %v", err)
 	}
@@ -92,7 +62,7 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	lockedSlider := room.ScoreTargetSlider(host)
+	lockedSlider := room.TargetScoreBinder(host)
 	if err := lockedSlider.JawsSet(newScoreTargetElement(app, lockedSlider), 10); err != game.ErrGameInProgress {
 		t.Fatalf("lockedSlider.JawsSet() error = %v, want %v", err, game.ErrGameInProgress)
 	}
@@ -101,19 +71,19 @@ func TestRoomScoreTargetSliderRespectsPermissions(t *testing.T) {
 	}
 }
 
-func TestRoomScoreTargetSliderAllowsOneInDebug(t *testing.T) {
+func TestRoomTargetScoreBinderAllowsOneInDebug(t *testing.T) {
 	app, mux := testPlayableAppWithOptions(t, game.Options{MinPlayers: 2, Debug: true})
 	handler := app.Middleware(mux)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	slider := room.ScoreTargetSlider(host)
+	slider := room.TargetScoreBinder(host)
 	if err := slider.JawsSet(newScoreTargetElement(app, slider), 1); err != nil {
 		t.Fatalf("slider.JawsSet() error = %v", err)
 	}
@@ -140,7 +110,7 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -150,18 +120,59 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
-	slider := room.ScoreTargetSlider(player)
+	slider := room.TargetScoreBinder(player)
 	if err := slider.JawsSet(newScoreTargetElement(h.app, slider), 7); err != nil {
 		t.Fatalf("slider.JawsSet() error = %v", err)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 5*time.Second)
 	defer done()
 	if err := readUntilScoreTargetUpdate(ctx, conn, "7"); err != nil {
 		t.Fatalf("readUntilScoreTargetUpdate() error = %v", err)
 	}
 	if got := room.TargetScore(); got != 7 {
 		t.Fatalf("TargetScore = %d, want 7", got)
+	}
+}
+
+func TestDeckInputReadsWritesAndUsesNarrowTag(t *testing.T) {
+	app, _ := testPlayableApp(t)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	base := app.Catalog.DeckByID("base")
+	input := deckInput{Room: room, Player: host, Deck: base}
+	elem := app.Jaws.NewRequest(httptest.NewRecorder(), nil).NewElement(jui.NewCheckbox(input))
+	if got := input.JawsGet(elem); !got {
+		t.Fatalf("JawsGet() = %v, want selected", got)
+	}
+	wantTag := roomDeckTag{Room: room, Deck: base}
+	if got := input.JawsGetTag(); got != wantTag {
+		t.Fatalf("JawsGetTag() = %#v, want %#v", got, wantTag)
+	}
+	if err := input.JawsSet(elem, false); err != nil {
+		t.Fatalf("JawsSet(false) error = %v", err)
+	}
+	if got := input.JawsGet(elem); got {
+		t.Fatalf("JawsGet() after disable = %v, want unselected", got)
+	}
+	if err := input.JawsSet(elem, false); !errors.Is(err, jaws.ErrValueUnchanged) {
+		t.Fatalf("unchanged JawsSet(false) error = %v, want %v", err, jaws.ErrValueUnchanged)
+	}
+	if err := input.JawsSet(elem, true); err != nil {
+		t.Fatalf("JawsSet(true) error = %v", err)
+	}
+	if got := input.JawsGet(elem); !got {
+		t.Fatalf("JawsGet() after enable = %v, want selected", got)
+	}
+	if got := (deckInput{}).JawsGetTag(); got != nil {
+		t.Fatalf("zero deckInput JawsGetTag() = %v, want nil", got)
 	}
 }
 
@@ -287,7 +298,7 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -324,128 +335,75 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	}
 }
 
-func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
-	room, err := app.createRoom(host)
-	if err != nil {
-		t.Fatalf("createRoom() error = %v", err)
+func connectRoomPage(t *testing.T, h *liveHarness, client *http.Client, room *game.Room) (result *game.Player) {
+	t.Helper()
+	pageHTML := h.getWithClient(t, client, h.app.RoomURL(room.Code()))
+	sess := h.sessionForClient(t, client)
+	result = h.app.player(sess, nil)
+	if result.Room() != nil || room.HasPlayer(result) {
+		t.Fatal("room GET seated the viewer before its JaWS connection")
+	}
+	if !strings.Contains(pageHTML, "Not seated at this table") {
+		t.Fatalf("room GET did not render observer state: %s", pageHTML)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Bob")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	conn, cancel := h.connectWithClient(t, client, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	rq := immediateModeRequestForHTML(t, sess, pageHTML)
+	syncImmediateModeRequest(t, conn, rq, reader, "room-connect-joined")
+	if result.Room() != room || !room.HasPlayer(result) {
+		t.Fatal("JaWS connection did not seat the viewer")
 	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join lobby room")
-	}
-	body := roomRec.Body.String()
-	if !strings.Contains(body, "Card Packs") {
-		t.Fatalf("expected joined room body, got %s", body)
-	}
+	return
 }
 
-func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
-	room, err := app.createRoom(host)
+func TestRoomConnectJoinsLobbyRoom(t *testing.T) {
+	h := newLiveHarness(t)
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
-	if err := room.SetPrivate(host, true); err != nil {
+
+	connectRoomPage(t, h, h.newClient(t), room)
+}
+
+func TestPrivateRoomConnectStillJoinsByDirectURL(t *testing.T) {
+	h := newLiveHarness(t)
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+	if err = room.SetPrivate(host, true); err != nil {
 		t.Fatalf("SetPrivate() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Bob")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join private room by direct URL")
-	}
-	if body := roomRec.Body.String(); !strings.Contains(body, "Card Packs") {
-		t.Fatalf("expected private room body, got %s", body)
-	}
+	connectRoomPage(t, h, h.newClient(t), room)
 }
 
-func TestRoomAutoJoinsGameInProgress(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
-
-	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	hostSess := newTestSession(t, app)
-	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
-	room, err := app.createRoom(host)
+func TestRoomConnectJoinsGameInProgress(t *testing.T) {
+	h := newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{MinPlayers: 2})
+	_, host := livePlayer(t, h, "Alice")
+	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
 
-	guest1Sess := newTestSession(t, app)
-	guest1 := app.player(guest1Sess, nil)
-	app.setNickname(guest1, "Bob")
-	if _, err := app.joinRoom(guest1, room.Code()); err != nil {
+	guest1Sess := newTestSession(t, h.app)
+	guest1 := h.app.player(guest1Sess, nil)
+	h.app.Manager.SetNickname(guest1, "Bob")
+	if _, err = h.app.joinRoom(guest1, room.Code()); err != nil {
 		t.Fatalf("JoinRoom(guest1) error = %v", err)
 	}
-	if err := room.Start(host); err != nil {
+	if err = room.Start(host); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	joinSess := newTestSession(t, app)
-	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Drew")
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(joinSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	if guest.Room() != room {
-		t.Fatal("expected guest to auto-join game in progress")
-	}
-	body := roomRec.Body.String()
-	if !strings.Contains(body, "Your Hand") {
-		t.Fatalf("expected in-progress room body for joined player, got %s", body)
-	}
-	if strings.Contains(body, `<button class="card-face card-face-white`) {
-		t.Fatalf("expected hand cards to render as clickable template elements instead of buttons, got %s", body)
-	}
-	if !strings.Contains(body, `data-jawstemplate class="card-face card-face-white`) ||
-		!strings.Contains(body, `role="button"`) ||
-		!strings.Contains(body, "White card") {
-		t.Fatalf("expected hand cards to render as clickable template elements, got %s", body)
+	guest := connectRoomPage(t, h, h.newClient(t), room)
+	if hand := room.HandFor(guest); len(hand) != game.HandSize {
+		t.Fatalf("connected guest hand size = %d, want %d", len(hand), game.HandSize)
 	}
 }
 
@@ -454,7 +412,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -462,7 +420,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -479,13 +437,16 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	card := hand[0]
 
-	dot := templateDot{App: app, Player: guest, Room: room}
-	view := dot.HandCardView(card)
+	view := whiteCardView{
+		Room:   room,
+		Player: guest,
+		Card:   card,
+	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.CardAttrs(), dot.CardClass(card), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -512,12 +473,12 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 }
 
-func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
+func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 	app, _ := testPlayableApp(t)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -525,7 +486,55 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	card := room.HandFor(guest)[0]
+	view := whiteCardView{Room: room, Player: guest, Card: card}
+	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("initial attributes = %q, want enabled unselected card", attr)
+	}
+
+	if !room.ToggleCardSelection(guest, card) {
+		t.Fatal("ToggleCardSelection() did not select card")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("selected attributes = %q, want enabled selected card", attr)
+	}
+	if order := view.SelectionOrder(); order != 1 {
+		t.Fatalf("SelectionOrder() = %d, want 1", order)
+	}
+	if !room.ToggleCardSelection(guest, card) {
+		t.Fatal("ToggleCardSelection() did not clear the selection")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("cleared attributes = %q, want enabled unselected card", attr)
+	}
+}
+
+func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
+	app, _ := testPlayableApp(t)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -552,13 +561,13 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	submission := submissions[0]
 
-	dot := templateDot{App: app, Player: host, Room: room}
-	view := dot.SubmissionView(submission)
+	view := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}.
+		SubmissionViews()[0]
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, dot.SubmissionAttrs(), dot.SubmissionClass(submission), `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
@@ -585,13 +594,12 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 }
 
-func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
-	app, mux := testPlayableApp(t)
-	handler := app.Middleware(mux)
+func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
+	app, _ := testPlayableApp(t)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -599,7 +607,101 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err := app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err := room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	hand := room.HandFor(guest)
+	if err := room.PlayCards(guest, []*deck.WhiteCard{hand[0]}); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	submission := room.Submissions()[0]
+	dot := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}
+	view := dot.SubmissionViews()[0]
+	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
+		t.Fatalf("initial attributes = %q, want enabled unselected submission", attr)
+	}
+
+	if !room.ToggleSubmissionSelection(host, submission) {
+		t.Fatal("ToggleSubmissionSelection() did not select submission")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
+	}
+
+	if err := room.Judge(host, submission); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
+		t.Fatalf("review attributes = %q, want selected disabled winning submission", attr)
+	}
+}
+
+func TestRoomShowsPlayingHandToNonJudge(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err = app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !room.CanSubmit(guest) {
+		t.Fatal("expected guest to be able to submit in the opening round")
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(guestSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Your Hand") || !strings.Contains(body, ">Play Selected Cards<") {
+		t.Fatalf("expected playable hand controls, got %s", body)
+	}
+	if !strings.Contains(body, "card-face card-face-white") || !strings.Contains(body, "White card") {
+		t.Fatalf("expected playable hand cards, got %s", body)
+	}
+}
+
+func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -639,13 +741,13 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	}
 }
 
-func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
+func TestRoomShowsJudgingActionsToJudge(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -653,7 +755,55 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err = app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	hand := room.HandFor(guest)
+	if err = room.PlayCards(guest, hand[:room.NeedPick()]); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	if room.State() != game.StateJudging || !room.CanJudge(host) {
+		t.Fatalf("expected host to be able to judge in %s", game.StateJudging)
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(hostSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Pick the Winner") || !strings.Contains(body, ">Pick Winner<") {
+		t.Fatalf("expected judging controls, got %s", body)
+	}
+	if !strings.Contains(body, "card-face card-face-white") || !strings.Contains(body, "White card") {
+		t.Fatalf("expected submitted card sets, got %s", body)
+	}
+}
+
+func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -678,21 +828,32 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 		t.Fatalf("State() = %s, want %s", room.State(), game.StateReview)
 	}
 
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
-	roomReq.SetPathValue("code", room.Code())
-	roomReq.AddCookie(hostSess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	renderRoom := func(sess *jaws.Session) (result string) {
+		t.Helper()
+		roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+		roomReq.SetPathValue("code", room.Code())
+		roomReq.AddCookie(sess.Cookie())
+		roomRec := httptest.NewRecorder()
+		handler.ServeHTTP(roomRec, roomReq)
+		if roomRec.Code != http.StatusOK {
+			t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+		}
+		result = roomRec.Body.String()
+		return
 	}
 
-	body := roomRec.Body.String()
+	body := renderRoom(hostSess)
 	if !strings.Contains(body, "Bob won the round!") {
 		t.Fatalf("expected round winner title, got %s", body)
 	}
-	if !strings.Contains(body, "review-countdown-button") || !strings.Contains(body, "data-review-deadline=") {
-		t.Fatalf("expected review proceed button with countdown data, got %s", body)
+	if !strings.Contains(body, `class="btn btn-primary review-countdown-button"`) {
+		t.Fatalf("expected review proceed button, got %s", body)
+	}
+	if !regexp.MustCompile(`>Next Round \([1-9][0-9]*\)</button>`).MatchString(body) {
+		t.Fatalf("expected server-rendered review countdown label, got %s", body)
+	}
+	if strings.Contains(body, "data-review-") {
+		t.Fatalf("judge review used client-side countdown attributes: %s", body)
 	}
 	if !strings.Contains(body, "room-player-winner") || !strings.Contains(body, "winner</span>") {
 		t.Fatalf("expected sidebar winner highlight, got %s", body)
@@ -700,25 +861,34 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 	if !strings.Contains(body, "is-winning") {
 		t.Fatalf("expected winning submission highlight, got %s", body)
 	}
+
+	body = renderRoom(guestSess)
+	if !strings.Contains(body, `class="small text-muted"`) ||
+		!regexp.MustCompile(`>Next round in [1-9][0-9]* seconds\.</span>`).MatchString(body) {
+		t.Fatalf("expected non-judge JaWS countdown span, got %s", body)
+	}
+	if strings.Contains(body, "review-countdown-button") || strings.Contains(body, "data-review-") {
+		t.Fatalf("non-judge review rendered a button or client-side countdown attributes: %s", body)
+	}
 }
 
-func TestMissingRoomRendersMissingPanel(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	sess := newTestSession(t, app)
-
-	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/MISSING", nil)
-	roomReq.SetPathValue("code", "MISSING")
-	roomReq.AddCookie(sess.Cookie())
-	roomRec := httptest.NewRecorder()
-	handler.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
-	}
-	body := roomRec.Body.String()
+func TestMissingRoomConnectionRemainsUsable(t *testing.T) {
+	h := newLiveHarness(t)
+	client := h.newClient(t)
+	body := h.getWithClient(t, client, "/room/MISSING")
 	if !strings.Contains(body, "Room not found") {
 		t.Fatalf("expected missing-room panel text: %s", body)
+	}
+
+	sess := h.sessionForClient(t, client)
+	player := h.app.player(sess, nil)
+	rq := immediateModeRequestForHTML(t, sess, body)
+	conn, cancel := h.connectWithClient(t, client, body)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "missing-room-connected")
+	if player.Room() != nil {
+		t.Fatalf("missing-room connection seated its Player in %v", player.Room())
 	}
 }
 
@@ -729,7 +899,7 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)

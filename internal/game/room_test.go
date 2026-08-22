@@ -2,7 +2,9 @@ package game
 
 import (
 	"errors"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -75,8 +77,8 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	forceRound(t, room, "b3")
-	if room.NeedDraw() != 1 {
-		t.Fatalf("NeedDraw() = %d, want 1", room.NeedDraw())
+	if black := room.CurrentBlack(); black == nil || black.Draw != 1 {
+		t.Fatalf("CurrentBlack() = %#v, want draw 1", black)
 	}
 	for _, player := range room.Players() {
 		hand := room.HandFor(player)
@@ -412,6 +414,142 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 	t.Fatalf("expected review timer to auto-advance, got %s", room.State())
 }
 
+func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := &Manager{}
+		judge := testPlayer("Judge")
+		winner := testPlayer("Winner")
+		room := &Room{
+			manager:     manager,
+			state:       StateJudging,
+			players:     []*Player{judge, winner},
+			host:        judge,
+			czarIndex:   0,
+			reviewDelay: 2500 * time.Millisecond,
+		}
+
+		var notificationsMu sync.Mutex
+		var notifications [][]any
+		manager.SetDirty(func(tags ...any) {
+			notificationsMu.Lock()
+			notifications = append(notifications, append([]any(nil), tags...))
+			notificationsMu.Unlock()
+		})
+		notificationSnapshot := func() (result [][]any) {
+			notificationsMu.Lock()
+			defer notificationsMu.Unlock()
+			result = append([][]any(nil), notifications...)
+			return
+		}
+
+		room.mu.Lock()
+		room.beginReviewLocked(winner, nil, true)
+		room.mu.Unlock()
+		countdown := room.ReviewStatus(winner)
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 3 seconds." {
+			t.Fatalf("initial Countdown = %q", got)
+		}
+
+		synctest.Wait()
+		if got := notificationSnapshot(); len(got) != 0 {
+			t.Fatalf("notifications before first boundary = %#v", got)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+		synctest.Wait()
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 2 seconds." {
+			t.Fatalf("Countdown after first boundary = %q", got)
+		}
+		gotNotifications := notificationSnapshot()
+		if len(gotNotifications) != 1 || len(gotNotifications[0]) != 1 || gotNotifications[0][0] != &room.reviewDeadline {
+			t.Fatalf("notifications after first boundary = %#v", gotNotifications)
+		}
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 1 second." {
+			t.Fatalf("Countdown after second boundary = %q", got)
+		}
+		gotNotifications = notificationSnapshot()
+		if len(gotNotifications) != 2 || len(gotNotifications[1]) != 1 || gotNotifications[1][0] != &room.reviewDeadline {
+			t.Fatalf("notifications after second boundary = %#v", gotNotifications)
+		}
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if got := room.State(); got != StateLobby {
+			t.Fatalf("State() at deadline = %s, want %s", got, StateLobby)
+		}
+		if got := countdown.JawsGet(nil); got != "" {
+			t.Fatalf("Countdown after review = %q, want empty", got)
+		}
+		gotNotifications = notificationSnapshot()
+		if len(gotNotifications) != 3 || len(gotNotifications[2]) != 1 || gotNotifications[2][0] != room {
+			t.Fatalf("notifications at deadline = %#v", gotNotifications)
+		}
+		if room.reviewTimer != nil {
+			t.Fatalf("reviewTimer at deadline = %v, want nil", room.reviewTimer)
+		}
+
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		if got := notificationSnapshot(); len(got) != 3 {
+			t.Fatalf("notifications after review ended = %#v", got)
+		}
+	})
+}
+
+func TestProceedReviewStopsCountdownUpdates(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := &Manager{}
+		judge := testPlayer("Judge")
+		winner := testPlayer("Winner")
+		room := &Room{
+			manager:     manager,
+			state:       StateJudging,
+			players:     []*Player{judge, winner},
+			host:        judge,
+			czarIndex:   0,
+			reviewDelay: 2500 * time.Millisecond,
+		}
+
+		var notificationsMu sync.Mutex
+		var notifications int
+		manager.SetDirty(func(...any) {
+			notificationsMu.Lock()
+			notifications++
+			notificationsMu.Unlock()
+		})
+		notificationCount := func() (result int) {
+			notificationsMu.Lock()
+			result = notifications
+			notificationsMu.Unlock()
+			return
+		}
+
+		room.mu.Lock()
+		room.beginReviewLocked(winner, nil, true)
+		room.mu.Unlock()
+		time.Sleep(500 * time.Millisecond)
+		synctest.Wait()
+		if got := notificationCount(); got != 1 {
+			t.Fatalf("notification count after first boundary = %d, want 1", got)
+		}
+
+		if err := room.ProceedReview(judge); err != nil {
+			t.Fatalf("ProceedReview() error = %v", err)
+		}
+		if room.reviewTimer != nil {
+			t.Fatalf("reviewTimer after ProceedReview = %v, want nil", room.reviewTimer)
+		}
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		if got := notificationCount(); got != 1 {
+			t.Fatalf("notification count after ProceedReview = %d, want 1", got)
+		}
+	})
+}
+
 func TestJoinDuringGameRequiresEnoughCardsForAnotherPlayer(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
@@ -645,6 +783,46 @@ func TestRoundWinnerLeavingAdvancesReview(t *testing.T) {
 	}
 }
 
+func TestSetDeckEnabledReportsChanges(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	host := testPlayer("Alice")
+	guest := testPlayer("Bob")
+
+	room, _ := mgr.CreateRoom(host, catalog.DefaultDecks())
+	if _, err := mgr.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+	base := catalog.DeckByID("base")
+	if changed, err := room.SetDeckEnabled(guest, base, false); !errors.Is(err, ErrOnlyHostCanEdit) || changed {
+		t.Fatalf("SetDeckEnabled(non-host) = (%v, %v), want (false, %v)", changed, err, ErrOnlyHostCanEdit)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, true); err != nil || changed {
+		t.Fatalf("SetDeckEnabled(initial state) = (%v, %v), want (false, nil)", changed, err)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, false); err != nil || !changed {
+		t.Fatalf("SetDeckEnabled(disable) = (%v, %v), want (true, nil)", changed, err)
+	}
+	if room.DeckEnabled(base) {
+		t.Fatal("DeckEnabled(base) after disable = true, want false")
+	}
+	if changed, err := room.SetDeckEnabled(host, base, false); err != nil || changed {
+		t.Fatalf("SetDeckEnabled(repeated disable) = (%v, %v), want (false, nil)", changed, err)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, true); err != nil || !changed {
+		t.Fatalf("SetDeckEnabled(enable) = (%v, %v), want (true, nil)", changed, err)
+	}
+	if !room.DeckEnabled(base) {
+		t.Fatal("DeckEnabled(base) after enable = false, want true")
+	}
+	room.mu.Lock()
+	room.state = StatePlaying
+	room.mu.Unlock()
+	if changed, err := room.SetDeckEnabled(host, base, false); !errors.Is(err, ErrDecksLocked) || changed {
+		t.Fatalf("SetDeckEnabled(in game) = (%v, %v), want (false, %v)", changed, err, ErrDecksLocked)
+	}
+}
+
 func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
@@ -652,8 +830,8 @@ func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 
 	room, _ := mgr.CreateRoom(host, catalog.DefaultDecks())
 	unknown := &deck.Deck{DeckMetadata: deck.DeckMetadata{ID: "base", Name: "Base copy"}}
-	if err := room.SetDeckEnabled(host, unknown, true); err != ErrUnknownDeck {
-		t.Fatalf("SetDeckEnabled() error = %v, want %v", err, ErrUnknownDeck)
+	if changed, err := room.SetDeckEnabled(host, unknown, true); !errors.Is(err, ErrUnknownDeck) || changed {
+		t.Fatalf("SetDeckEnabled() = (%v, %v), want (false, %v)", changed, err, ErrUnknownDeck)
 	}
 }
 

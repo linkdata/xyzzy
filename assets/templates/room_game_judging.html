@@ -1,0 +1,22 @@
+{{with .Dot}}
+{{$dot := .}}
+{{$room := .Room}}
+{{$player := .Player}}
+{{template "room_game_black_card.html" $}}
+{{$canJudge := $room.CanJudge $player}}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  {{if $canJudge}}
+  <h5 class="mb-0">Pick the Winner</h5>
+  {{$.Button ($room.JudgeButton $player) `class="btn btn-primary"`}}
+  {{else}}
+  <h5 class="mb-0">{{$dot.WaitingTitle}}</h5>
+  {{end}}
+</div>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+  {{range $dot.SubmissionViews}}
+  <div class="col">
+    {{$.Template "div" "submission_clickable.html" . `data-jawstemplate` `role="button"` `tabindex="0"`}}
+  </div>
+  {{end}}
+</div>
+{{end}}

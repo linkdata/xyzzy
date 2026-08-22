@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	"github.com/linkdata/jaws"
-	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
@@ -60,25 +59,14 @@ func (p *Player) NicknameInputValue() (result string) {
 	return
 }
 
-// SetStandaloneNickname updates nickname fields while the player is not in a room.
-func (p *Player) SetStandaloneNickname(nickname string) {
+func (p *Player) setNickname(nickname string) (changed bool) {
 	if p != nil {
 		p.uiMu.Lock()
-		p.Nickname = nickname
-		p.NicknameInput = nickname
+		if changed = p.Nickname != nickname || p.NicknameInput != nickname; changed {
+			p.Nickname = nickname
+			p.NicknameInput = nickname
+		}
 		p.uiMu.Unlock()
 	}
-}
-
-func (p *Player) setRoomNickname(nickname string) {
-	if p != nil {
-		p.uiMu.Lock()
-		p.Nickname = nickname
-		p.NicknameInput = nickname
-		p.uiMu.Unlock()
-	}
-}
-
-func (p *Player) NicknameField() bind.Binder[string] {
-	return bind.New(&p.uiMu, &p.NicknameInput)
+	return
 }

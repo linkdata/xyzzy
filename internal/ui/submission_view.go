@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"html/template"
+
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -15,6 +17,15 @@ func (v submissionView) Cards() (result []whiteCardView) {
 	if v.Room != nil && v.Submission != nil {
 		result = submissionCardViews(v.Room, v.Submission)
 	}
+	return
+}
+
+func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
+	result = cardInitialHTMLAttr(
+		v.Room.SubmissionSelected(v.Player, v.Submission),
+		v.Room.IsWinningSubmission(v.Submission),
+		!v.Room.CanJudge(v.Player),
+	)
 	return
 }
 

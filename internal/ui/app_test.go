@@ -15,6 +15,8 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/jaws/lib/what"
+	"github.com/linkdata/jaws/lib/wire"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -31,13 +33,35 @@ func TestSessionMapsToSinglePlayer(t *testing.T) {
 	}
 }
 
+func TestPlayerReleasesLookupLockBeforePublishingNickname(t *testing.T) {
+	app, _ := testApp(t)
+	sess := newTestSession(t, app)
+	player := &game.Player{Session: sess}
+	sess.Set(sessionKeyPlayer, player)
+
+	var playerMuUnlocked bool
+	app.Manager.SetDirty(func(...any) {
+		playerMuUnlocked = app.playerMu.TryLock()
+		if playerMuUnlocked {
+			app.playerMu.Unlock()
+		}
+	})
+
+	if got := app.player(sess, nil); got != player {
+		t.Fatalf("player() = %p, want %p", got, player)
+	}
+	if !playerMuUnlocked {
+		t.Fatal("nickname publication ran while playerMu was locked")
+	}
+}
+
 func TestCleanupExpiredSessionDeletesEmptyRoom(t *testing.T) {
 	h := newLiveHarness(t)
 
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -151,7 +175,7 @@ func livePlayer(t *testing.T, h *liveHarness, nickname string) (result1 *jaws.Se
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, nickname)
+	h.app.Manager.SetNickname(player, nickname)
 	result1, result2 = sess, player
 	return
 }
@@ -162,7 +186,7 @@ func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (result1 *j
 	h.getWithClient(t, client, "/")
 	sess := h.sessionForClient(t, client)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, nickname)
+	h.app.Manager.SetNickname(player, nickname)
 	result1, result2 = sess, player
 	return
 }
@@ -195,7 +219,7 @@ func TestLobbyPageReceivesLiveRoomUpdates(t *testing.T) {
 	_ = otherHTML
 	otherSession := h.sessionForClient(t, otherClient)
 	otherPlayer := h.app.player(otherSession, nil)
-	h.app.setNickname(otherPlayer, "Bob")
+	h.app.Manager.SetNickname(otherPlayer, "Bob")
 	room, err := h.app.createRoom(otherPlayer)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -218,7 +242,7 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -228,7 +252,7 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
-	if err := room.SetDeckEnabled(player, h.app.Catalog.DeckByID("extra"), true); err != nil {
+	if _, err := room.SetDeckEnabled(player, h.app.Catalog.DeckByID("extra"), true); err != nil {
 		t.Fatalf("SetDeckEnabled() error = %v", err)
 	}
 	h.app.Jaws.Dirty(h.app.Manager, room)
@@ -256,7 +280,7 @@ func TestLobbyPageReceivesLiveRoomRemovalUpdates(t *testing.T) {
 	h.getWithClient(t, otherClient, "/")
 	otherSession := h.sessionForClient(t, otherClient)
 	otherPlayer := h.app.player(otherSession, nil)
-	h.app.setNickname(otherPlayer, "Bob")
+	h.app.Manager.SetNickname(otherPlayer, "Bob")
 	room, err := h.app.createRoom(otherPlayer)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -292,7 +316,7 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	h.getWithClient(t, hostClient, "/")
 	hostSession := h.sessionForClient(t, hostClient)
 	host := h.app.player(hostSession, nil)
-	h.app.setNickname(host, "Bob")
+	h.app.Manager.SetNickname(host, "Bob")
 	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -385,17 +409,195 @@ func TestLobbyRenders(t *testing.T) {
 	if !strings.Contains(body, `id="nicknameModal"`) || !strings.Contains(body, "Change Nickname") {
 		t.Fatalf("expected lobby body to include nickname modal, got %s", body)
 	}
-	if app.Jaws.GetSession(req) != nil {
-		t.Fatal("plain lobby GET unexpectedly allocated a JaWS session")
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected lobby GET to establish a JaWS session")
 	}
-	if !strings.Contains(body, "0 online players") {
-		t.Fatalf("expected lobby body to show zero online players, got %s", body)
+	if player, _ := sess.Get(sessionKeyPlayer).(*game.Player); player == nil {
+		t.Fatal("expected lobby GET to store its Player before rendering")
+	}
+	if !strings.Contains(body, ">0</span> online</small>") {
+		t.Fatalf("expected a GET-only lobby to show no online sessions, got %s", body)
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
 	}
 	if !strings.Contains(body, "Create Room") {
 		t.Fatalf("expected lobby body to include create-room button, got %s", body)
+	}
+}
+
+func TestLobbyShowsLiveOnlineSessionCount(t *testing.T) {
+	h := newLiveHarness(t)
+	if enabled := h.app.Jaws.StatusMetrics.Load(); enabled&jaws.StatusMetricActiveSessions == 0 {
+		t.Fatalf("StatusMetrics = %b, want StatusMetricActiveSessions", enabled)
+	}
+
+	firstHTML := h.get(t, "/")
+	if !strings.Contains(firstHTML, ">0</span> online</small>") {
+		t.Fatalf("expected first GET to precede its live session, got %s", firstHTML)
+	}
+	session := h.session(t)
+	if count := h.app.Jaws.ActiveSessionCount(); count != 0 {
+		t.Fatalf("ActiveSessionCount() before connect = %d, want 0", count)
+	}
+	firstRequest := immediateModeRequestForHTML(t, session, firstHTML)
+	countElements := firstRequest.GetElements(h.app.Jaws.ActiveSessionCountTag())
+	if len(countElements) != 1 {
+		t.Fatalf("active-session-count Elements = %d, want 1", len(countElements))
+	}
+	countJID := countElements[0].Jid()
+	firstConn, firstCancel := h.connect(t, firstHTML)
+	defer firstCancel()
+	firstReader := newImmediateModeWireReader(t, firstConn)
+	ctx, cancel := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "1"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for first active session: %v", err)
+	}
+	cancel()
+
+	secondHTML := h.get(t, "/")
+	if h.session(t) != session {
+		t.Fatal("second tab did not reuse the first tab's session")
+	}
+	if !strings.Contains(secondHTML, ">1</span> online</small>") {
+		t.Fatalf("expected second tab to keep one online session, got %s", secondHTML)
+	}
+	secondRequest := immediateModeRequestForHTML(t, session, secondHTML)
+	secondConn, secondCancel := h.connect(t, secondHTML)
+	defer secondCancel()
+	secondReader := newImmediateModeWireReader(t, secondConn)
+	syncImmediateModeRequest(t, secondConn, secondRequest, secondReader, "second-tab-connected")
+	if count := h.app.Jaws.ActiveSessionCount(); count != 1 {
+		t.Fatalf("ActiveSessionCount() with two tabs = %d, want 1", count)
+	}
+
+	otherClient := h.newClient(t)
+	otherHTML := h.getWithClient(t, otherClient, "/")
+	if !strings.Contains(otherHTML, ">1</span> online</small>") {
+		t.Fatalf("expected a GET-only second client not to count yet, got %s", otherHTML)
+	}
+	otherSession := h.sessionForClient(t, otherClient)
+	if otherSession == session {
+		t.Fatal("second client unexpectedly reused the first client's session")
+	}
+	_, otherCancel := h.connectWithClient(t, otherClient, otherHTML)
+	defer otherCancel()
+	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "2"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for online count increase: %v", err)
+	}
+	cancel()
+
+	otherSession.Close()
+	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.Jid == countJID && msg.What == what.Inner && msg.Data == "1"
+	}); err != nil {
+		cancel()
+		t.Fatalf("waiting for online count decrease: %v", err)
+	}
+	cancel()
+}
+
+func TestPageHandlersRequireSessionMiddleware(t *testing.T) {
+	app, _ := testApp(t)
+	tests := []struct {
+		name  string
+		path  string
+		serve http.HandlerFunc
+	}{
+		{name: "lobby", path: "http://example.test/", serve: app.serveLobby},
+		{name: "room", path: "http://example.test/room/MISSING", serve: app.serveRoom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			if tt.name == "room" {
+				req.SetPathValue("code", "MISSING")
+			}
+			rec := httptest.NewRecorder()
+
+			tt.serve.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("ServeHTTP() status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+			}
+		})
+	}
+}
+
+func TestAnonymousRoomPageDoesNotJoinBeforeConnecting(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostSession := newTestSession(t, app)
+	host := app.player(hostSession, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected room GET to establish a JaWS session")
+	}
+	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
+	if player == nil {
+		t.Fatal("expected room GET to create its Player")
+	}
+	if player.Room() != nil || room.HasPlayer(player) {
+		t.Fatalf("room GET seated its Player: %#v", player)
+	}
+	if room.PlayerCount() != 1 {
+		t.Fatalf("PlayerCount() = %d, want 1", room.PlayerCount())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Not seated at this table") || !strings.Contains(body, "An open seat is available") {
+		t.Fatalf("expected initial room document to contain observer state, got %s", body)
+	}
+	if request := immediateModeRequestForHTML(t, sess, body); request.GetConnectFn() == nil {
+		t.Fatal("room page Request has no ConnectHandler callback")
+	}
+}
+
+func TestCookielessRoomGETsDoNotTakeSeats(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	hostSession := newTestSession(t, app)
+	host := app.player(hostSession, nil)
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	for i := 0; i < game.MaxPlayers-1; i++ {
+		req := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+		req.SetPathValue("code", room.Code())
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %d status = %d, want %d", i, rec.Code, http.StatusOK)
+		}
+	}
+
+	if count := room.PlayerCount(); count != 1 {
+		t.Fatalf("PlayerCount() after cookieless GETs = %d, want 1", count)
 	}
 }
 
@@ -427,31 +629,6 @@ func TestStaticMetadataAndUnknownRoutes(t *testing.T) {
 	}
 }
 
-func TestLobbyShowsCurrentOnlinePlayerCount(t *testing.T) {
-	h := newLiveHarness(t)
-
-	html := h.get(t, "/")
-	conn, cancel := h.connect(t, html)
-	defer cancel()
-	_ = conn
-
-	body := h.getWithClient(t, h.newClient(t), "/")
-	if !strings.Contains(body, "1 online player") {
-		t.Fatalf("expected lobby body to show one online player, got %s", body)
-	}
-
-	client2 := h.newClient(t)
-	html2 := h.getWithClient(t, client2, "/")
-	conn2, cancel2 := h.connectWithClient(t, client2, html2)
-	defer cancel2()
-	_ = conn2
-
-	body = h.getWithClient(t, h.newClient(t), "/")
-	if !strings.Contains(body, "2 online players") {
-		t.Fatalf("expected lobby body to show two online players, got %s", body)
-	}
-}
-
 func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
@@ -459,7 +636,7 @@ func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 
 	req2 := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	req2.AddCookie(sess.Cookie())
@@ -497,8 +674,13 @@ func TestLobbyRestoresNicknameFromCookie(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if app.Jaws.GetSession(req) != nil {
-		t.Fatal("plain lobby GET unexpectedly allocated a JaWS session")
+	sess := app.Jaws.GetSession(req)
+	if sess == nil {
+		t.Fatal("expected lobby GET to establish a JaWS session")
+	}
+	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
+	if player == nil || player.NicknameValue() != "Alice" {
+		t.Fatalf("expected restored nickname on session Player, got %#v", player)
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "Alice") {
 		t.Fatalf("expected restored nickname in lobby body, got %s", body)
@@ -512,7 +694,7 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -681,7 +863,7 @@ func TestSetNicknameInRoomKeepsNicknameUnique(t *testing.T) {
 		t.Fatalf("JoinRoom() error = %v", err)
 	}
 
-	app.setNickname(guest, "Alice")
+	app.Manager.SetNickname(guest, "Alice")
 
 	if got := guest.Nickname; got != "Alice-2" {
 		t.Fatalf("guest nickname = %q, want %q", got, "Alice-2")
