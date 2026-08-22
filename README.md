@@ -47,11 +47,10 @@ definitions needed for events and updates, and reruns selected definitions.
 When a child list can change, a `Container` reconstructs and reconciles only its
 direct children.
 
-The application never stores a JaWS `Request`, `Element`, or UI tree in a
-`Manager`, `Room`, or `Player`. Values such as `templateDot`, `roomSection`,
-`whiteCardView`, and `submissionView` are short-lived definitions containing
-stable pointers to authoritative state, not controllers or retained view
-models.
+Values such as `templateDot`, `roomSection`, `whiteCardView`, and
+`submissionView` are request-scoped definitions containing stable pointers to
+authoritative state. JaWS retains them with its live elements; `Manager`,
+`Room`, and `Player` never retain JaWS requests, elements, or UI trees.
 
 The package boundary follows ownership and lifetime rather than MVC roles.
 `internal/ui` integrates HTTP, sessions, and templates; `internal/game/jaws_ui.go`
@@ -93,24 +92,6 @@ Addressable scalar controls bind the real field; methods such as `HandFor` and
 them. The small card definitions likewise retain only the pointers needed to
 read current state and handle an event.
 
-Template execution is deliberately not a transaction over the whole room. If
-a mutation lands between two getter calls, one render may combine observations
-from adjacent valid states. Every read remains race-free, actions revalidate
-against current state, and the UI path that commits a mutation publishes the
-relevant `Room` or `Player` tag so JaWS converges the retained element tree.
-This keeps the immediate-mode projection direct instead of introducing a
-screen-shaped DTO.
-
-The lobby's online count is a bound `Span` getter over
-`Jaws.ActiveSessionCount`. The application constructor enables
-`StatusMetricActiveSessions`, and the getter registers
-`ActiveSessionCountTag`, so JaWS dirties the span when its maintenance loop
-observes a different count. Multiple connected tabs sharing one session still
-count once.
-
-This keeps wrapper ownership unambiguous: the template emits the contents of a
-JaWS wrapper, not a competing copy of the wrapper itself.
-
 ### Definition equality and dependency tags are separate
 
 Immediate-mode reconciliation answers two different questions:
@@ -148,25 +129,14 @@ the same lock is held and then delegates to the original binder.
 
 Deck selection is the one custom input definition because “is this deck
 enabled?” is computed from a set rather than stored in an addressable scalar.
-`deckInput` implements `JawsGet`, `JawsSet`, and `JawsGetTag` directly. Its
-`roomDeckTag{Room, Deck}` dependency lets a rejected browser edit reconcile that
-deck's checkbox in every live request for the room. Unchanged peers suppress the
-wire update, so normally only the originating input is corrected. An actual
-selection change separately dirties the `Room`, after the room lock is released,
-so shared counts and controls update in every live request. An unchanged edit
-returns `jaws.ErrValueUnchanged` and dirties neither.
+Its `roomDeckTag{Room, Deck}` dependency scopes input reconciliation to one deck;
+an actual selection change also dirties the `Room` so shared counts and controls
+update. An unchanged edit returns `jaws.ErrValueUnchanged` and dirties neither.
 
 `Manager.SetNickname` is likewise the single committed-nickname boundary. It
-normalizes or uniquifies the value under the state locks and, when either stored
-field changes, releases them before publishing the manager, player, room, and
-exact nickname-field dependency. A normalized save therefore reconciles sibling
-inputs and navbar labels as well as shared room text, while a canonical no-op
-publishes nothing.
-
-The navbar's Bootstrap modal trigger remains ordinary HTML around the bound
-nickname `Span`. The span uses Bootstrap's `pe-none` utility so pointer clicks
-target the outer button and reach Bootstrap's document-level modal handler;
-JaWS can still update the span's text through its element ID.
+normalizes or uniquifies the value, then publishes the manager, player, editable
+field, and—when seated—the room. Sibling inputs, navbar labels, and shared room
+text therefore reconcile from one mutation boundary.
 
 Semantic actions are returned as `ui.Object` values. The object's primary
 getter may be a dynamic string getter, so its label, click behavior, dependency
@@ -177,12 +147,6 @@ separate label, attribute, and callback helpers.
 Rendered `hidden` and `disabled` attributes are presentation, not
 authorization. Privileged room mutations revalidate the player's permissions
 and current room state.
-
-`LobbyControlAttrs` deliberately stays separate from the target-score binder.
-The range input needs `disabled`, while the span displaying the same bound value
-does not. Binder attribute hooks also run while the binder lock is held, so an
-attribute helper that reacquired the room lock could deadlock when a writer is
-waiting.
 
 ### The countdown is server-driven dynamic text
 
@@ -213,39 +177,28 @@ session expires. `App.player` serializes the session's get-or-create operation,
 so concurrent page requests cannot create different players for one session.
 
 `GET /room/{code}` does not take a seat. Its top-level `roomPageDot` implements
-`jaws.ConnectHandler`, so the initial document describes the unseated state and
-the join runs only after JaWS accepts the page's WebSocket. The handler resolves
-the route to one stable room identity shared by the connect hook and both room
-sections. If that identity disappears or changes before connection, the page
-reloads instead of attaching a replacement room to retained definitions for the
-old one. A successful join dirties the existing `Player`, `Room`, and room-list
-dependencies; the retained sidebar and main `Container` values then reconcile
-into the seated UI. Plain crawlers, prefetchers, and link unfurlers therefore
-cannot fill a room by fetching its URL. A client that runs the JaWS script and
-opens the WebSocket can still join, because connection is the intended lifecycle
-boundary rather than proof of human intent.
+`jaws.ConnectHandler`, so a new viewer attempts to join only after JaWS accepts
+the page's WebSocket. The handler shares one captured room identity with both
+room sections and reloads if that identity changes before connection. A
+successful join dirties the `Manager`, `Room`, and `Player`; the retained
+containers then reconcile into the seated UI. Plain crawlers and link unfurlers
+cannot fill a room by fetching its URL.
+
+The lobby binds a `Span` to `Jaws.ActiveSessionCount` and
+`ActiveSessionCountTag`, so distinct active sessions update live. Tabs sharing a
+session count once; GET-only and disconnected sessions do not count. Sampling
+may briefly coalesce intermediate changes.
 
 Visiting `GET /` likewise leaves the player's current room before rendering the
 lobby.
 
 ### Concurrency without retained presentation state
 
-State types own their synchronization. Mutation methods validate and update
-under the relevant locks. The UI, timer, or session path that commits the
-change notifies JaWS after releasing them. Every template-facing room accessor
-takes the room lock when it reads mutable state, and collection accessors return
-copies rather than exposing mutable slice storage. Templates never retain a
-room lock across execution. Accessors and mutations release it before JaWS
-notification; `SetLocked` binder hooks are the deliberate exception that
-validate and write while the binder already holds it.
-
-A state template can therefore observe adjacent valid states across separate
-getter calls, but it cannot race on the underlying data. A subsequent relevant
-dirty notification converges the display. Values needed after unlocking are
-copied as primitives: `ReviewTitle`, for example, copies the winner's nickname
-string rather than retaining a `*Player` field read. Countdown getters capture
-no room state; they read the current deadline and outcome when JaWS invokes
-them and remain tagged on the authoritative deadline field.
+State types own their synchronization. Mutations validate under their state
+locks and notify JaWS after releasing them. Accessors copy mutable collections
+before returning, and templates never retain a room lock across execution.
+Separate getter calls may observe adjacent valid states, but every read is
+race-free and the relevant dirty notification converges the display.
 
 ## Deliberate boundaries
 
@@ -259,10 +212,6 @@ them and remain tagged on the authoritative deadline field.
 - The first lobby or room visit from an anonymous browser creates an ephemeral
   session and player. Expired seated players are removed from rooms during
   later page requests; an unseated player has the JaWS session's lifetime.
-- The lobby's live presence count uses distinct sessions attached to active
-  JaWS Requests. Connected tabs sharing one session count once, while GET-only
-  and disconnected sessions do not count. Maintenance sampling may coalesce
-  intermediate changes, so the display can lag briefly.
 - JaWS-managed buttons and inputs require the WebSocket connection. The server
   does not replay actions performed while a browser is offline.
 

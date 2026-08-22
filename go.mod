@@ -9,8 +9,6 @@ require (
 	github.com/linkdata/webserv v1.1.2
 )
 
-// replace github.com/linkdata/jaws v0.700.0 => ../jaws
-
 require (
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/linkdata/jq v0.6.0 // indirect

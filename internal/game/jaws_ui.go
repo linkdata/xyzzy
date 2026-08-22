@@ -10,11 +10,7 @@ import (
 	"github.com/linkdata/jaws/lib/ui"
 )
 
-// NicknameField binds the player's editable nickname input.
-//
-// The binding synchronizes access to NicknameInput and uses the field pointer as
-// its update tag. [Manager.SetNickname] publishes the same tag after committing
-// a normalized nickname.
+// NicknameField returns a binder for the player's editable nickname.
 func (p *Player) NicknameField() bind.Binder[string] {
 	return bind.New(&p.uiMu, &p.NicknameInput)
 }
@@ -36,11 +32,10 @@ func (r *Room) TargetScoreBinder(player *Player) (result bind.Binder[int]) {
 	return
 }
 
-// PrivateToggle binds whether the room is private for player.
+// PrivateToggle returns a privacy binder for player.
 //
-// Only the host may edit privacy while the room is in the lobby. An actual
-// change dirties the [Manager]; an unchanged value returns
-// [jaws.ErrValueUnchanged] without dirtying it.
+// Only the host may edit privacy while the room is in the lobby. An unchanged
+// value returns [jaws.ErrValueUnchanged].
 func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) {
 	result = bind.New(&r.mu, &r.private).
 		SetLocked(func(prev bind.Binder[bool], elem *jaws.Element, value bool) (err error) {
@@ -74,7 +69,7 @@ func (r *Room) LobbyControlAttrs(player *Player) (result template.HTMLAttr) {
 //
 // The action is hidden from non-hosts and disabled until the lobby has enough
 // players and the selected packs provide enough cards. A successful click
-// starts and dirties the Room.
+// starts the game.
 func (r *Room) StartGameButton(player *Player) (result ui.Object) {
 	result = ui.New("Start Game").
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
@@ -100,7 +95,7 @@ func (r *Room) StartGameButton(player *Player) (result ui.Object) {
 // SubmitCardsButton returns the selected-card submission action for player.
 //
 // The action is disabled until player has a complete valid selection. A
-// successful click submits that selection and dirties the Room.
+// successful click submits that selection.
 func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
 	result = ui.New("Play Selected Cards").
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
@@ -124,7 +119,7 @@ func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
 // JudgeButton returns the selected-submission judging action for player.
 //
 // The action is disabled unless player is the current judge with a selected
-// submission. A successful click records the winner and dirties the Room.
+// submission. A successful click records the winner.
 func (r *Room) JudgeButton(player *Player) (result ui.Object) {
 	result = ui.New("Pick Winner").
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
@@ -146,6 +141,8 @@ func (r *Room) JudgeButton(player *Player) (result ui.Object) {
 }
 
 // ReviewTitle returns the current review heading.
+//
+// It returns an empty string outside review.
 func (r *Room) ReviewTitle() (result string) {
 	var active bool
 	var gameWinner bool
@@ -182,8 +179,8 @@ func (r *Room) ReviewStatus(player *Player) (result bind.Getter[string]) {
 
 // ReviewButton returns the current judge's proceed-review action.
 //
-// It returns nil outside review and for non-judge players. A click revalidates
-// the review state through [Room.ProceedReview].
+// It returns nil outside review and for non-judge players. A successful click
+// advances to the next round or returns a completed game to the lobby.
 func (r *Room) ReviewButton(player *Player) (result ui.Object) {
 	active, canProceed := r.reviewControlRole(player)
 	if active && canProceed {

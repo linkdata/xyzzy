@@ -339,6 +339,8 @@ func (r *Room) JudgePlayer() (result *Player) {
 }
 
 // JudgeName returns the current judge's nickname.
+//
+// It returns an empty string when there is no judge.
 func (r *Room) JudgeName() (result string) {
 	r.mu.RLock()
 	if judge := r.judgeLocked(); judge != nil {

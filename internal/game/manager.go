@@ -18,10 +18,10 @@ type Manager struct {
 	dirty   func(...any)
 }
 
-// SetDirty sets the callback used to publish game-state dependency changes.
+// SetDirty sets the callback used to publish dependency changes.
 //
-// The callback may be nil. Callbacks run after Manager and Room state locks are
-// released.
+// A nil callback disables publication. Callbacks run without Manager or Room
+// state locks held.
 func (m *Manager) SetDirty(fn func(...any)) {
 	m.dirtyMu.Lock()
 	m.dirty = fn
@@ -95,14 +95,11 @@ func (m *Manager) PublicRooms() (result []*Room) {
 	return
 }
 
-// SetNickname updates and publishes the player's nickname.
+// SetNickname normalizes and publishes the player's nickname.
 //
-// Membership in this Manager is held stable while the nickname is committed. A
-// seated nickname is made unique within its [Room]; a standalone nickname is
-// only normalized. A nil player is ignored. After releasing state locks,
-// SetNickname publishes the Manager, Player, editable nickname field, and seated
-// Room dependencies through the callback installed by [Manager.SetDirty]. It
-// publishes nothing when both stored nickname fields are already unchanged.
+// The operation is serialized with room membership changes. A seated nickname
+// is made unique within its [Room]; a standalone nickname is only normalized. A
+// nil player or unchanged value is not published.
 func (m *Manager) SetNickname(player *Player, nickname string) {
 	if player != nil {
 		nickname = NormalizeNickname(nickname)

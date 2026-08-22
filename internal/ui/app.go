@@ -36,9 +36,9 @@ type App struct {
 
 // New returns an App using the supplied JaWS server, catalog, and manager.
 //
-// It enables [jaws.StatusMetricActiveSessions] and installs the JaWS dirty
-// notifier on manager. New panics if the operating system cannot provide
-// cryptographic randomness for CSRF protection.
+// It enables [jaws.StatusMetricActiveSessions] and connects manager changes to
+// JaWS updates. New panics if the operating system cannot provide cryptographic
+// randomness for CSRF protection.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 	if jw != nil {
 		jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
