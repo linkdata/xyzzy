@@ -116,6 +116,11 @@ particular, `roomSection` is a comparable value that constructs fresh
 `Template` children; equal child definitions let JaWS retain the existing child
 `Element`.
 
+The room game panel follows the same rule at a smaller scale:
+`room_game_panel.html` is a thin state dispatcher, and each room state lives in
+a native template partial. Those partials organize source code without adding
+live elements, update boundaries, or retained render state.
+
 This keeps wrapper ownership unambiguous: the template emits the contents of a
 JaWS wrapper, not a competing copy of the wrapper itself.
 

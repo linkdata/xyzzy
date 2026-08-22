@@ -1,0 +1,20 @@
+{{with .Dot}}
+{{$dot := .}}
+{{$room := .Room}}
+{{$player := .Player}}
+{{$review := $room.Review $player}}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h5 class="mb-0">{{$review.Title}}</h5>
+    {{with $review.Status}}{{$.Span . `class="small text-muted"`}}{{end}}
+  </div>
+  {{with $review.Button}}{{$.Button . `class="btn btn-primary review-countdown-button"`}}{{end}}
+</div>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+  {{range $dot.SubmissionViews}}
+  <div class="col">
+    {{$.Template "div" "submission_clickable.html" . `data-jawstemplate` `role="button"` `tabindex="0"`}}
+  </div>
+  {{end}}
+</div>
+{{end}}

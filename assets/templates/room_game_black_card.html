@@ -1,0 +1,13 @@
+{{with .Dot}}
+{{$dot := .}}
+{{$room := .Room}}
+{{with $black := $room.CurrentBlack}}
+<div class="card-face card-face-black mb-4">
+  <div class="card-copy">{{$black.HTML}}</div>
+  <div class="card-footer-row">
+    <small class="opacity-75">pick {{$room.NeedPick}}{{if gt $room.NeedDraw 0}} · draw {{$room.NeedDraw}}{{end}}</small>
+    <small class="opacity-60 fst-italic">{{$dot.BlackFootnote $black}}</small>
+  </div>
+</div>
+{{end}}
+{{end}}
