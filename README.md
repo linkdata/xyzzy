@@ -57,13 +57,15 @@ The package boundary follows ownership and lifetime rather than MVC roles.
 places synchronized bindings and actions beside the state they operate on.
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph browsers["Connected browsers"]
+        direction TB
         A["Browser A<br/>DOM + JaWS client"]
         B["Browser B<br/>DOM + JaWS client"]
     end
 
     subgraph server["Go server"]
+        direction TB
         M["SessionMiddleware<br/>session identifies Player"]
         H["ui.Handler<br/>full-document render"]
         P["Immediate projection<br/>Container, Template, Binder, Object"]
