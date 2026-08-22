@@ -565,14 +565,19 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 	if !room.ToggleCardSelection(guest, card) {
 		t.Fatal("ToggleCardSelection() did not select card")
 	}
-	selected := view
-	selected.SelectionOrder = 1
-	if !room.ToggleCardSelection(guest, card) {
-		t.Fatal("ToggleCardSelection() did not clear the captured selection")
-	}
-	attr = string(selected.JawsInitialHTMLAttr(new(jaws.Element)))
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
-		t.Fatalf("captured selected attributes = %q, want enabled selected card", attr)
+		t.Fatalf("selected attributes = %q, want enabled selected card", attr)
+	}
+	if order := view.SelectionOrder(); order != 1 {
+		t.Fatalf("SelectionOrder() = %d, want 1", order)
+	}
+	if !room.ToggleCardSelection(guest, card) {
+		t.Fatal("ToggleCardSelection() did not clear the selection")
+	}
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+		t.Fatalf("cleared attributes = %q, want enabled unselected card", attr)
 	}
 }
 
@@ -617,7 +622,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	submission := submissions[0]
 
 	view := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}.
-		SubmissionViews(room.Judging(host).Submissions)[0]
+		SubmissionViews()[0]
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
@@ -675,7 +680,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	}
 	submission := room.Submissions()[0]
 	dot := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}
-	view := dot.SubmissionViews(room.Judging(host).Submissions)[0]
+	view := dot.SubmissionViews()[0]
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
 		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
@@ -685,8 +690,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	if !room.ToggleSubmissionSelection(host, submission) {
 		t.Fatal("ToggleSubmissionSelection() did not select submission")
 	}
-	selected := dot.SubmissionViews(room.Judging(host).Submissions)[0]
-	attr = string(selected.JawsInitialHTMLAttr(new(jaws.Element)))
+	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
 		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
 	}
@@ -695,13 +699,8 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("Judge() error = %v", err)
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
-	if strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
-		t.Fatalf("captured judging attributes changed after review transition: %q", attr)
-	}
-	review := dot.SubmissionViews(room.Review(host).Submissions)[0]
-	attr = string(review.JawsInitialHTMLAttr(new(jaws.Element)))
-	if !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
-		t.Fatalf("review attributes = %q, want disabled winning submission", attr)
+	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
+		t.Fatalf("review attributes = %q, want selected disabled winning submission", attr)
 	}
 }
 

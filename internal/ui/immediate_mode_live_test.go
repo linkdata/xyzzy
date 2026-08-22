@@ -964,7 +964,7 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 	drainImmediateModeAlert(t, hostRQ, hostReader, "review-host-baseline", nil)
 	drainImmediateModeAlert(t, guestRQ, guestReader, "review-guest-baseline", nil)
 
-	hostElements := hostRQ.GetElements(room.Review(host).Button)
+	hostElements := hostRQ.GetElements(room.ReviewButton(host))
 	if len(hostElements) != 1 {
 		t.Fatalf("judge countdown elements = %#v, want one button", hostElements)
 	}
@@ -972,7 +972,7 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 	if _, ok := hostElements[0].UI().(*jui.Button); !ok {
 		t.Fatalf("judge countdown UI = %T, want *ui.Button", hostElements[0].UI())
 	}
-	guestElements := guestRQ.GetElements(room.Review(guest).Status)
+	guestElements := guestRQ.GetElements(room.ReviewStatus(guest))
 	if len(guestElements) != 1 {
 		t.Fatalf("non-judge countdown elements = %#v, want one span", guestElements)
 	}
@@ -981,8 +981,8 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 		t.Fatalf("non-judge countdown UI = %T, want *ui.Span", guestElements[0].UI())
 	}
 
-	initialButtonText := string(room.Review(host).Button.JawsGetHTML(nil))
-	initialStatusText := room.Review(guest).Status.JawsGet(nil)
+	initialButtonText := string(room.ReviewButton(host).JawsGetHTML(nil))
+	initialStatusText := room.ReviewStatus(guest).JawsGet(nil)
 	buttonText := regexp.MustCompile(`^Next Round \([1-9][0-9]*\)$`)
 	statusText := regexp.MustCompile(`^Next round in [1-9][0-9]* seconds?\.$`)
 	var hostPanelUpdated bool

@@ -8,154 +8,7 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
 	"github.com/linkdata/jaws/lib/ui"
-	"github.com/linkdata/xyzzy/internal/deck"
 )
-
-// RoundRender is a synchronized snapshot of the current black card.
-type RoundRender struct {
-	BlackCard *deck.BlackCard
-	DeckName  string
-}
-
-// LobbyRender is a synchronized snapshot of one lobby render.
-type LobbyRender struct {
-	Active         bool
-	LastGameWinner string
-	LastGameScores []FinalScore
-	BlackCount     int
-	WhiteCount     int
-	RequiredWhite  int
-	MinimumTarget  int
-}
-
-// HandCardRender is a synchronized snapshot of one card in a player's hand.
-type HandCardRender struct {
-	Card           *deck.WhiteCard
-	SelectionOrder int
-}
-
-// PlayingRender is a synchronized snapshot of one playing-state render.
-type PlayingRender struct {
-	Active        bool
-	Round         RoundRender
-	CanSubmit     bool
-	WaitingTitle  string
-	WaitingDetail string
-	Hand          []HandCardRender
-}
-
-// SubmissionRender is a synchronized snapshot of one submission's UI state.
-type SubmissionRender struct {
-	Submission *Submission
-	Selected   bool
-	Winning    bool
-	Enabled    bool
-}
-
-// JudgingRender is a synchronized snapshot of one judging-state render.
-type JudgingRender struct {
-	Active      bool
-	Round       RoundRender
-	CanJudge    bool
-	Title       string
-	Submissions []SubmissionRender
-}
-
-// Lobby returns the current lobby display for player.
-//
-// The returned value contains one synchronized snapshot. Active is false when
-// the Room is not in the lobby or player is not seated in it.
-func (r *Room) Lobby(player *Player) (result LobbyRender) {
-	r.mu.RLock()
-	current := r.playerLocked(player)
-	if r.state == StateLobby && current != nil {
-		result.Active = true
-		result.LastGameWinner = r.lastGameWinner
-		result.LastGameScores = append([]FinalScore(nil), r.lastGameScores...)
-		result.BlackCount, result.WhiteCount = r.catalog.UnionCounts(r.selectedDecks)
-		result.RequiredWhite = MinWhiteCardsPerPlayer * max(len(r.players), 1)
-		result.MinimumTarget = r.minTargetScoreLocked()
-	}
-	r.mu.RUnlock()
-	return
-}
-
-// Playing returns the current playing-state display for player.
-//
-// The returned value contains one synchronized snapshot. Active is false when
-// the Room is not in the playing state or player is not seated in it.
-func (r *Room) Playing(player *Player) (result PlayingRender) {
-	var isJudge bool
-	var submitted bool
-
-	r.mu.RLock()
-	current := r.playerLocked(player)
-	if r.state == StatePlaying && current != nil {
-		result.Active = true
-		result.Round = r.roundRenderLocked()
-		result.CanSubmit = r.canSubmitLocked(current)
-		isJudge = r.judgeLocked() == current
-		submitted = len(current.Submitted) > 0
-		if result.CanSubmit {
-			result.Hand = make([]HandCardRender, 0, len(current.Hand))
-			for _, card := range current.Hand {
-				result.Hand = append(result.Hand, HandCardRender{
-					Card:           card,
-					SelectionOrder: selectionOrderLocked(current, card),
-				})
-			}
-		}
-	}
-	r.mu.RUnlock()
-
-	if result.Active && !result.CanSubmit {
-		switch {
-		case isJudge:
-			result.WaitingTitle = "Waiting for answers"
-			result.WaitingDetail = "You'll choose the winner once every answer is in."
-		case submitted:
-			result.WaitingTitle = "Waiting for the rest of the table"
-			result.WaitingDetail = "Your cards are in."
-		default:
-			result.WaitingTitle = "Waiting"
-		}
-	}
-	return
-}
-
-// Judging returns the current judging-state display for player.
-//
-// The returned value contains one synchronized snapshot. Active is false when
-// the Room is not in the judging state or player is not seated in it.
-func (r *Room) Judging(player *Player) (result JudgingRender) {
-	var judgeName string
-
-	r.mu.RLock()
-	current := r.playerLocked(player)
-	if r.state == StateJudging && current != nil {
-		result.Active = true
-		result.Round = r.roundRenderLocked()
-		judge := r.judgeLocked()
-		result.CanJudge = judge == current
-		if judge != nil {
-			judgeName = judge.Nickname
-		}
-		result.Submissions = r.submissionRenderLocked(current, result.CanJudge, nil)
-	}
-	r.mu.RUnlock()
-
-	if result.Active {
-		switch {
-		case result.CanJudge:
-			result.Title = "Pick the Winner"
-		case judgeName != "":
-			result.Title = judgeName + " is picking the winner"
-		default:
-			result.Title = "Waiting for the judge"
-		}
-	}
-	return
-}
 
 // NicknameField binds the player's editable nickname input.
 //
@@ -292,92 +145,80 @@ func (r *Room) JudgeButton(player *Player) (result ui.Object) {
 	return
 }
 
-// ReviewRender is a synchronized snapshot of one review-state render.
-type ReviewRender struct {
-	Active      bool
-	Round       RoundRender
-	Title       string              // Heading; empty outside review.
-	Status      bind.Getter[string] // Non-judge countdown status; nil when not needed.
-	Button      ui.Object           // Proceed-review action; nil when the player cannot proceed.
-	Submissions []SubmissionRender
-}
-
-// Review returns the current review display and action for player.
-//
-// The round, submissions, title, and viewer role come from one synchronized
-// snapshot. Status and Button countdown text remain bound to the review
-// deadline. Button is present only for the current judge, and its click
-// revalidates the review state through [Room.ProceedReview]. A nil player is
-// treated as a non-judge viewer. Outside review, Review returns the zero value.
-func (r *Room) Review(player *Player) (result ReviewRender) {
-	var canProceed bool
-	var deadline time.Time
+// ReviewTitle returns the current review heading.
+func (r *Room) ReviewTitle() (result string) {
+	var active bool
 	var gameWinner bool
 	var winnerName string
 
 	r.mu.RLock()
 	if r.state == StateReview && r.reviewWinner != nil {
-		result.Active = true
-		result.Round = r.roundRenderLocked()
-		canProceed = player != nil && r.judgeLocked() == player
-		deadline = r.reviewDeadline
+		active = true
 		gameWinner = r.reviewGameWinner
 		winnerName = r.reviewWinner.Nickname
-		result.Submissions = r.submissionRenderLocked(r.playerLocked(player), false, r.reviewSubmission)
 	}
 	r.mu.RUnlock()
 
-	if !result.Active {
+	if active {
+		if gameWinner {
+			result = fmt.Sprintf("%s won the game!", winnerName)
+		} else {
+			result = fmt.Sprintf("%s won the round!", winnerName)
+		}
+	}
+	return
+}
+
+// ReviewStatus returns the non-judge review countdown getter.
+//
+// It returns nil outside review and for the current judge.
+func (r *Room) ReviewStatus(player *Player) (result bind.Getter[string]) {
+	active, canProceed := r.reviewControlRole(player)
+	if active && !canProceed {
+		result = r.reviewCountdownGetter(false)
+	}
+	return
+}
+
+// ReviewButton returns the current judge's proceed-review action.
+//
+// It returns nil outside review and for non-judge players. A click revalidates
+// the review state through [Room.ProceedReview].
+func (r *Room) ReviewButton(player *Player) (result ui.Object) {
+	active, canProceed := r.reviewControlRole(player)
+	if active && canProceed {
+		result = ui.New(r.reviewCountdownGetter(true)).
+			Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
+				if err = r.ProceedReview(player); err == nil {
+					elem.Dirty(r)
+				}
+				return
+			})
+	}
+	return
+}
+
+func (r *Room) reviewControlRole(player *Player) (active, canProceed bool) {
+	r.mu.RLock()
+	if r.state == StateReview && r.reviewWinner != nil {
+		active = true
+		canProceed = player != nil && r.judgeLocked() == player
+	}
+	r.mu.RUnlock()
+	return
+}
+
+func (r *Room) reviewCountdownGetter(actionable bool) (result bind.Getter[string]) {
+	result = bind.StringGetterFunc(func(*jaws.Element) (text string) {
+		r.mu.RLock()
+		active := r.state == StateReview && r.reviewWinner != nil
+		deadline := r.reviewDeadline
+		gameWinner := r.reviewGameWinner
+		r.mu.RUnlock()
+		if active {
+			text = reviewCountdownText(gameWinner, reviewCountdown(time.Now(), deadline), actionable)
+		}
 		return
-	}
-	if gameWinner {
-		result.Title = fmt.Sprintf("%s won the game!", winnerName)
-	} else {
-		result.Title = fmt.Sprintf("%s won the round!", winnerName)
-	}
-	if !canProceed {
-		result.Status = r.reviewCountdownGetter(deadline, gameWinner, false)
-		return
-	}
-
-	result.Button = ui.New(r.reviewCountdownGetter(deadline, gameWinner, true)).
-		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
-			if err = r.ProceedReview(player); err == nil {
-				elem.Dirty(r)
-			}
-			return
-		})
-	return
-}
-
-func (r *Room) roundRenderLocked() (result RoundRender) {
-	if black := r.currentBlackLocked(); black != nil {
-		result.BlackCard = black
-		result.DeckName = r.firstSelectedDeckNameForBlackCardLocked(black)
-	}
-	return
-}
-
-func (r *Room) submissionRenderLocked(player *Player, enabled bool, winner *Submission) (result []SubmissionRender) {
-	var selected *Submission
-	if player != nil {
-		selected = player.SelectedSubmission
-	}
-	result = make([]SubmissionRender, 0, len(r.submissions))
-	for _, submission := range r.submissions {
-		result = append(result, SubmissionRender{
-			Submission: submission,
-			Selected:   submission != nil && submission == selected,
-			Winning:    submission != nil && submission == winner,
-			Enabled:    enabled,
-		})
-	}
-	return
-}
-
-func (r *Room) reviewCountdownGetter(deadline time.Time, gameWinner, actionable bool) (result bind.Getter[string]) {
-	result = bind.StringGetterFunc(func(*jaws.Element) string {
-		return reviewCountdownText(gameWinner, reviewCountdown(time.Now(), deadline), actionable)
 	}, &r.reviewDeadline)
 	return
 }

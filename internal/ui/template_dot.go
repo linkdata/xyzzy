@@ -106,44 +106,71 @@ func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) {
 	return
 }
 
-func (d gameTemplateDot) HandCardViews(cards []game.HandCardRender) (result []whiteCardView) {
+func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
+	cards := d.Room.HandFor(d.Player)
 	result = make([]whiteCardView, 0, len(cards))
 	for _, card := range cards {
 		result = append(result, whiteCardView{
-			Room:           d.Room,
-			Player:         d.Player,
-			Card:           card.Card,
-			SelectionOrder: card.SelectionOrder,
+			Room:   d.Room,
+			Player: d.Player,
+			Card:   card,
 		})
 	}
 	return
 }
 
-func (d gameTemplateDot) SubmissionViews(submissions []game.SubmissionRender) (result []submissionView) {
+func (d gameTemplateDot) SubmissionViews() (result []submissionView) {
+	submissions := d.Room.Submissions()
 	result = make([]submissionView, 0, len(submissions))
 	for _, submission := range submissions {
 		result = append(result, submissionView{
 			Room:       d.Room,
 			Player:     d.Player,
-			Submission: submission.Submission,
-			Selected:   submission.Selected,
-			Winning:    submission.Winning,
-			Enabled:    submission.Enabled,
+			Submission: submission,
 		})
 	}
 	return
 }
 
-type roundView struct {
-	game.RoundRender
-	Footnote string
+func (d gameTemplateDot) WaitingTitle() (result string) {
+	switch d.Room.State() {
+	case game.StateJudging:
+		if judge := d.Room.JudgeName(); judge != "" {
+			result = judge + " is picking the winner"
+			return
+		}
+		result = "Waiting for the judge"
+	case game.StatePlaying:
+		if d.Room.IsJudge(d.Player) {
+			result = "Waiting for answers"
+			return
+		}
+		if d.Room.SubmittedBy(d.Player) {
+			result = "Waiting for the rest of the table"
+			return
+		}
+		result = "Waiting"
+	default:
+		result = "Waiting"
+	}
+	return
 }
 
-func (gameTemplateDot) RoundView(round game.RoundRender) (result roundView) {
-	result.RoundRender = round
-	if round.BlackCard != nil {
-		result.Footnote = cardFootnote(round.DeckName, round.BlackCard.ID)
+func (d gameTemplateDot) WaitingDetail() (result string) {
+	if d.Room.State() == game.StatePlaying {
+		if d.Room.IsJudge(d.Player) {
+			result = "You'll choose the winner once every answer is in."
+			return
+		}
+		if d.Room.SubmittedBy(d.Player) {
+			result = "Your cards are in."
+		}
 	}
+	return
+}
+
+func (d gameTemplateDot) BlackFootnote(card *deck.BlackCard) (result string) {
+	result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
 	return
 }
 

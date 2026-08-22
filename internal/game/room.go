@@ -171,6 +171,30 @@ func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	return
 }
 
+// BlackCount returns the number of black cards in the selected decks.
+func (r *Room) BlackCount() (result int) {
+	r.mu.RLock()
+	result, _ = r.catalog.UnionCounts(r.selectedDecks)
+	r.mu.RUnlock()
+	return
+}
+
+// WhiteCount returns the number of white cards in the selected decks.
+func (r *Room) WhiteCount() (result int) {
+	r.mu.RLock()
+	_, result = r.catalog.UnionCounts(r.selectedDecks)
+	r.mu.RUnlock()
+	return
+}
+
+// RequiredWhite returns the minimum white-card count for the current players.
+func (r *Room) RequiredWhite() (result int) {
+	r.mu.RLock()
+	result = MinWhiteCardsPerPlayer * max(len(r.players), 1)
+	r.mu.RUnlock()
+	return
+}
+
 func (r *Room) TargetScore() (result int) {
 	r.mu.RLock()
 	result = r.targetScore
@@ -236,6 +260,16 @@ func (r *Room) NicknameFor(player *Player) (result string) {
 	return
 }
 
+// SelectionOrderFor returns the one-based selection order for card, or zero.
+func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result int) {
+	r.mu.RLock()
+	if current := r.playerLocked(player); current != nil {
+		result = selectionOrderLocked(current, card)
+	}
+	r.mu.RUnlock()
+	return
+}
+
 // ToggleCardSelection toggles card in player's current room selection.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
 	r.mu.Lock()
@@ -260,6 +294,16 @@ func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (change
 	}
 	current.SelectedCards = append(current.SelectedCards, card)
 	changed = true
+	return
+}
+
+// SubmissionSelected reports whether submission is selected by player.
+func (r *Room) SubmissionSelected(player *Player, submission *Submission) (result bool) {
+	r.mu.RLock()
+	if current := r.playerLocked(player); current != nil {
+		result = submission != nil && current.SelectedSubmission == submission
+	}
+	r.mu.RUnlock()
 	return
 }
 
@@ -299,6 +343,16 @@ func (r *Room) SubmissionCards(submission *Submission) (cards []*deck.WhiteCard)
 func (r *Room) JudgePlayer() (result *Player) {
 	r.mu.RLock()
 	result = r.judgeLocked()
+	r.mu.RUnlock()
+	return
+}
+
+// JudgeName returns the current judge's nickname.
+func (r *Room) JudgeName() (result string) {
+	r.mu.RLock()
+	if judge := r.judgeLocked(); judge != nil {
+		result = judge.Nickname
+	}
 	r.mu.RUnlock()
 	return
 }

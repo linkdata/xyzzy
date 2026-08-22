@@ -48,9 +48,10 @@ When a child list can change, a `Container` reconstructs and reconciles only its
 direct children.
 
 The application never stores a JaWS `Request`, `Element`, or UI tree in a
-`Manager`, `Room`, or `Player`. Values such as `templateDot`, `roomSection`, and
-the per-state render snapshots are short-lived projections or definitions, not
-controllers or retained view models.
+`Manager`, `Room`, or `Player`. Values such as `templateDot`, `roomSection`,
+`whiteCardView`, and `submissionView` are short-lived definitions containing
+stable pointers to authoritative state, not controllers or retained view
+models.
 
 The package boundary follows ownership and lifetime rather than MVC roles.
 `internal/ui` integrates HTTP, sessions, and templates; `internal/game/jaws_ui.go`
@@ -84,19 +85,25 @@ The main `roomSection` selects `room_game_lobby.html`,
 `room_game_playing.html`, `room_game_judging.html`, or
 `room_game_review.html` in Go. A state transition changes the `Container` child
 identity; a same-state update reconstructs an equal `Template` value and keeps
-its existing `Element`. Each state template obtains one short-lived,
-synchronized Go snapshot for its mutually dependent branches and values. The
-snapshot exists only for that template execution.
+its existing `Element`. Each state template retains only stable `App`, `Room`,
+and `Player` pointers and calls synchronized state getters directly.
+Addressable scalar controls bind the real field; methods such as `HandFor` and
+`Submissions` copy mutable slices while holding the room lock before returning
+them. The small card definitions likewise retain only the pointers needed to
+read current state and handle an event.
 
-If a transition lands between child selection and template execution, the old
-state's snapshot is inactive and renders no mixed-state fragment. The same
-`Room` dirty notification then reconciles the `Container` to the new state
-template.
+Template execution is deliberately not a transaction over the whole room. If
+a mutation lands between two getter calls, one render may combine observations
+from adjacent valid states. Every read remains race-free, actions revalidate
+against current state, and the UI path that commits a mutation publishes the
+relevant `Room` or `Player` tag so JaWS converges the retained element tree.
+This keeps the immediate-mode projection direct instead of introducing a
+screen-shaped DTO.
 
-A native partial may still read request-time data without becoming a live
-region. The lobby welcome panel takes one app-wide registered-session snapshot
-for its online count; session middleware registers the current visitor before
-rendering, and the panel has no independent update boundary.
+A full-page template may still read request-time data directly. The inlined
+lobby welcome panel reads the app-wide registered-session count once during
+page rendering; session middleware registers the current visitor first, and
+the panel has no independent update boundary.
 
 This keeps wrapper ownership unambiguous: the template emits the contents of a
 JaWS wrapper, not a competing copy of the wrapper itself.
@@ -172,8 +179,10 @@ waiting.
 
 The review countdown demonstrates why dynamic button text belongs in JaWS:
 
-1. `Room.Review` snapshots the winner's nickname string, viewer role, deadline,
-   and outcome while holding the room read lock.
+1. `ReviewTitle` copies the winner's nickname string while holding the room read
+   lock. `ReviewStatus` and `ReviewButton` choose the viewer's role under the
+   room lock; their dynamic getter later reads the current deadline and outcome
+   under a fresh room read lock whenever JaWS invokes it.
 2. The judge receives a dynamic JaWS `Button`; other players receive a dynamic
    JaWS `Span`.
 3. Both getters register the same `&r.reviewDeadline` dependency tag.
@@ -205,19 +214,22 @@ description instead of deferring it to the WebSocket connection.
 
 ### Concurrency without retained presentation state
 
-State types own their synchronization. Operations validate and mutate under
-the relevant locks, then notify JaWS after releasing them. When several values
-must agree, each room-state render helper snapshots them together under one
-lock. The template consumes that ephemeral value once; it is not stored in the
-Room or retained by the JaWS definition. Review rendering, for example, copies
-the winner's nickname rather than keeping a `*Player` and reading it after
-unlock.
+State types own their synchronization. Mutation methods validate and update
+under the relevant locks. The UI, timer, or session path that commits the
+change notifies JaWS after releasing them. Every template-facing room accessor
+takes the room lock when it reads mutable state, and collection accessors return
+copies rather than exposing mutable slice storage. Templates never retain a
+room lock across execution. Accessors and mutations release it before JaWS
+notification; `SetLocked` binder hooks are the deliberate exception that
+validate and write while the binder already holds it.
 
-Independent room-summary facts use their existing lock-protected accessors. A
-single summary render can therefore observe adjacent valid states, but it is
-race-free and a subsequent relevant dirty notification converges the display.
-The summary does not need a retained presentation model or a large snapshot DTO
-merely to make independent labels transactional.
+A state template can therefore observe adjacent valid states across separate
+getter calls, but it cannot race on the underlying data. A subsequent relevant
+dirty notification converges the display. Values needed after unlocking are
+copied as primitives: `ReviewTitle`, for example, copies the winner's nickname
+string rather than retaining a `*Player` field read. Countdown getters capture
+no room state; they read the current deadline and outcome when JaWS invokes
+them and remain tagged on the authoritative deadline field.
 
 ## Deliberate boundaries
 
@@ -230,7 +242,7 @@ merely to make independent labels transactional.
 - The first lobby or room visit from an anonymous browser creates an ephemeral
   session and player. Expired seated players are removed from rooms during
   later page requests; an unseated player has the JaWS session's lifetime.
-- The lobby displays a render-time snapshot of app-wide registered JaWS sessions.
+- The lobby reads the app-wide registered JaWS session count once per page render.
   Requests sharing one valid session count once. A session can remain registered
   for roughly a minute after its last Request ends, so this is an approximate
   presence count that changes only on a later page render.
@@ -248,7 +260,7 @@ merely to make independent labels transactional.
 - [`internal/ui/template_dot.go`](internal/ui/template_dot.go) contains
   request dots and small template adapter definitions.
 - [`internal/game/jaws_ui.go`](internal/game/jaws_ui.go) keeps synchronized
-  render snapshots, binders, and semantic controls beside their state.
+  binders, dynamic getters, and semantic controls beside their state.
 - [`internal/game/room.go`](internal/game/room.go) contains the game state
   machine and review timer.
 - [`assets/templates`](assets/templates) defines the HTML shape.

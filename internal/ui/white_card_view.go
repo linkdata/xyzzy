@@ -9,10 +9,14 @@ import (
 )
 
 type whiteCardView struct {
-	Player         *game.Player
-	Room           *game.Room
-	Card           *deck.WhiteCard
-	SelectionOrder int
+	Player *game.Player
+	Room   *game.Room
+	Card   *deck.WhiteCard
+}
+
+func (v whiteCardView) SelectionOrder() (result int) {
+	result = v.Room.SelectionOrderFor(v.Player, v.Card)
+	return
 }
 
 func (v whiteCardView) WhiteFootnote() (result string) {
@@ -21,7 +25,7 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 }
 
 func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	result = cardInitialHTMLAttr(v.SelectionOrder > 0, false, false)
+	result = cardInitialHTMLAttr(v.SelectionOrder() > 0, false, false)
 	return
 }
 

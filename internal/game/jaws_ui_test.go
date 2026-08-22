@@ -291,7 +291,7 @@ func TestRoomButtonsRunTheirDomainActions(t *testing.T) {
 	}
 }
 
-func TestStateRenderSnapshots(t *testing.T) {
+func TestRoomRenderAccessorsReadCurrentState(t *testing.T) {
 	catalog := testCatalog(t)
 	manager := NewManagerWithOptions(catalog, Options{MinPlayers: 2})
 	host := testPlayer("Host")
@@ -304,15 +304,11 @@ func TestStateRenderSnapshots(t *testing.T) {
 		t.Fatalf("JoinRoom() error = %v", err)
 	}
 
-	lobby := room.Lobby(host)
-	if !lobby.Active {
-		t.Fatalf("Lobby(host) = %#v, want active view", lobby)
+	if black, white, required := room.BlackCount(), room.WhiteCount(), room.RequiredWhite(); black < MinBlackCards || white < required {
+		t.Fatalf("selected cards = %d black / %d white, want at least %d / %d", black, white, MinBlackCards, required)
 	}
-	if lobby.BlackCount < MinBlackCards || lobby.WhiteCount < lobby.RequiredWhite || lobby.MinimumTarget != 2 {
-		t.Fatalf("Lobby(host) counts = %#v, want sufficient cards and minimum target 2", lobby)
-	}
-	if room.Playing(host).Active || room.Judging(host).Active || room.Review(host).Active {
-		t.Fatal("non-lobby snapshots are active while the room is in the lobby")
+	if minimum := room.MinTargetScore(); minimum != 2 {
+		t.Fatalf("MinTargetScore() = %d, want 2", minimum)
 	}
 
 	if err = room.Start(host); err != nil {
@@ -328,16 +324,14 @@ func TestStateRenderSnapshots(t *testing.T) {
 	if len(hand) == 0 || !room.ToggleCardSelection(contestant, hand[0]) {
 		t.Fatal("failed to select a contestant card")
 	}
-	playing := room.Playing(contestant)
-	if !playing.Active || !playing.CanSubmit || playing.Round.BlackCard != catalog.BlackCards["b1"] {
-		t.Fatalf("Playing(contestant) = %#v, want active submit view for b1", playing)
+	if !room.CanSubmit(contestant) || room.CurrentBlack() != catalog.BlackCards["b1"] {
+		t.Fatal("current playing state is not directly visible through Room accessors")
 	}
-	if len(playing.Hand) != len(hand) || playing.Hand[0].Card != hand[0] || playing.Hand[0].SelectionOrder != 1 {
-		t.Fatalf("Playing(contestant).Hand = %#v, want captured selected card first", playing.Hand)
+	if got := room.SelectionOrderFor(contestant, hand[0]); got != 1 {
+		t.Fatalf("SelectionOrderFor() = %d, want 1", got)
 	}
-	judgeWaiting := room.Playing(judge)
-	if !judgeWaiting.Active || judgeWaiting.CanSubmit || judgeWaiting.WaitingTitle != "Waiting for answers" || len(judgeWaiting.Hand) != 0 {
-		t.Fatalf("Playing(judge) = %#v, want waiting judge view", judgeWaiting)
+	if room.CanSubmit(judge) {
+		t.Fatal("judge can submit")
 	}
 
 	submission := &Submission{ID: "submission", Player: contestant, Cards: []*deck.WhiteCard{hand[0]}}
@@ -348,23 +342,17 @@ func TestStateRenderSnapshots(t *testing.T) {
 	judge.SelectedSubmission = submission
 	room.mu.Unlock()
 
-	if playing.Hand[0].SelectionOrder != 1 {
-		t.Fatalf("captured selection order = %d after mutation, want 1", playing.Hand[0].SelectionOrder)
+	if got := room.SelectionOrderFor(contestant, hand[0]); got != 0 {
+		t.Fatalf("SelectionOrderFor() after clearing selection = %d, want 0", got)
 	}
-	if room.Playing(contestant).Active {
-		t.Fatal("Playing(contestant) remains active after state transition")
+	if !room.CanJudge(judge) || room.JudgeName() != judge.Nickname {
+		t.Fatal("current judge is not directly visible through Room accessors")
 	}
-	judging := room.Judging(judge)
-	if !judging.Active || !judging.CanJudge || judging.Title != "Pick the Winner" || len(judging.Submissions) != 1 {
-		t.Fatalf("Judging(judge) = %#v, want active judge view", judging)
+	if got := room.Submissions(); len(got) != 1 || got[0] != submission {
+		t.Fatalf("Submissions() = %#v, want [%#v]", got, submission)
 	}
-	if got := judging.Submissions[0]; got.Submission != submission || !got.Selected || got.Winning || !got.Enabled {
-		t.Fatalf("Judging(judge).Submissions[0] = %#v, want selected enabled non-winner", got)
-	}
-	nonJudge := room.Judging(contestant)
-	wantWaitingTitle := judge.Nickname + " is picking the winner"
-	if nonJudge.Title != wantWaitingTitle || nonJudge.Submissions[0].Enabled {
-		t.Fatalf("Judging(contestant) = %#v, want disabled waiting view", nonJudge)
+	if !room.SubmissionSelected(judge, submission) || room.SubmissionSelected(contestant, submission) {
+		t.Fatal("SubmissionSelected() does not reflect the current judge selection")
 	}
 
 	room.mu.Lock()
@@ -373,13 +361,14 @@ func TestStateRenderSnapshots(t *testing.T) {
 	room.reviewSubmission = submission
 	room.reviewDeadline = time.Now().Add(time.Hour)
 	room.mu.Unlock()
-	review := room.Review(judge)
-	wantReviewTitle := contestant.Nickname + " won the round!"
-	if !review.Active || review.Title != wantReviewTitle || review.Button == nil || len(review.Submissions) != 1 {
-		t.Fatalf("Review(judge) = %#v, want active judge review", review)
+	if title := room.ReviewTitle(); title != contestant.Nickname+" won the round!" {
+		t.Fatalf("ReviewTitle() = %q", title)
 	}
-	if got := review.Submissions[0]; !got.Selected || !got.Winning || got.Enabled {
-		t.Fatalf("Review(judge).Submissions[0] = %#v, want selected disabled winner", got)
+	if room.ReviewButton(judge) == nil || room.ReviewStatus(judge) != nil {
+		t.Fatal("judge review controls do not reflect the current review")
+	}
+	if !room.IsWinningSubmission(submission) {
+		t.Fatal("IsWinningSubmission() = false for the review winner")
 	}
 
 	room.mu.Lock()
@@ -387,15 +376,12 @@ func TestStateRenderSnapshots(t *testing.T) {
 	room.reviewSubmission = nil
 	room.state = StatePlaying
 	room.mu.Unlock()
-	if got := review.Submissions[0]; !got.Selected || !got.Winning {
-		t.Fatalf("captured review submission changed after mutation: %#v", got)
-	}
-	if room.Review(judge).Active {
-		t.Fatal("Review(judge) remains active after state transition")
+	if room.ReviewTitle() != "" || room.ReviewButton(judge) != nil || room.ReviewStatus(judge) != nil {
+		t.Fatal("review accessors remain active after state transition")
 	}
 }
 
-func TestReviewSnapshotsDisplayAndControls(t *testing.T) {
+func TestReviewDisplayAndControls(t *testing.T) {
 	judge := testPlayer("Judge")
 	winner := testPlayer("Winner")
 
@@ -441,22 +427,24 @@ func TestReviewSnapshotsDisplayAndControls(t *testing.T) {
 					room.reviewWinner = nil
 				}
 
-				got := room.Review(tt.viewer)
-				if got.Title != tt.wantTitle {
-					t.Fatalf("Title = %q, want %q", got.Title, tt.wantTitle)
+				title := room.ReviewTitle()
+				status := room.ReviewStatus(tt.viewer)
+				button := room.ReviewButton(tt.viewer)
+				if title != tt.wantTitle {
+					t.Fatalf("ReviewTitle() = %q, want %q", title, tt.wantTitle)
 				}
 				if tt.wantStatus == "" {
-					if got.Status != nil {
-						t.Fatalf("Status = %#v, want nil", got.Status)
+					if status != nil {
+						t.Fatalf("ReviewStatus() = %#v, want nil", status)
 					}
 				} else {
-					if got.Status == nil {
-						t.Fatal("Status = nil, want getter")
+					if status == nil {
+						t.Fatal("ReviewStatus() = nil, want getter")
 					}
-					if text := got.Status.JawsGet(nil); text != tt.wantStatus {
+					if text := status.JawsGet(nil); text != tt.wantStatus {
 						t.Fatalf("Status text = %q, want %q", text, tt.wantStatus)
 					}
-					tags, err := tag.TagExpand(got.Status)
+					tags, err := tag.TagExpand(status)
 					if err != nil {
 						t.Fatalf("TagExpand(Status) error = %v", err)
 					}
@@ -465,21 +453,21 @@ func TestReviewSnapshotsDisplayAndControls(t *testing.T) {
 					}
 				}
 				if tt.wantButton == "" {
-					if got.Button != nil {
-						t.Fatalf("Button = %#v, want nil", got.Button)
+					if button != nil {
+						t.Fatalf("ReviewButton() = %#v, want nil", button)
 					}
 					return
 				}
-				if got.Button == nil {
-					t.Fatal("Button = nil, want action")
+				if button == nil {
+					t.Fatal("ReviewButton() = nil, want action")
 				}
-				if content := string(got.Button.JawsGetHTML(nil)); content != tt.wantButton {
+				if content := string(button.JawsGetHTML(nil)); content != tt.wantButton {
 					t.Fatalf("Button content = %q, want %q", content, tt.wantButton)
 				}
-				if attrs := got.Button.JawsInitialHTMLAttr(nil); attrs != "" {
+				if attrs := button.JawsInitialHTMLAttr(nil); attrs != "" {
 					t.Fatalf("Button attrs = %q, want none", attrs)
 				}
-				tags, err := tag.TagExpand(got.Button)
+				tags, err := tag.TagExpand(button)
 				if err != nil {
 					t.Fatalf("TagExpand(Button) error = %v", err)
 				}
@@ -509,7 +497,7 @@ func TestReviewButtonRevalidatesStateAndJudge(t *testing.T) {
 	t.Run("proceeds", func(t *testing.T) {
 		room := newReviewRoom()
 		room.reviewGameWinner = true
-		button := room.Review(judge).Button
+		button := room.ReviewButton(judge)
 		if err := button.JawsClick(elem, jaws.Click{}); err != nil {
 			t.Fatalf("JawsClick() error = %v", err)
 		}
@@ -520,7 +508,7 @@ func TestReviewButtonRevalidatesStateAndJudge(t *testing.T) {
 
 	t.Run("state changed", func(t *testing.T) {
 		room := newReviewRoom()
-		button := room.Review(judge).Button
+		button := room.ReviewButton(judge)
 		room.mu.Lock()
 		room.state = StatePlaying
 		room.mu.Unlock()
@@ -531,7 +519,7 @@ func TestReviewButtonRevalidatesStateAndJudge(t *testing.T) {
 
 	t.Run("judge changed", func(t *testing.T) {
 		room := newReviewRoom()
-		button := room.Review(judge).Button
+		button := room.ReviewButton(judge)
 		room.mu.Lock()
 		room.czarIndex = 1
 		room.mu.Unlock()
@@ -580,11 +568,11 @@ func TestReviewConcurrentWithWinnerNicknameChanges(t *testing.T) {
 		defer wg.Done()
 		<-start
 		for i := 0; i < iterations; i++ {
-			title := room.Review(judge).Title
+			title := room.ReviewTitle()
 			switch title {
 			case "Winner won the round!", "Alice won the round!", "Casey won the round!":
 			default:
-				report(fmt.Sprintf("Review().Title = %q", title))
+				report(fmt.Sprintf("ReviewTitle() = %q", title))
 				return
 			}
 		}

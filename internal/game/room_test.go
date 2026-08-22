@@ -445,7 +445,7 @@ func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
 		room.mu.Lock()
 		room.beginReviewLocked(winner, nil, true)
 		room.mu.Unlock()
-		countdown := room.Review(winner).Status
+		countdown := room.ReviewStatus(winner)
 		if got := countdown.JawsGet(nil); got != "Returning to the lobby in 3 seconds." {
 			t.Fatalf("initial Countdown = %q", got)
 		}
@@ -479,6 +479,9 @@ func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
 		synctest.Wait()
 		if got := room.State(); got != StateLobby {
 			t.Fatalf("State() at deadline = %s, want %s", got, StateLobby)
+		}
+		if got := countdown.JawsGet(nil); got != "" {
+			t.Fatalf("Countdown after review = %q, want empty", got)
 		}
 		gotNotifications = notificationSnapshot()
 		if len(gotNotifications) != 3 || len(gotNotifications[2]) != 1 || gotNotifications[2][0] != room {
