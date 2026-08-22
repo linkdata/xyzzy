@@ -13,7 +13,6 @@ type whiteCardView struct {
 	Room           *game.Room
 	Card           *deck.WhiteCard
 	SelectionOrder int
-	Enabled        bool
 }
 
 func (v whiteCardView) WhiteFootnote() (result string) {
@@ -22,7 +21,7 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 }
 
 func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	result = cardInitialHTMLAttr(v.SelectionOrder > 0, false, !v.Enabled)
+	result = cardInitialHTMLAttr(v.SelectionOrder > 0, false, false)
 	return
 }
 

@@ -37,7 +37,7 @@ func TestCleanupExpiredSessionDeletesEmptyRoom(t *testing.T) {
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -151,7 +151,7 @@ func livePlayer(t *testing.T, h *liveHarness, nickname string) (result1 *jaws.Se
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, nickname)
+	h.app.Manager.SetNickname(player, nickname)
 	result1, result2 = sess, player
 	return
 }
@@ -162,7 +162,7 @@ func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (result1 *j
 	h.getWithClient(t, client, "/")
 	sess := h.sessionForClient(t, client)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, nickname)
+	h.app.Manager.SetNickname(player, nickname)
 	result1, result2 = sess, player
 	return
 }
@@ -195,7 +195,7 @@ func TestLobbyPageReceivesLiveRoomUpdates(t *testing.T) {
 	_ = otherHTML
 	otherSession := h.sessionForClient(t, otherClient)
 	otherPlayer := h.app.player(otherSession, nil)
-	h.app.setNickname(otherPlayer, "Bob")
+	h.app.Manager.SetNickname(otherPlayer, "Bob")
 	room, err := h.app.createRoom(otherPlayer)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -218,7 +218,7 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -228,7 +228,7 @@ func TestRoomPageReceivesLiveRoomUpdates(t *testing.T) {
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
-	if err := room.SetDeckEnabled(player, h.app.Catalog.DeckByID("extra"), true); err != nil {
+	if _, err := room.SetDeckEnabled(player, h.app.Catalog.DeckByID("extra"), true); err != nil {
 		t.Fatalf("SetDeckEnabled() error = %v", err)
 	}
 	h.app.Jaws.Dirty(h.app.Manager, room)
@@ -256,7 +256,7 @@ func TestLobbyPageReceivesLiveRoomRemovalUpdates(t *testing.T) {
 	h.getWithClient(t, otherClient, "/")
 	otherSession := h.sessionForClient(t, otherClient)
 	otherPlayer := h.app.player(otherSession, nil)
-	h.app.setNickname(otherPlayer, "Bob")
+	h.app.Manager.SetNickname(otherPlayer, "Bob")
 	room, err := h.app.createRoom(otherPlayer)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -292,7 +292,7 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	h.getWithClient(t, hostClient, "/")
 	hostSession := h.sessionForClient(t, hostClient)
 	host := h.app.player(hostSession, nil)
-	h.app.setNickname(host, "Bob")
+	h.app.Manager.SetNickname(host, "Bob")
 	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -476,7 +476,7 @@ func TestAnonymousRoomPageJoinsBeforeRendering(t *testing.T) {
 
 	hostSession := newTestSession(t, app)
 	host := app.player(hostSession, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -541,7 +541,7 @@ func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 
 	req2 := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	req2.AddCookie(sess.Cookie())
@@ -599,7 +599,7 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -768,7 +768,7 @@ func TestSetNicknameInRoomKeepsNicknameUnique(t *testing.T) {
 		t.Fatalf("JoinRoom() error = %v", err)
 	}
 
-	app.setNickname(guest, "Alice")
+	app.Manager.SetNickname(guest, "Alice")
 
 	if got := guest.Nickname; got != "Alice-2" {
 		t.Fatalf("guest nickname = %q, want %q", got, "Alice-2")

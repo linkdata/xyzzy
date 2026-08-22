@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/linkdata/jaws"
+	"github.com/linkdata/jaws/lib/bind"
 	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
@@ -28,12 +29,8 @@ func (d roomTemplateDot) JawsGetTag() (result any) {
 }
 
 type gameTemplateDot struct {
-	roomTemplateDot
-}
-
-func (d templateDot) OnlineCount() (result int) {
-	result = d.App.Jaws.SessionCount()
-	return
+	templateDot
+	Room *game.Room
 }
 
 func (d gameTemplateDot) JawsGetTag() any {
@@ -41,20 +38,24 @@ func (d gameTemplateDot) JawsGetTag() any {
 }
 
 func (d templateDot) RoomSidebar(code string) (result jaws.Container) {
+	code = normalizeRoomCode(code)
 	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
-		RequestedCode: normalizeRoomCode(code),
+		RequestedCode: code,
+		RequestedRoom: d.App.Manager.Room(code),
 		Kind:          roomSectionSidebar,
 	}
 	return
 }
 
 func (d templateDot) RoomMain(code string) (result jaws.Container) {
+	code = normalizeRoomCode(code)
 	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
-		RequestedCode: normalizeRoomCode(code),
+		RequestedCode: code,
+		RequestedRoom: d.App.Manager.Room(code),
 		Kind:          roomSectionMain,
 	}
 	return
@@ -62,8 +63,7 @@ func (d templateDot) RoomMain(code string) (result jaws.Container) {
 
 func (d templateDot) SaveNicknameButton() (result jui.Object) {
 	result = jui.New("Save Nickname").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) {
-		d.App.setNickname(d.Player, d.Player.NicknameInputValue())
-		d.App.Jaws.Dirty(d.App.Manager, d.Player, d.Player.Room())
+		d.App.Manager.SetNickname(d.Player, d.Player.NicknameInputValue())
 		redirectURL := elem.Request.Initial().URL.RequestURI()
 		if redirectURL == "" {
 			redirectURL = "/"
@@ -93,16 +93,11 @@ func (d templateDot) CreateRoomButton() (result jui.Object) {
 	return
 }
 
-func (d templateDot) DisplayNickname() (result string) {
-	if d.Player != nil {
-		if room := d.Player.Room(); room != nil {
-			result = room.NicknameFor(d.Player)
-			if result != "" {
-				return
-			}
-		}
-		result = d.Player.NicknameValue()
-	}
+func (d templateDot) DisplayNickname() (result bind.Getter[string]) {
+	result = bind.StringGetterFunc(func(*jaws.Element) (nickname string) {
+		nickname = d.App.playerNickname(d.Player)
+		return
+	}, d.Player)
 	return
 }
 
@@ -111,72 +106,49 @@ func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) {
 	return
 }
 
-func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
-	cards := d.Room.HandFor(d.Player)
-	enabled := d.Room.CanSubmit(d.Player)
+func (d gameTemplateDot) HandCardViews(cards []game.HandCardRender) (result []whiteCardView) {
 	result = make([]whiteCardView, 0, len(cards))
 	for _, card := range cards {
 		result = append(result, whiteCardView{
 			Room:           d.Room,
 			Player:         d.Player,
-			Card:           card,
-			SelectionOrder: d.Room.SelectionOrderFor(d.Player, card),
-			Enabled:        enabled,
+			Card:           card.Card,
+			SelectionOrder: card.SelectionOrder,
 		})
 	}
 	return
 }
 
-func (d gameTemplateDot) SubmissionViews() (result []submissionView) {
-	submissions := d.Room.Submissions()
+func (d gameTemplateDot) SubmissionViews(submissions []game.SubmissionRender) (result []submissionView) {
 	result = make([]submissionView, 0, len(submissions))
 	for _, submission := range submissions {
-		result = append(result, submissionView{Room: d.Room, Player: d.Player, Submission: submission})
+		result = append(result, submissionView{
+			Room:       d.Room,
+			Player:     d.Player,
+			Submission: submission.Submission,
+			Selected:   submission.Selected,
+			Winning:    submission.Winning,
+			Enabled:    submission.Enabled,
+		})
 	}
 	return
 }
 
-func (d gameTemplateDot) WaitingTitle() (result string) {
-	switch d.Room.State() {
-	case game.StateJudging:
-		if judge := d.Room.JudgeName(); judge != "" {
-			result = judge + " is picking the winner"
-			return
-		}
-		result = "Waiting for the judge"
-	case game.StatePlaying:
-		if d.Room.IsJudge(d.Player) {
-			result = "Waiting for answers"
-			return
-		}
-		result = "Waiting for the rest of the table"
-	default:
-		result = "Waiting"
+type roundView struct {
+	game.RoundRender
+	Footnote string
+}
+
+func (gameTemplateDot) RoundView(round game.RoundRender) (result roundView) {
+	result.RoundRender = round
+	if round.BlackCard != nil {
+		result.Footnote = cardFootnote(round.DeckName, round.BlackCard.ID)
 	}
 	return
 }
 
-func (d gameTemplateDot) WaitingDetail() (result string) {
-	if d.Room.State() != game.StatePlaying {
-		return
-	}
-	if d.Room.IsJudge(d.Player) {
-		result = "You'll choose the winner once every answer is in."
-		return
-	}
-	if d.Room.SubmittedBy(d.Player) {
-		result = "Your cards are in."
-	}
-	return
-}
-
-func (d gameTemplateDot) BlackFootnote(card *deck.BlackCard) (result string) {
-	result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
-	return
-}
-
-func (d roomTemplateDot) StateBadgeClass() (result string) {
-	switch d.Room.State() {
+func (roomTemplateDot) StateBadgeClass(state game.RoomState) (result string) {
+	switch state {
 	case game.StateLobby:
 		result = "bg-secondary"
 	case game.StatePlaying:

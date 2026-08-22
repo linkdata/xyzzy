@@ -5,7 +5,7 @@
 {{$players := $room.Players}}
 <div class="d-flex justify-content-between align-items-center mb-2">
   <div class="fw-bold font-monospace">{{$room.Code}}</div>
-  <span class="badge {{$dot.StateBadgeClass}}">
+  <span class="badge {{$dot.StateBadgeClass $state}}">
     {{$state}}
   </span>
 </div>

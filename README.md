@@ -49,26 +49,12 @@ direct children.
 
 The application never stores a JaWS `Request`, `Element`, or UI tree in a
 `Manager`, `Room`, or `Player`. Values such as `templateDot`, `roomSection`, and
-`ReviewRender` are short-lived projections or definitions, not controllers or
-retained view models.
+the per-state render snapshots are short-lived projections or definitions, not
+controllers or retained view models.
 
 The package boundary follows ownership and lifetime rather than MVC roles.
 `internal/ui` integrates HTTP, sessions, and templates; `internal/game/jaws_ui.go`
 places synchronized bindings and actions beside the state they operate on.
-
-A live update follows one selective server-side path:
-
-```mermaid
-flowchart TB
-    A["State changes, or time-dependent text<br/>reaches an update boundary"]
-    B["After releasing state locks<br/>Dirty(stable dependency tag)"]
-    C["JaWS selects matching Elements<br/>across live Requests"]
-    D["Their retained Go definitions rerun<br/>against current synchronized state"]
-    E["JaWS reconciles or updates Elements"]
-    F["Targeted DOM changes reach each browser"]
-
-    A --> B --> C --> D --> E --> F
-```
 
 Initial HTML and live updates come from the same Go definitions and getters;
 there is no separately maintained client-side rendering path.
@@ -80,12 +66,12 @@ The templates use each live primitive for one distinct job:
 | Need | Primitive | Example in this repository |
 | --- | --- | --- |
 | Render a full document | `ui.Handler` | `serveLobby` and `serveRoom` |
-| Include static structure | native `{{template ...}}` | the head, welcome panel, and nickname modal |
-| Rerender a fixed live region | `ui.Template` via `$.Template` or `ui.NewTemplate` | the lobby sidebar and room panels |
+| Include static structure | native `{{template ...}}` | the head, nickname modal, and shared black-card markup |
+| Rerender a fixed live region | `ui.Template` via `$.Template` or `ui.NewTemplate` | the lobby sidebar and current room-state panel |
 | Change direct child identity or presence | `ui.Container` via `$.Container` | `roomSection` selects the sidebar and main room child |
 | Edit an addressable scalar | `bind.New` | nickname, privacy, and target score |
 | Describe a semantic action | `ui.Object` | create, start, submit, judge, and review actions |
-| Display dynamic text | a bound `Span` or `Button` getter | the shared review countdown |
+| Display dynamic text | a bound `Span` or `Button` getter | the navbar nickname and shared review countdown |
 
 Native template inclusion is enough for static markup. A retained `Template`
 owns a stable live wrapper whose inner content JaWS may replace. A `Container`
@@ -94,10 +80,18 @@ particular, `roomSection` is a comparable value that constructs fresh
 `Template` children; equal child definitions let JaWS retain the existing child
 `Element`.
 
-The room game panel follows the same rule at a smaller scale:
-`room_game_panel.html` is a thin state dispatcher, and each room state lives in
-a native template partial. Those partials organize source code without adding
-live elements, update boundaries, or retained render state.
+The main `roomSection` selects `room_game_lobby.html`,
+`room_game_playing.html`, `room_game_judging.html`, or
+`room_game_review.html` in Go. A state transition changes the `Container` child
+identity; a same-state update reconstructs an equal `Template` value and keeps
+its existing `Element`. Each state template obtains one short-lived,
+synchronized Go snapshot for its mutually dependent branches and values. The
+snapshot exists only for that template execution.
+
+If a transition lands between child selection and template execution, the old
+state's snapshot is inactive and renders no mixed-state fragment. The same
+`Room` dirty notification then reconciles the `Container` to the new state
+template.
 
 A native partial may still read request-time data without becoming a live
 region. The lobby welcome panel takes one app-wide registered-session snapshot
@@ -124,6 +118,7 @@ read.
 | `*game.Manager` | the public room list and unseated room lookup |
 | `*game.Player` | room membership and player-specific branches |
 | `*game.Room` | shared room summary and game regions |
+| `roomDeckTag{Room, Deck}` | that deck's checkboxes in one room |
 | field pointers such as `&r.targetScore` | independently bound controls and labels |
 | `&r.reviewDeadline` | the judge's countdown button and every other player's countdown span |
 
@@ -142,8 +137,20 @@ the same lock is held and then delegates to the original binder.
 
 Deck selection is the one custom input definition because “is this deck
 enabled?” is computed from a set rather than stored in an addressable scalar.
-`deckInput` implements `JawsGet`, `JawsSet`, and `JawsGetTag` directly and uses
-the room as its dependency tag.
+`deckInput` implements `JawsGet`, `JawsSet`, and `JawsGetTag` directly. Its
+`roomDeckTag{Room, Deck}` dependency lets a rejected browser edit reconcile that
+deck's checkbox in every live request for the room. Unchanged peers suppress the
+wire update, so normally only the originating input is corrected. An actual
+selection change separately dirties the `Room`, after the room lock is released,
+so shared counts and controls update in every live request. An unchanged edit
+returns `jaws.ErrValueUnchanged` and dirties neither.
+
+`Manager.SetNickname` is likewise the single committed-nickname boundary. It
+normalizes or uniquifies the value under the state locks and, when either stored
+field changes, releases them before publishing the manager, player, room, and
+exact nickname-field dependency. A normalized save therefore reconciles sibling
+inputs and navbar labels as well as shared room text, while a canonical no-op
+publishes nothing.
 
 Semantic actions are returned as `ui.Object` values. The object's primary
 getter may be a dynamic string getter, so its label, click behavior, dependency
@@ -196,13 +203,15 @@ Visiting `GET /` likewise leaves the player's current room before rendering the
 lobby. Page navigation therefore establishes membership before the initial UI
 description instead of deferring it to the WebSocket connection.
 
-### Concurrency without presentation DTOs
+### Concurrency without retained presentation state
 
 State types own their synchronization. Operations validate and mutate under
 the relevant locks, then notify JaWS after releasing them. When several values
-must agree, render helpers snapshot primitive values together under one lock.
-For example, review rendering copies the winner's nickname rather than keeping
-a `*Player` and reading it after unlock.
+must agree, each room-state render helper snapshots them together under one
+lock. The template consumes that ephemeral value once; it is not stored in the
+Room or retained by the JaWS definition. Review rendering, for example, copies
+the winner's nickname rather than keeping a `*Player` and reading it after
+unlock.
 
 Independent room-summary facts use their existing lock-protected accessors. A
 single summary render can therefore observe adjacent valid states, but it is
@@ -225,8 +234,6 @@ merely to make independent labels transactional.
   Requests sharing one valid session count once. A session can remain registered
   for roughly a minute after its last Request ends, so this is an approximate
   presence count that changes only on a later page render.
-- The broad `*Room` tag on deck checkboxes favors a simple definition over a
-  narrower tag type; unchanged inputs suppress redundant value updates.
 - JaWS-managed buttons and inputs require the WebSocket connection. The server
   does not replay actions performed while a browser is offline.
 
@@ -239,9 +246,9 @@ merely to make independent labels transactional.
 - [`internal/ui/section.go`](internal/ui/section.go) contains the comparable
   `Container` definitions.
 - [`internal/ui/template_dot.go`](internal/ui/template_dot.go) contains
-  render-time projections and their tags.
-- [`internal/game/jaws_ui.go`](internal/game/jaws_ui.go) keeps binders and
-  semantic controls beside the state they operate on.
+  request dots and small template adapter definitions.
+- [`internal/game/jaws_ui.go`](internal/game/jaws_ui.go) keeps synchronized
+  render snapshots, binders, and semantic controls beside their state.
 - [`internal/game/room.go`](internal/game/room.go) contains the game state
   machine and review timer.
 - [`assets/templates`](assets/templates) defines the HTML shape.

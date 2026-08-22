@@ -19,6 +19,7 @@ type roomSection struct {
 	App           *App
 	Player        *game.Player
 	RequestedCode string
+	RequestedRoom *game.Room
 	Kind          roomSectionKind
 }
 
@@ -26,7 +27,11 @@ func (s roomSection) JawsGetTag() any {
 	if s.Kind == roomSectionSidebar {
 		return s.Player
 	}
-	return []any{s.Player, s.App.Manager}
+	tags := []any{s.Player, s.App.Manager}
+	if s.RequestedRoom != nil {
+		tags = append(tags, s.RequestedRoom)
+	}
+	return tags
 }
 
 func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
@@ -41,9 +46,8 @@ func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
 	}
 
 	if room != nil {
-		roomDot := roomTemplateDot{templateDot: root, Room: room}
-		dot := gameTemplateDot{roomTemplateDot: roomDot}
-		result = []jaws.UI{jui.NewTemplate("div", "room_game_panel.html", dot)}
+		dot := gameTemplateDot{templateDot: root, Room: room}
+		result = []jaws.UI{jui.NewTemplate("div", roomGameTemplateName(room.State()), dot)}
 		return
 	}
 
@@ -57,9 +61,23 @@ func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
 
 func (s roomSection) currentRoom() (result *game.Room) {
 	if s.Player != nil {
-		if room := s.Player.Room(); room != nil && room.Code() == s.RequestedCode {
+		if room := s.Player.Room(); room != nil && room == s.RequestedRoom {
 			result = room
 		}
+	}
+	return
+}
+
+func roomGameTemplateName(state game.RoomState) (result string) {
+	switch state {
+	case game.StateLobby:
+		result = "room_game_lobby.html"
+	case game.StatePlaying:
+		result = "room_game_playing.html"
+	case game.StateJudging:
+		result = "room_game_judging.html"
+	case game.StateReview:
+		result = "room_game_review.html"
 	}
 	return
 }

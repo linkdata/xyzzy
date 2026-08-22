@@ -2,19 +2,22 @@
 {{$dot := .}}
 {{$room := .Room}}
 {{$player := .Player}}
-{{$review := $room.Review $player}}
+{{$view := $room.Review $player}}
+{{if $view.Active}}
+{{template "room_game_black_card.html" ($dot.RoundView $view.Round)}}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h5 class="mb-0">{{$review.Title}}</h5>
-    {{with $review.Status}}{{$.Span . `class="small text-muted"`}}{{end}}
+    <h5 class="mb-0">{{$view.Title}}</h5>
+    {{with $view.Status}}{{$.Span . `class="small text-muted"`}}{{end}}
   </div>
-  {{with $review.Button}}{{$.Button . `class="btn btn-primary review-countdown-button"`}}{{end}}
+  {{with $view.Button}}{{$.Button . `class="btn btn-primary review-countdown-button"`}}{{end}}
 </div>
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-  {{range $dot.SubmissionViews}}
+  {{range $dot.SubmissionViews $view.Submissions}}
   <div class="col">
     {{$.Template "div" "submission_clickable.html" . `data-jawstemplate` `role="button"` `tabindex="0"`}}
   </div>
   {{end}}
 </div>
+{{end}}
 {{end}}

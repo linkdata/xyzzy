@@ -171,27 +171,6 @@ func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	return
 }
 
-func (r *Room) BlackCount() (result int) {
-	r.mu.RLock()
-	result, _ = r.catalog.UnionCounts(r.selectedDecks)
-	r.mu.RUnlock()
-	return
-}
-
-func (r *Room) WhiteCount() (result int) {
-	r.mu.RLock()
-	_, result = r.catalog.UnionCounts(r.selectedDecks)
-	r.mu.RUnlock()
-	return
-}
-
-func (r *Room) RequiredWhite() (result int) {
-	r.mu.RLock()
-	result = MinWhiteCardsPerPlayer * max(len(r.players), 1)
-	r.mu.RUnlock()
-	return
-}
-
 func (r *Room) TargetScore() (result int) {
 	r.mu.RLock()
 	result = r.targetScore
@@ -257,16 +236,6 @@ func (r *Room) NicknameFor(player *Player) (result string) {
 	return
 }
 
-// SelectionOrderFor returns the one-based selection order for card, or zero.
-func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result int) {
-	r.mu.RLock()
-	if current := r.playerLocked(player); current != nil {
-		result = selectionOrderLocked(current, card)
-	}
-	r.mu.RUnlock()
-	return
-}
-
 // ToggleCardSelection toggles card in player's current room selection.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
 	r.mu.Lock()
@@ -291,16 +260,6 @@ func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (change
 	}
 	current.SelectedCards = append(current.SelectedCards, card)
 	changed = true
-	return
-}
-
-// SubmissionSelected reports whether submission is selected by player.
-func (r *Room) SubmissionSelected(player *Player, submission *Submission) (result bool) {
-	r.mu.RLock()
-	if current := r.playerLocked(player); current != nil {
-		result = current.SelectedSubmission == submission
-	}
-	r.mu.RUnlock()
 	return
 }
 
@@ -344,16 +303,6 @@ func (r *Room) JudgePlayer() (result *Player) {
 	return
 }
 
-func (r *Room) JudgeName() (result string) {
-	r.mu.RLock()
-	judge := r.judgeLocked()
-	if judge != nil {
-		result = judge.Nickname
-	}
-	r.mu.RUnlock()
-	return
-}
-
 func (r *Room) LastGameWinner() (result string) {
 	r.mu.RLock()
 	result = r.lastGameWinner
@@ -389,14 +338,15 @@ func (r *Room) SetPrivate(player *Player, private bool) (err error) {
 	return
 }
 
-func (r *Room) SetNickname(player *Player, nickname string) {
+func (r *Room) setNickname(player *Player, nickname string) (changed bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
 	if current != nil {
-		current.setRoomNickname(NormalizeNickname(nickname))
-		current.setRoomNickname(r.uniqueNicknameLocked(current))
+		nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
+		changed = current.setNickname(nickname)
 	}
+	return
 }
 
 func (r *Room) SetTargetScore(player *Player, score int) (err error) {
@@ -406,7 +356,11 @@ func (r *Room) SetTargetScore(player *Player, score int) (err error) {
 	return
 }
 
-func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled bool) (err error) {
+// SetDeckEnabled updates the room's deck selection.
+//
+// It reports whether the selection changed. Only the host can change a
+// canonical deck while the room is in the lobby.
+func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled bool) (changed bool, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.host != player {
@@ -421,6 +375,9 @@ func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled b
 		err = ErrUnknownDeck
 		return
 	}
+	if slices.Contains(r.selectedDecks, selectedDeck) == enabled {
+		return
+	}
 	selected := make(map[*deck.Deck]bool, len(r.selectedDecks))
 	for _, chosen := range r.selectedDecks {
 		selected[chosen] = true
@@ -431,6 +388,7 @@ func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled b
 		delete(selected, selectedDeck)
 	}
 	r.selectedDecks = sortedSelectedDecks(selected)
+	changed = true
 	return
 }
 
@@ -719,7 +677,7 @@ func (r *Room) expiredPlayers() (result []*Player) {
 }
 
 func (r *Room) seatLocked(player *Player) {
-	player.setRoomNickname(r.uniqueNicknameLocked(player))
+	player.setNickname(r.uniqueNicknameLocked(player))
 	player.setRoom(r)
 	player.Score = 0
 	player.Hand = nil
@@ -787,6 +745,12 @@ func (r *Room) uniqueNicknameLocked(player *Player) (result string) {
 	if result == "Player" && strings.TrimSpace(nickname) != "" {
 		result = NormalizeNickname(nickname)
 	}
+	result = r.uniqueNicknameForLocked(player, result)
+	return
+}
+
+func (r *Room) uniqueNicknameForLocked(player *Player, nickname string) (result string) {
+	result = nickname
 	base := result
 	for suffix := 2; ; suffix++ {
 		if !r.nicknameTakenLocked(result, player) {
@@ -852,7 +816,6 @@ func (r *Room) captureLastGameLocked(winner *Player) {
 		}
 		result = strings.Compare(a.Nickname, b.Nickname)
 		return
-
 	})
 }
 

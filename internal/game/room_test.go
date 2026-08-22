@@ -780,6 +780,46 @@ func TestRoundWinnerLeavingAdvancesReview(t *testing.T) {
 	}
 }
 
+func TestSetDeckEnabledReportsChanges(t *testing.T) {
+	catalog := testCatalog(t)
+	mgr := NewManager(catalog)
+	host := testPlayer("Alice")
+	guest := testPlayer("Bob")
+
+	room, _ := mgr.CreateRoom(host, catalog.DefaultDecks())
+	if _, err := mgr.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+	base := catalog.DeckByID("base")
+	if changed, err := room.SetDeckEnabled(guest, base, false); !errors.Is(err, ErrOnlyHostCanEdit) || changed {
+		t.Fatalf("SetDeckEnabled(non-host) = (%v, %v), want (false, %v)", changed, err, ErrOnlyHostCanEdit)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, true); err != nil || changed {
+		t.Fatalf("SetDeckEnabled(initial state) = (%v, %v), want (false, nil)", changed, err)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, false); err != nil || !changed {
+		t.Fatalf("SetDeckEnabled(disable) = (%v, %v), want (true, nil)", changed, err)
+	}
+	if room.DeckEnabled(base) {
+		t.Fatal("DeckEnabled(base) after disable = true, want false")
+	}
+	if changed, err := room.SetDeckEnabled(host, base, false); err != nil || changed {
+		t.Fatalf("SetDeckEnabled(repeated disable) = (%v, %v), want (false, nil)", changed, err)
+	}
+	if changed, err := room.SetDeckEnabled(host, base, true); err != nil || !changed {
+		t.Fatalf("SetDeckEnabled(enable) = (%v, %v), want (true, nil)", changed, err)
+	}
+	if !room.DeckEnabled(base) {
+		t.Fatal("DeckEnabled(base) after enable = false, want true")
+	}
+	room.mu.Lock()
+	room.state = StatePlaying
+	room.mu.Unlock()
+	if changed, err := room.SetDeckEnabled(host, base, false); !errors.Is(err, ErrDecksLocked) || changed {
+		t.Fatalf("SetDeckEnabled(in game) = (%v, %v), want (false, %v)", changed, err, ErrDecksLocked)
+	}
+}
+
 func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 	catalog := testCatalog(t)
 	mgr := NewManager(catalog)
@@ -787,8 +827,8 @@ func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 
 	room, _ := mgr.CreateRoom(host, catalog.DefaultDecks())
 	unknown := &deck.Deck{DeckMetadata: deck.DeckMetadata{ID: "base", Name: "Base copy"}}
-	if err := room.SetDeckEnabled(host, unknown, true); err != ErrUnknownDeck {
-		t.Fatalf("SetDeckEnabled() error = %v, want %v", err, ErrUnknownDeck)
+	if changed, err := room.SetDeckEnabled(host, unknown, true); !errors.Is(err, ErrUnknownDeck) || changed {
+		t.Fatalf("SetDeckEnabled() = (%v, %v), want (false, %v)", changed, err, ErrUnknownDeck)
 	}
 }
 

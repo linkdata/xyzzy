@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +29,7 @@ func TestRoomTargetScoreBinderRespectsPermissions(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -36,7 +37,7 @@ func TestRoomTargetScoreBinderRespectsPermissions(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -76,7 +77,7 @@ func TestRoomTargetScoreBinderAllowsOneInDebug(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -109,7 +110,7 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	h.get(t, "/")
 	sess := h.session(t)
 	player := h.app.player(sess, nil)
-	h.app.setNickname(player, "Alice")
+	h.app.Manager.SetNickname(player, "Alice")
 	room, err := h.app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -134,12 +135,12 @@ func TestRoomReceivesLiveTargetScoreUpdates(t *testing.T) {
 	}
 }
 
-func TestDeckInputReadsWritesAndTagsRoom(t *testing.T) {
+func TestDeckInputReadsWritesAndUsesNarrowTag(t *testing.T) {
 	app, _ := testPlayableApp(t)
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -151,14 +152,18 @@ func TestDeckInputReadsWritesAndTagsRoom(t *testing.T) {
 	if got := input.JawsGet(elem); !got {
 		t.Fatalf("JawsGet() = %v, want selected", got)
 	}
-	if got := input.JawsGetTag(); got != room {
-		t.Fatalf("JawsGetTag() = %v, want Room", got)
+	wantTag := roomDeckTag{Room: room, Deck: base}
+	if got := input.JawsGetTag(); got != wantTag {
+		t.Fatalf("JawsGetTag() = %#v, want %#v", got, wantTag)
 	}
 	if err := input.JawsSet(elem, false); err != nil {
 		t.Fatalf("JawsSet(false) error = %v", err)
 	}
 	if got := input.JawsGet(elem); got {
 		t.Fatalf("JawsGet() after disable = %v, want unselected", got)
+	}
+	if err := input.JawsSet(elem, false); !errors.Is(err, jaws.ErrValueUnchanged) {
+		t.Fatalf("unchanged JawsSet(false) error = %v, want %v", err, jaws.ErrValueUnchanged)
 	}
 	if err := input.JawsSet(elem, true); err != nil {
 		t.Fatalf("JawsSet(true) error = %v", err)
@@ -293,7 +298,7 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -337,7 +342,7 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -346,7 +351,7 @@ func TestRoomAutoJoinsLobbyRoom(t *testing.T) {
 	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 
 	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
 	roomReq.SetPathValue("code", room.Code())
@@ -372,7 +377,7 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -384,7 +389,7 @@ func TestPrivateRoomStillAutoJoinsByDirectURL(t *testing.T) {
 	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 
 	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
 	roomReq.SetPathValue("code", room.Code())
@@ -409,7 +414,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	hostReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, hostReq)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -417,7 +422,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 
 	guest1Sess := newTestSession(t, app)
 	guest1 := app.player(guest1Sess, nil)
-	app.setNickname(guest1, "Bob")
+	app.Manager.SetNickname(guest1, "Bob")
 	if _, err := app.joinRoom(guest1, room.Code()); err != nil {
 		t.Fatalf("JoinRoom(guest1) error = %v", err)
 	}
@@ -428,7 +433,7 @@ func TestRoomAutoJoinsGameInProgress(t *testing.T) {
 	joinReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	joinSess := newTestSession(t, app)
 	guest := app.player(joinSess, joinReq)
-	app.setNickname(guest, "Drew")
+	app.Manager.SetNickname(guest, "Drew")
 
 	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
 	roomReq.SetPathValue("code", room.Code())
@@ -467,7 +472,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -475,7 +480,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -493,11 +498,9 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	card := hand[0]
 
 	view := whiteCardView{
-		Room:           room,
-		Player:         guest,
-		Card:           card,
-		SelectionOrder: room.SelectionOrderFor(guest, card),
-		Enabled:        true,
+		Room:   room,
+		Player: guest,
+		Card:   card,
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
@@ -535,7 +538,7 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -543,7 +546,7 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -552,7 +555,7 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 	}
 
 	card := room.HandFor(guest)[0]
-	view := whiteCardView{Room: room, Player: guest, Card: card, Enabled: true}
+	view := whiteCardView{Room: room, Player: guest, Card: card}
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
 		strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
@@ -563,19 +566,13 @@ func TestWhiteCardViewInitialHTMLAttr(t *testing.T) {
 		t.Fatal("ToggleCardSelection() did not select card")
 	}
 	selected := view
-	selected.SelectionOrder = room.SelectionOrderFor(guest, card)
+	selected.SelectionOrder = 1
 	if !room.ToggleCardSelection(guest, card) {
 		t.Fatal("ToggleCardSelection() did not clear the captured selection")
 	}
 	attr = string(selected.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
 		t.Fatalf("captured selected attributes = %q, want enabled selected card", attr)
-	}
-
-	blocked := view
-	blocked.Enabled = false
-	if attr = string(blocked.JawsInitialHTMLAttr(new(jaws.Element))); !strings.Contains(attr, "disabled") {
-		t.Fatalf("disabled snapshot attributes = %q, want disabled", attr)
 	}
 }
 
@@ -584,7 +581,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -592,7 +589,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -619,7 +616,8 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	submission := submissions[0]
 
-	view := submissionView{Room: room, Player: host, Submission: submission}
+	view := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}.
+		SubmissionViews(room.Judging(host).Submissions)[0]
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
 	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
@@ -656,7 +654,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -664,7 +662,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -676,7 +674,8 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("PlayCards() error = %v", err)
 	}
 	submission := room.Submissions()[0]
-	view := submissionView{Room: room, Player: host, Submission: submission}
+	dot := gameTemplateDot{Room: room, templateDot: templateDot{Player: host}}
+	view := dot.SubmissionViews(room.Judging(host).Submissions)[0]
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
 		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
@@ -686,7 +685,8 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	if !room.ToggleSubmissionSelection(host, submission) {
 		t.Fatal("ToggleSubmissionSelection() did not select submission")
 	}
-	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	selected := dot.SubmissionViews(room.Judging(host).Submissions)[0]
+	attr = string(selected.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
 		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
 	}
@@ -695,6 +695,11 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("Judge() error = %v", err)
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
+	if strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
+		t.Fatalf("captured judging attributes changed after review transition: %q", attr)
+	}
+	review := dot.SubmissionViews(room.Review(host).Submissions)[0]
+	attr = string(review.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
 		t.Fatalf("review attributes = %q, want disabled winning submission", attr)
 	}
@@ -706,7 +711,7 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -714,7 +719,7 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -760,7 +765,7 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 
 	hostSess := newTestSession(t, app)
 	host := app.player(hostSess, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -768,7 +773,7 @@ func TestRoomShowsRoundWinnerReviewState(t *testing.T) {
 
 	guestSess := newTestSession(t, app)
 	guest := app.player(guestSess, nil)
-	app.setNickname(guest, "Bob")
+	app.Manager.SetNickname(guest, "Bob")
 	if _, err := app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -864,7 +869,7 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	sess := newTestSession(t, app)
 	player := app.player(sess, req)
-	app.setNickname(player, "Alice")
+	app.Manager.SetNickname(player, "Alice")
 	room, err := app.createRoom(player)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)

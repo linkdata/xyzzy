@@ -57,7 +57,8 @@ func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
 	var templates *template.Template
 	if templates, err = template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html"); err == nil {
 		if err = a.Jaws.AddTemplateLookuper(templates); err == nil {
-			if err = a.Jaws.Setup(mux.Handle, "/static",
+			if err = a.Jaws.Setup(
+				mux.Handle, "/static",
 				jawsboot.Setup,
 				staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
 			); err == nil {
@@ -92,7 +93,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 		a.leaveRoom(player)
 	}
 	a.syncNicknameCookie(w, r, player)
-	jui.Handler(a.Jaws, "index.html", a.makeTemplateDot(player)).ServeHTTP(w, r)
+	jui.Handler(a.Jaws, "index.html", templateDot{App: a, Player: player}).ServeHTTP(w, r)
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +113,7 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.syncNicknameCookie(w, r, player)
-	jui.Handler(a.Jaws, "room.html", a.makeTemplateDot(player)).ServeHTTP(w, r)
+	jui.Handler(a.Jaws, "room.html", templateDot{App: a, Player: player}).ServeHTTP(w, r)
 }
 
 func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -148,11 +149,6 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	a.syncNicknameCookie(w, r, player)
 	http.Redirect(w, r, a.RoomURL(room.Code()), http.StatusSeeOther)
-}
-
-func (a *App) makeTemplateDot(player *game.Player) (result templateDot) {
-	result = templateDot{App: a, Player: player}
-	return
 }
 
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
@@ -258,12 +254,6 @@ func generateNickname() (result string) {
 	_, _ = rand.Read(b[:])
 	result = fmt.Sprintf("Player%X", b)
 	return
-}
-
-func (a *App) setNickname(player *game.Player, nickname string) {
-	if player != nil {
-		a.Manager.SetNickname(player, nickname)
-	}
 }
 
 func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {

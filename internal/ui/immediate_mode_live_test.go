@@ -268,6 +268,24 @@ func immediateModeTemplateJID(t *testing.T, rq *jaws.Request, pageHTML, name str
 	return
 }
 
+func immediateModeButtonJID(t *testing.T, rq *jaws.Request, pageHTML, label string) (result jid.Jid) {
+	t.Helper()
+	for id := range immediateModeHTMLJIDs(pageHTML) {
+		if elem := rq.GetElementByJid(id); elem != nil {
+			if button, ok := elem.UI().(*jui.Button); ok && string(button.HTMLGetter.JawsGetHTML(elem)) == label {
+				if result > 0 {
+					t.Fatalf("page has multiple %q Button elements", label)
+				}
+				result = id
+			}
+		}
+	}
+	if result <= 0 {
+		t.Fatalf("page has no %q Button element", label)
+	}
+	return
+}
+
 func immediateModeRoomSectionJIDs(t *testing.T, rq *jaws.Request, player *game.Player, manager *game.Manager) (sidebar, main jid.Jid) {
 	t.Helper()
 	for _, elem := range rq.GetElements(player) {
@@ -457,7 +475,7 @@ func TestCleanupRefreshesRemainingPlayerRoomSummary(t *testing.T) {
 	h.getWithClient(t, guestClient, "/")
 	guestSession := h.sessionForClient(t, guestClient)
 	guest := h.app.player(guestSession, nil)
-	h.app.setNickname(guest, "Bob")
+	h.app.Manager.SetNickname(guest, "Bob")
 	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -634,45 +652,110 @@ func TestRequestedRoomRemovalReplacesMainChild(t *testing.T) {
 	}
 }
 
+func TestRoomStateChangesReplaceOnlyTheStateTemplate(t *testing.T) {
+	h := newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{MinPlayers: 2})
+
+	h.get(t, "/")
+	hostSession := h.session(t)
+	host := h.app.player(hostSession, nil)
+	room, err := h.app.Manager.CreateRoom(host, h.app.Catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	guestClient := h.newClient(t)
+	h.getWithClient(t, guestClient, "/")
+	guestSession := h.sessionForClient(t, guestClient)
+	guest := h.app.player(guestSession, nil)
+	if _, err = h.app.Manager.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+
+	pageHTML := h.get(t, "/room/"+room.Code())
+	rq := immediateModeRequestForHTML(t, hostSession, pageHTML)
+	_, mainJID := immediateModeRoomSectionJIDs(t, rq, host, h.app.Manager)
+	lobbyJID := immediateModeTemplateJID(t, rq, pageHTML, "room_game_lobby.html")
+	conn, cancel := h.connect(t, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "state-connected")
+
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	h.app.Jaws.Dirty(room)
+	var changes immediateModeChildChanges
+	transitionCtx, transitionDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer transitionDone()
+	if err = reader.readUntil(transitionCtx, func(msg wire.WsMsg) bool {
+		changes.observe(mainJID, msg)
+		return changes.removedChild(lobbyJID) && changes.appendedContaining("Waiting for answers")
+	}); err != nil {
+		t.Fatalf("waiting for lobby-to-playing child transition: %v", err)
+	}
+	drainImmediateModeAlert(t, rq, reader, "state-transition", func(msg wire.WsMsg) {
+		changes.observe(mainJID, msg)
+	})
+	if len(changes.removed) != 1 || len(changes.appended) != 1 {
+		t.Fatalf("state child changes = removed %v, appended %d; want one each", changes.removed, len(changes.appended))
+	}
+	playingJID := immediateModeRootJID(t, changes.appended[0].Data)
+	playingElem := rq.GetElementByJid(playingJID)
+	if playingElem == nil {
+		t.Fatalf("playing child %v is not registered", playingJID)
+	}
+	playingTemplate, ok := playingElem.UI().(jui.Template)
+	if !ok || playingTemplate.Name != "room_game_playing.html" {
+		t.Fatalf("playing child = %#v, want room_game_playing.html Template", playingElem)
+	}
+
+	var steadyMutations []wire.WsMsg
+	h.app.Jaws.Dirty(room)
+	steadyCtx, steadyDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer steadyDone()
+	if err = reader.readUntil(steadyCtx, func(msg wire.WsMsg) bool {
+		if immediateModeContainerMutation(msg) {
+			steadyMutations = append(steadyMutations, msg)
+		}
+		return msg.Jid == playingJID && msg.What == what.Inner
+	}); err != nil {
+		t.Fatalf("waiting for same-state playing update: %v", err)
+	}
+	drainImmediateModeAlert(t, rq, reader, "state-steady", func(msg wire.WsMsg) {
+		if immediateModeContainerMutation(msg) {
+			steadyMutations = append(steadyMutations, msg)
+		}
+	})
+	if len(steadyMutations) != 0 {
+		t.Fatalf("same-state update emitted Container mutations: %#v", steadyMutations)
+	}
+}
+
 func TestTargetScoreRangeInputUpdatesOnlyBoundControls(t *testing.T) {
 	h := newPlayableLiveHarness(t)
 
-	_, host := livePlayer(t, h, "Alice")
+	h.get(t, "/")
+	sess := h.session(t)
+	host := h.app.player(sess, nil)
 	room, err := h.app.Manager.CreateRoom(host, h.app.Catalog.DefaultDecks())
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
 	pageHTML := h.get(t, "/room/"+room.Code())
-	sess := h.session(t)
 	conn, cancel := h.connect(t, pageHTML)
 	defer cancel()
 	reader := newImmediateModeWireReader(t, conn)
 	rq := immediateModeRequestForHTML(t, sess, pageHTML)
 	syncImmediateModeRequest(t, conn, rq, reader, "connected")
 
-	h.app.Jaws.Broadcast(wire.Message{Dest: room, What: what.Update})
-	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
-	defer done()
-	var panel wire.WsMsg
-	if err := reader.readUntil(ctx, func(msg wire.WsMsg) bool {
-		if msg.What == what.Inner && strings.Contains(msg.Data, "Target score") {
-			panel = msg
-			return true
-		}
-		return false
-	}); err != nil {
-		t.Fatalf("waiting for room-panel update barrier: %v", err)
-	}
-	drainImmediateModeAlert(t, rq, reader, "room-panel-updated", nil)
-
-	rangeJID := immediateModeElementJID(t, panel.Data, immediateModeInputRE, func(attrs map[string]string) bool {
+	panelJID := immediateModeTemplateJID(t, rq, pageHTML, "room_game_lobby.html")
+	rangeJID := immediateModeElementJID(t, pageHTML, immediateModeInputRE, func(attrs map[string]string) bool {
 		return strings.EqualFold(attrs["type"], "range")
 	})
-	spanJID := immediateModeElementJID(t, panel.Data, immediateModeSpanRE, func(attrs map[string]string) bool {
+	spanJID := immediateModeElementJID(t, pageHTML, immediateModeSpanRE, func(attrs map[string]string) bool {
 		return immediateModeHasClasses(attrs, "badge", "bg-secondary", "text-nowrap")
 	})
-	if panel.Jid <= 0 || panel.Jid == rangeJID || panel.Jid == spanJID {
-		t.Fatalf("panel/range/span Jids = %v/%v/%v, want distinct managed elements", panel.Jid, rangeJID, spanJID)
+	if panelJID == rangeJID || panelJID == spanJID {
+		t.Fatalf("panel/range/span Jids = %v/%v/%v, want distinct managed elements", panelJID, rangeJID, spanJID)
 	}
 
 	writeCtx, writeDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
@@ -685,7 +768,7 @@ func TestTargetScoreRangeInputUpdatesOnlyBoundControls(t *testing.T) {
 	want := strconv.Itoa(room.MinTargetScore())
 	var sawRange, sawSpan, sawPanelInner bool
 	observe := func(msg wire.WsMsg) {
-		if msg.What == what.Inner && msg.Jid == panel.Jid {
+		if msg.What == what.Inner && msg.Jid == panelJID {
 			sawPanelInner = true
 		}
 		if msg.What == what.Value && msg.Jid == rangeJID && msg.Data == want {
@@ -709,7 +792,96 @@ func TestTargetScoreRangeInputUpdatesOnlyBoundControls(t *testing.T) {
 		t.Fatalf("TargetScore() = %d, want normalized %d", got, room.MinTargetScore())
 	}
 	if sawPanelInner {
-		t.Fatalf("target-score input sent Inner to room panel %v", panel.Jid)
+		t.Fatalf("target-score input sent Inner to room panel %v", panelJID)
+	}
+}
+
+func TestNicknameSaveReconcilesSiblingRequest(t *testing.T) {
+	h := newLiveHarness(t)
+
+	firstHTML := h.get(t, "/")
+	sess := h.session(t)
+	player := h.app.player(sess, nil)
+	firstRQ := immediateModeRequestForHTML(t, sess, firstHTML)
+	firstFields := firstRQ.GetElements(player.NicknameField())
+	if len(firstFields) != 1 {
+		t.Fatalf("first nickname fields = %#v, want one", firstFields)
+	}
+	firstFieldJID := firstFields[0].Jid()
+	firstSaveJID := immediateModeButtonJID(t, firstRQ, firstHTML, "Save Nickname")
+
+	secondHTML := h.get(t, "/")
+	secondRQ := immediateModeRequestForHTML(t, sess, secondHTML)
+	secondFields := secondRQ.GetElements(player.NicknameField())
+	if len(secondFields) != 1 {
+		t.Fatalf("second nickname fields = %#v, want one", secondFields)
+	}
+	secondFieldJID := secondFields[0].Jid()
+	var secondDisplayJID jid.Jid
+	for _, elem := range secondRQ.GetElements(player) {
+		if _, ok := elem.UI().(*jui.Span); ok {
+			if secondDisplayJID > 0 {
+				t.Fatal("second page has multiple Player-tagged spans")
+			}
+			secondDisplayJID = elem.Jid()
+		}
+	}
+	if secondDisplayJID <= 0 {
+		t.Fatal("second page has no Player-tagged nickname span")
+	}
+
+	firstConn, firstCancel := h.connect(t, firstHTML)
+	defer firstCancel()
+	firstReader := newImmediateModeWireReader(t, firstConn)
+	secondConn, secondCancel := h.connect(t, secondHTML)
+	defer secondCancel()
+	secondReader := newImmediateModeWireReader(t, secondConn)
+	syncImmediateModeRequest(t, firstConn, firstRQ, firstReader, "nickname-first-connected")
+	syncImmediateModeRequest(t, secondConn, secondRQ, secondReader, "nickname-second-connected")
+
+	const raw = " A l i c e !!! "
+	inputWriteCtx, inputWriteDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	input := wire.WsMsg{Jid: firstFieldJID, What: what.Input, Data: raw}
+	if err := firstConn.Write(inputWriteCtx, websocket.MessageText, []byte(input.Format())); err != nil {
+		inputWriteDone()
+		t.Fatalf("nickname Input write error = %v", err)
+	}
+	inputWriteDone()
+	peerRawCtx, peerRawDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer peerRawDone()
+	if err := secondReader.readUntil(peerRawCtx, func(msg wire.WsMsg) bool {
+		return msg.Jid == secondFieldJID && msg.What == what.Value && msg.Data == raw
+	}); err != nil {
+		t.Fatalf("waiting for sibling raw nickname Value: %v", err)
+	}
+
+	click := wire.WsMsg{Jid: firstSaveJID, What: what.Click, Data: (jaws.Click{Name: "save"}).String()}
+	clickWriteCtx, clickWriteDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err := firstConn.Write(clickWriteCtx, websocket.MessageText, []byte(click.Format())); err != nil {
+		clickWriteDone()
+		t.Fatalf("save Click write error = %v", err)
+	}
+	clickWriteDone()
+	peerSavedCtx, peerSavedDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer peerSavedDone()
+	var sawField, sawDisplay bool
+	if err := secondReader.readUntil(peerSavedCtx, func(msg wire.WsMsg) bool {
+		if msg.Jid == secondFieldJID && msg.What == what.Value && msg.Data == "Alice" {
+			sawField = true
+		}
+		if msg.Jid == secondDisplayJID && msg.What == what.Inner && msg.Data == "Alice" {
+			sawDisplay = true
+		}
+		return sawField && sawDisplay
+	}); err != nil {
+		t.Fatalf("waiting for sibling normalized nickname display: field=%t display=%t: %v", sawField, sawDisplay, err)
+	}
+
+	if got := player.NicknameValue(); got != "Alice" {
+		t.Fatalf("NicknameValue() = %q, want Alice", got)
+	}
+	if got := player.NicknameInputValue(); got != "Alice" {
+		t.Fatalf("NicknameInputValue() = %q, want Alice", got)
 	}
 }
 
@@ -720,7 +892,7 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 	h.getWithClient(t, hostClient, "/")
 	hostSession := h.sessionForClient(t, hostClient)
 	host := h.app.player(hostSession, nil)
-	h.app.setNickname(host, "Alice")
+	h.app.Manager.SetNickname(host, "Alice")
 	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -730,7 +902,7 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 	h.getWithClient(t, guestClient, "/")
 	guestSession := h.sessionForClient(t, guestClient)
 	guest := h.app.player(guestSession, nil)
-	h.app.setNickname(guest, "Bob")
+	h.app.Manager.SetNickname(guest, "Bob")
 	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
@@ -756,11 +928,11 @@ func TestReviewCountdownUpdatesJudgeAndNonJudgeControls(t *testing.T) {
 
 	hostHTML := h.getWithClient(t, hostClient, "/room/"+room.Code())
 	hostRQ := immediateModeRequestForHTML(t, hostSession, hostHTML)
-	hostPanelJID := immediateModeTemplateJID(t, hostRQ, hostHTML, "room_game_panel.html")
+	hostPanelJID := immediateModeTemplateJID(t, hostRQ, hostHTML, "room_game_review.html")
 
 	guestHTML := h.getWithClient(t, guestClient, "/room/"+room.Code())
 	guestRQ := immediateModeRequestForHTML(t, guestSession, guestHTML)
-	guestPanelJID := immediateModeTemplateJID(t, guestRQ, guestHTML, "room_game_panel.html")
+	guestPanelJID := immediateModeTemplateJID(t, guestRQ, guestHTML, "room_game_review.html")
 
 	hostConn, hostCancel := h.connectWithClient(t, hostClient, hostHTML)
 	defer hostCancel()
@@ -865,7 +1037,7 @@ func TestPrivateToggleInputUpdatesPeerAndLobby(t *testing.T) {
 	h.getWithClient(t, hostClient, "/")
 	hostSession := h.sessionForClient(t, hostClient)
 	host := h.app.player(hostSession, nil)
-	h.app.setNickname(host, "Bob")
+	h.app.Manager.SetNickname(host, "Bob")
 	room, err := h.app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
@@ -945,6 +1117,128 @@ func TestPrivateToggleInputUpdatesPeerAndLobby(t *testing.T) {
 	}
 }
 
+func TestDeckInputScopesRejectedAndAcceptedUpdates(t *testing.T) {
+	h := newLiveHarness(t)
+
+	h.get(t, "/")
+	hostSession := h.session(t)
+	host := h.app.player(hostSession, nil)
+	room, err := h.app.Manager.CreateRoom(host, h.app.Catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+
+	guestClient := h.newClient(t)
+	h.getWithClient(t, guestClient, "/")
+	guestSession := h.sessionForClient(t, guestClient)
+	guest := h.app.player(guestSession, nil)
+	if _, err = h.app.Manager.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+
+	hostHTML := h.get(t, "/room/"+room.Code())
+	hostRQ := immediateModeRequestForHTML(t, hostSession, hostHTML)
+	hostPanelJID := immediateModeTemplateJID(t, hostRQ, hostHTML, "room_game_lobby.html")
+	hostSummaryJID := immediateModeTemplateJID(t, hostRQ, hostHTML, "room_summary_panel.html")
+	guestHTML := h.getWithClient(t, guestClient, "/room/"+room.Code())
+	guestRQ := immediateModeRequestForHTML(t, guestSession, guestHTML)
+	guestPanelJID := immediateModeTemplateJID(t, guestRQ, guestHTML, "room_game_lobby.html")
+	guestSummaryJID := immediateModeTemplateJID(t, guestRQ, guestHTML, "room_summary_panel.html")
+
+	extra := h.app.Catalog.DeckByID("extra")
+	deckTag := roomDeckTag{Room: room, Deck: extra}
+	hostDeckElements := hostRQ.GetElements(deckTag)
+	guestDeckElements := guestRQ.GetElements(deckTag)
+	if len(hostDeckElements) != 1 || len(guestDeckElements) != 1 {
+		t.Fatalf("extra-deck elements = host %#v, guest %#v; want one each", hostDeckElements, guestDeckElements)
+	}
+	if hostDeckElements[0].HasTag(room) || guestDeckElements[0].HasTag(room) {
+		t.Fatal("deck checkbox retained the broad Room tag")
+	}
+	hostDeckJID := hostDeckElements[0].Jid()
+	guestDeckJID := guestDeckElements[0].Jid()
+
+	hostConn, hostCancel := h.connect(t, hostHTML)
+	defer hostCancel()
+	hostReader := newImmediateModeWireReader(t, hostConn)
+	guestConn, guestCancel := h.connectWithClient(t, guestClient, guestHTML)
+	defer guestCancel()
+	guestReader := newImmediateModeWireReader(t, guestConn)
+	syncImmediateModeRequest(t, hostConn, hostRQ, hostReader, "deck-host-connected")
+	syncImmediateModeRequest(t, guestConn, guestRQ, guestReader, "deck-guest-connected")
+
+	rejectedWriteCtx, rejectedWriteDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	rejectedInput := wire.WsMsg{Jid: guestDeckJID, What: what.Input, Data: "true"}
+	if err = guestConn.Write(rejectedWriteCtx, websocket.MessageText, []byte(rejectedInput.Format())); err != nil {
+		rejectedWriteDone()
+		t.Fatalf("guest deck Input write error = %v", err)
+	}
+	rejectedWriteDone()
+
+	var guestRejected []wire.WsMsg
+	rejectedCtx, rejectedDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer rejectedDone()
+	if err = guestReader.readUntil(rejectedCtx, func(msg wire.WsMsg) bool {
+		guestRejected = append(guestRejected, msg)
+		return msg.Jid == guestDeckJID && msg.What == what.Value && msg.Data == "false"
+	}); err != nil {
+		t.Fatalf("waiting for rejected checkbox correction: %v", err)
+	}
+	drainImmediateModeAlert(t, guestRQ, guestReader, "deck-guest-rejected", func(msg wire.WsMsg) {
+		guestRejected = append(guestRejected, msg)
+	})
+	var hostRejected []wire.WsMsg
+	drainImmediateModeAlert(t, hostRQ, hostReader, "deck-host-rejected", func(msg wire.WsMsg) {
+		hostRejected = append(hostRejected, msg)
+	})
+	for _, observed := range []struct {
+		name     string
+		messages []wire.WsMsg
+		panel    jid.Jid
+		summary  jid.Jid
+	}{
+		{name: "host", messages: hostRejected, panel: hostPanelJID, summary: hostSummaryJID},
+		{name: "guest", messages: guestRejected, panel: guestPanelJID, summary: guestSummaryJID},
+	} {
+		for _, msg := range observed.messages {
+			if msg.What == what.Inner && (msg.Jid == observed.panel || msg.Jid == observed.summary) {
+				t.Fatalf("rejected input updated %s room region %v: %#v", observed.name, msg.Jid, msg)
+			}
+		}
+	}
+	if room.DeckEnabled(extra) {
+		t.Fatal("rejected guest input enabled the deck")
+	}
+
+	acceptedInput := wire.WsMsg{Jid: hostDeckJID, What: what.Input, Data: "true"}
+	acceptedWriteCtx, acceptedWriteDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	if err = hostConn.Write(acceptedWriteCtx, websocket.MessageText, []byte(acceptedInput.Format())); err != nil {
+		acceptedWriteDone()
+		t.Fatalf("host deck Input write error = %v", err)
+	}
+	acceptedWriteDone()
+	for _, peer := range []struct {
+		name   string
+		reader immediateModeWireReader
+		panel  jid.Jid
+	}{
+		{name: "host", reader: hostReader, panel: hostPanelJID},
+		{name: "guest", reader: guestReader, panel: guestPanelJID},
+	} {
+		acceptedCtx, acceptedDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+		if err = peer.reader.readUntil(acceptedCtx, func(msg wire.WsMsg) bool {
+			return msg.Jid == peer.panel && msg.What == what.Inner && strings.Contains(msg.Data, "2 black / 4 white selected")
+		}); err != nil {
+			acceptedDone()
+			t.Fatalf("waiting for accepted %s room update: %v", peer.name, err)
+		}
+		acceptedDone()
+	}
+	if !room.DeckEnabled(extra) {
+		t.Fatal("accepted host input did not enable the deck")
+	}
+}
+
 func TestSteadyUpdatesRetainTemplateWrappers(t *testing.T) {
 	t.Run("manager lobby", func(t *testing.T) {
 		h := newLiveHarness(t)
@@ -1015,7 +1309,7 @@ func TestSteadyUpdatesRetainTemplateWrappers(t *testing.T) {
 		syncImmediateModeRequest(t, conn, rq, reader, "room-connected")
 		initialJIDs := immediateModeHTMLJIDs(pageHTML)
 
-		if err := room.SetDeckEnabled(host, h.app.Catalog.DeckByID("extra"), true); err != nil {
+		if _, err := room.SetDeckEnabled(host, h.app.Catalog.DeckByID("extra"), true); err != nil {
 			t.Fatalf("SetDeckEnabled() error = %v", err)
 		}
 		h.app.Jaws.Dirty(room)

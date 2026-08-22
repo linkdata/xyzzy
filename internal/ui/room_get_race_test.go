@@ -26,7 +26,7 @@ func TestConcurrentRoomGETsRedirectLosingRequestToCurrentRoom(t *testing.T) {
 		h.getWithClient(t, client, "/")
 		sess := h.sessionForClient(t, client)
 		result = h.app.player(sess, nil)
-		h.app.setNickname(result, nickname)
+		h.app.Manager.SetNickname(result, nickname)
 		return
 	}
 

@@ -11,6 +11,9 @@ type submissionView struct {
 	Room       *game.Room
 	Player     *game.Player
 	Submission *game.Submission
+	Selected   bool
+	Winning    bool
+	Enabled    bool
 }
 
 func (v submissionView) Cards() (result []whiteCardView) {
@@ -21,11 +24,7 @@ func (v submissionView) Cards() (result []whiteCardView) {
 }
 
 func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	result = cardInitialHTMLAttr(
-		v.Room.SubmissionSelected(v.Player, v.Submission),
-		v.Room.IsWinningSubmission(v.Submission),
-		!v.Room.CanJudge(v.Player),
-	)
+	result = cardInitialHTMLAttr(v.Selected, v.Winning, !v.Enabled)
 	return
 }
 

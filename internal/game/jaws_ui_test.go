@@ -291,6 +291,110 @@ func TestRoomButtonsRunTheirDomainActions(t *testing.T) {
 	}
 }
 
+func TestStateRenderSnapshots(t *testing.T) {
+	catalog := testCatalog(t)
+	manager := NewManagerWithOptions(catalog, Options{MinPlayers: 2})
+	host := testPlayer("Host")
+	guest := testPlayer("Guest")
+	room, err := manager.CreateRoom(host, catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	if _, err = manager.JoinRoom(room.Code(), guest); err != nil {
+		t.Fatalf("JoinRoom() error = %v", err)
+	}
+
+	lobby := room.Lobby(host)
+	if !lobby.Active {
+		t.Fatalf("Lobby(host) = %#v, want active view", lobby)
+	}
+	if lobby.BlackCount < MinBlackCards || lobby.WhiteCount < lobby.RequiredWhite || lobby.MinimumTarget != 2 {
+		t.Fatalf("Lobby(host) counts = %#v, want sufficient cards and minimum target 2", lobby)
+	}
+	if room.Playing(host).Active || room.Judging(host).Active || room.Review(host).Active {
+		t.Fatal("non-lobby snapshots are active while the room is in the lobby")
+	}
+
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	forceRound(t, room, "b1")
+	judge := room.JudgePlayer()
+	contestant := host
+	if contestant == judge {
+		contestant = guest
+	}
+	hand := room.HandFor(contestant)
+	if len(hand) == 0 || !room.ToggleCardSelection(contestant, hand[0]) {
+		t.Fatal("failed to select a contestant card")
+	}
+	playing := room.Playing(contestant)
+	if !playing.Active || !playing.CanSubmit || playing.Round.BlackCard != catalog.BlackCards["b1"] {
+		t.Fatalf("Playing(contestant) = %#v, want active submit view for b1", playing)
+	}
+	if len(playing.Hand) != len(hand) || playing.Hand[0].Card != hand[0] || playing.Hand[0].SelectionOrder != 1 {
+		t.Fatalf("Playing(contestant).Hand = %#v, want captured selected card first", playing.Hand)
+	}
+	judgeWaiting := room.Playing(judge)
+	if !judgeWaiting.Active || judgeWaiting.CanSubmit || judgeWaiting.WaitingTitle != "Waiting for answers" || len(judgeWaiting.Hand) != 0 {
+		t.Fatalf("Playing(judge) = %#v, want waiting judge view", judgeWaiting)
+	}
+
+	submission := &Submission{ID: "submission", Player: contestant, Cards: []*deck.WhiteCard{hand[0]}}
+	room.mu.Lock()
+	contestant.SelectedCards = nil
+	room.state = StateJudging
+	room.submissions = []*Submission{submission}
+	judge.SelectedSubmission = submission
+	room.mu.Unlock()
+
+	if playing.Hand[0].SelectionOrder != 1 {
+		t.Fatalf("captured selection order = %d after mutation, want 1", playing.Hand[0].SelectionOrder)
+	}
+	if room.Playing(contestant).Active {
+		t.Fatal("Playing(contestant) remains active after state transition")
+	}
+	judging := room.Judging(judge)
+	if !judging.Active || !judging.CanJudge || judging.Title != "Pick the Winner" || len(judging.Submissions) != 1 {
+		t.Fatalf("Judging(judge) = %#v, want active judge view", judging)
+	}
+	if got := judging.Submissions[0]; got.Submission != submission || !got.Selected || got.Winning || !got.Enabled {
+		t.Fatalf("Judging(judge).Submissions[0] = %#v, want selected enabled non-winner", got)
+	}
+	nonJudge := room.Judging(contestant)
+	wantWaitingTitle := judge.Nickname + " is picking the winner"
+	if nonJudge.Title != wantWaitingTitle || nonJudge.Submissions[0].Enabled {
+		t.Fatalf("Judging(contestant) = %#v, want disabled waiting view", nonJudge)
+	}
+
+	room.mu.Lock()
+	room.state = StateReview
+	room.reviewWinner = contestant
+	room.reviewSubmission = submission
+	room.reviewDeadline = time.Now().Add(time.Hour)
+	room.mu.Unlock()
+	review := room.Review(judge)
+	wantReviewTitle := contestant.Nickname + " won the round!"
+	if !review.Active || review.Title != wantReviewTitle || review.Button == nil || len(review.Submissions) != 1 {
+		t.Fatalf("Review(judge) = %#v, want active judge review", review)
+	}
+	if got := review.Submissions[0]; !got.Selected || !got.Winning || got.Enabled {
+		t.Fatalf("Review(judge).Submissions[0] = %#v, want selected disabled winner", got)
+	}
+
+	room.mu.Lock()
+	judge.SelectedSubmission = nil
+	room.reviewSubmission = nil
+	room.state = StatePlaying
+	room.mu.Unlock()
+	if got := review.Submissions[0]; !got.Selected || !got.Winning {
+		t.Fatalf("captured review submission changed after mutation: %#v", got)
+	}
+	if room.Review(judge).Active {
+		t.Fatal("Review(judge) remains active after state transition")
+	}
+}
+
 func TestReviewSnapshotsDisplayAndControls(t *testing.T) {
 	judge := testPlayer("Judge")
 	winner := testPlayer("Winner")
@@ -466,9 +570,9 @@ func TestReviewConcurrentWithWinnerNicknameChanges(t *testing.T) {
 		<-start
 		for i := 0; i < iterations; i++ {
 			if i%2 == 0 {
-				room.SetNickname(winner, "Alice")
+				room.setNickname(winner, "Alice")
 			} else {
-				room.SetNickname(winner, "Casey")
+				room.setNickname(winner, "Casey")
 			}
 		}
 	}()

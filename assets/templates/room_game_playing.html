@@ -2,13 +2,16 @@
 {{$dot := .}}
 {{$room := .Room}}
 {{$player := .Player}}
-{{if $room.CanSubmit $player}}
+{{$view := $room.Playing $player}}
+{{if $view.Active}}
+{{template "room_game_black_card.html" ($dot.RoundView $view.Round)}}
+{{if $view.CanSubmit}}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
+  <h5 class="mb-0">Your Hand — pick {{$view.Round.BlackCard.Pick}}</h5>
   {{$.Button ($room.SubmitCardsButton $player) `class="btn btn-primary"`}}
 </div>
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-  {{range $dot.HandCardViews}}
+  {{range $dot.HandCardViews $view.Hand}}
   <div class="col">
     {{$.Template "div" "hand_card_clickable.html" . `data-jawstemplate` `role="button"` `tabindex="0"`}}
   </div>
@@ -16,8 +19,9 @@
 </div>
 {{else}}
 <div class="text-center py-5">
-  <h5>{{$dot.WaitingTitle}}</h5>
-  {{with $dot.WaitingDetail}}<p class="text-muted">{{.}}</p>{{end}}
+  <h5>{{$view.WaitingTitle}}</h5>
+  {{with $view.WaitingDetail}}<p class="text-muted">{{.}}</p>{{end}}
 </div>
+{{end}}
 {{end}}
 {{end}}

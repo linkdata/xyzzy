@@ -32,7 +32,7 @@ func TestRoomSectionContainsComparableDefinitions(t *testing.T) {
 		{
 			name: "seated sidebar",
 			section: roomSection{
-				App: app, Player: host, RequestedCode: room.Code(), Kind: roomSectionSidebar,
+				App: app, Player: host, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionSidebar,
 			},
 			wantName: "room_summary_panel.html",
 			wantRoom: room,
@@ -40,22 +40,22 @@ func TestRoomSectionContainsComparableDefinitions(t *testing.T) {
 		{
 			name: "seated main",
 			section: roomSection{
-				App: app, Player: host, RequestedCode: room.Code(), Kind: roomSectionMain,
+				App: app, Player: host, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionMain,
 			},
-			wantName: "room_game_panel.html",
+			wantName: "room_game_lobby.html",
 			wantRoom: room,
 			wantGame: true,
 		},
 		{
 			name: "unseated existing sidebar",
 			section: roomSection{
-				App: app, Player: viewer, RequestedCode: room.Code(), Kind: roomSectionSidebar,
+				App: app, Player: viewer, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionSidebar,
 			},
 		},
 		{
 			name: "unseated existing main",
 			section: roomSection{
-				App: app, Player: viewer, RequestedCode: room.Code(), Kind: roomSectionMain,
+				App: app, Player: viewer, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionMain,
 			},
 			wantName: "room_single_panel.html",
 			wantRoom: room,
@@ -132,8 +132,8 @@ func TestRoomSectionTagsStayStableAcrossMembershipChange(t *testing.T) {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
 	viewer := &game.Player{Nickname: "Bob", NicknameInput: "Bob"}
-	main := roomSection{App: app, Player: viewer, RequestedCode: room.Code(), Kind: roomSectionMain}
-	sidebar := roomSection{App: app, Player: viewer, RequestedCode: room.Code(), Kind: roomSectionSidebar}
+	main := roomSection{App: app, Player: viewer, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionMain}
+	sidebar := roomSection{App: app, Player: viewer, RequestedCode: room.Code(), RequestedRoom: room, Kind: roomSectionSidebar}
 
 	mainBefore := expandSectionTags(t, main.JawsGetTag())
 	sidebarBefore := expandSectionTags(t, sidebar.JawsGetTag())
@@ -153,8 +153,8 @@ func TestRoomSectionTagsStayStableAcrossMembershipChange(t *testing.T) {
 	if !reflect.DeepEqual(sidebarAfter, sidebarBefore) {
 		t.Fatalf("sidebar tags changed with membership: before=%#v after=%#v", sidebarBefore, sidebarAfter)
 	}
-	if !reflect.DeepEqual(mainAfter, []any{viewer, app.Manager}) {
-		t.Fatalf("main tags = %#v, want Player and Manager", mainAfter)
+	if !reflect.DeepEqual(mainAfter, []any{viewer, app.Manager, room}) {
+		t.Fatalf("main tags = %#v, want Player, Manager, and requested Room", mainAfter)
 	}
 	if !reflect.DeepEqual(sidebarAfter, []any{viewer}) {
 		t.Fatalf("sidebar tags = %#v, want Player", sidebarAfter)
@@ -165,12 +165,30 @@ func TestRoomSectionTagsStayStableAcrossMembershipChange(t *testing.T) {
 		t.Fatalf("seated main child count = %d, want 1", len(after))
 	}
 	tmpl, ok := after[0].(jui.Template)
-	if !ok || tmpl.Name != "room_game_panel.html" {
-		t.Fatalf("seated main child = %#v, want game panel Template", after[0])
+	if !ok || tmpl.Name != "room_game_lobby.html" {
+		t.Fatalf("seated main child = %#v, want lobby game Template", after[0])
 	}
 	dot, ok := tmpl.Dot.(gameTemplateDot)
 	if !ok || dot.Room != room {
 		t.Fatalf("seated Template.Dot = %#v, want captured Room %p", tmpl.Dot, room)
+	}
+}
+
+func TestRoomGameTemplateName(t *testing.T) {
+	tests := []struct {
+		state game.RoomState
+		want  string
+	}{
+		{state: game.StateLobby, want: "room_game_lobby.html"},
+		{state: game.StatePlaying, want: "room_game_playing.html"},
+		{state: game.StateJudging, want: "room_game_judging.html"},
+		{state: game.StateReview, want: "room_game_review.html"},
+		{state: game.RoomState("unknown")},
+	}
+	for _, tt := range tests {
+		if got := roomGameTemplateName(tt.state); got != tt.want {
+			t.Errorf("roomGameTemplateName(%q) = %q, want %q", tt.state, got, tt.want)
+		}
 	}
 }
 
@@ -192,7 +210,7 @@ func TestRenderedDocumentsHaveUniqueHTMLIDs(t *testing.T) {
 
 	hostSession := newTestSession(t, app)
 	host := app.player(hostSession, nil)
-	app.setNickname(host, "Alice")
+	app.Manager.SetNickname(host, "Alice")
 	room, err := app.createRoom(host)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
