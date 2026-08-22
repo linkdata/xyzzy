@@ -392,8 +392,8 @@ func TestLobbyRenders(t *testing.T) {
 	if player, _ := sess.Get(sessionKeyPlayer).(*game.Player); player == nil {
 		t.Fatal("expected lobby GET to store its Player before rendering")
 	}
-	if !strings.Contains(body, "0 online") {
-		t.Fatalf("expected lobby body to show zero online, got %s", body)
+	if !strings.Contains(body, ">1 online</small>") {
+		t.Fatalf("expected lobby body to show one online session, got %s", body)
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)
@@ -403,11 +403,17 @@ func TestLobbyRenders(t *testing.T) {
 	}
 }
 
-func TestLobbyShowsCurrentOnlineRequestCount(t *testing.T) {
+func TestLobbyShowsCurrentOnlineSessionCount(t *testing.T) {
 	h := newLiveHarness(t)
 
 	firstHTML := h.get(t, "/")
+	if !strings.Contains(firstHTML, ">1 online</small>") {
+		t.Fatalf("expected first page to show one online session, got %s", firstHTML)
+	}
 	session := h.session(t)
+	if count := h.app.Jaws.SessionCount(); count != 1 {
+		t.Fatalf("SessionCount() = %d, want 1", count)
+	}
 	_, firstCancel := h.connect(t, firstHTML)
 	defer firstCancel()
 
@@ -415,14 +421,25 @@ func TestLobbyShowsCurrentOnlineRequestCount(t *testing.T) {
 	if h.session(t) != session {
 		t.Fatal("second tab did not reuse the first tab's session")
 	}
-	if !strings.Contains(secondHTML, "1 online") {
-		t.Fatalf("expected second tab to show one online, got %s", secondHTML)
+	if !strings.Contains(secondHTML, ">1 online</small>") {
+		t.Fatalf("expected second tab to keep one online session, got %s", secondHTML)
 	}
 	_, secondCancel := h.connect(t, secondHTML)
 	defer secondCancel()
 
-	if body := h.getWithClient(t, h.newClient(t), "/"); !strings.Contains(body, "2 online") {
-		t.Fatalf("expected lobby body to show two online, got %s", body)
+	if body := h.get(t, "/"); !strings.Contains(body, ">1 online</small>") {
+		t.Fatalf("expected two live tabs to keep one online session, got %s", body)
+	}
+
+	otherClient := h.newClient(t)
+	if body := h.getWithClient(t, otherClient, "/"); !strings.Contains(body, ">2 online</small>") {
+		t.Fatalf("expected a second client to show two online sessions, got %s", body)
+	}
+	if h.sessionForClient(t, otherClient) == session {
+		t.Fatal("second client unexpectedly reused the first client's session")
+	}
+	if count := h.app.Jaws.SessionCount(); count != 2 {
+		t.Fatalf("SessionCount() = %d, want 2", count)
 	}
 }
 

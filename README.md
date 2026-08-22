@@ -122,8 +122,9 @@ a native template partial. Those partials organize source code without adding
 live elements, update boundaries, or retained render state.
 
 A native partial may still read request-time data without becoming a live
-region. The lobby welcome panel takes one active-request snapshot for its online
-count; it has no independent update boundary.
+region. The lobby welcome panel takes one app-wide registered-session snapshot
+for its online count; session middleware registers the current visitor before
+rendering, and the panel has no independent update boundary.
 
 This keeps wrapper ownership unambiguous: the template emits the contents of a
 JaWS wrapper, not a competing copy of the wrapper itself.
@@ -242,8 +243,10 @@ merely to make independent labels transactional.
 - The first lobby or room visit from an anonymous browser creates an ephemeral
   session and player. Expired seated players are removed from rooms during
   later page requests; an unseated player has the JaWS session's lifetime.
-- The lobby's online count is a render-time snapshot of active JaWS requests.
-  Multiple tabs count separately, and the number changes on the next page render.
+- The lobby displays a render-time snapshot of app-wide registered JaWS sessions.
+  Requests sharing one valid session count once. A session can remain registered
+  for roughly a minute after its last Request ends, so this is an approximate
+  presence count that changes only on a later page render.
 - The broad `*Room` tag on deck checkboxes favors a simple definition over a
   narrower tag type; unchanged inputs suppress redundant value updates.
 - JaWS-managed buttons and inputs require the WebSocket connection. The server

@@ -218,7 +218,7 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 	if nickname != "" {
 		value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the request scheme; HttpOnly and SameSite are set below.
 		Name:     a.nicknameCookieName(),
 		Value:    value,
 		Path:     "/",

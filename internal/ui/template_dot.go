@@ -32,7 +32,7 @@ type gameTemplateDot struct {
 }
 
 func (d templateDot) OnlineCount() (result int) {
-	_, result = d.App.Jaws.RequestCounts()
+	result = d.App.Jaws.SessionCount()
 	return
 }
 
