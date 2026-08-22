@@ -56,40 +56,18 @@ The package boundary follows ownership and lifetime rather than MVC roles.
 `internal/ui` integrates HTTP, sessions, and templates; `internal/game/jaws_ui.go`
 places synchronized bindings and actions beside the state they operate on.
 
+A live update follows one selective server-side path:
+
 ```mermaid
-flowchart TD
-    subgraph browsers["Connected browsers"]
-        direction TB
-        A["Browser A<br/>DOM + JaWS client"]
-        B["Browser B<br/>DOM + JaWS client"]
-    end
+flowchart TB
+    A["State changes, or time-dependent text<br/>reaches an update boundary"]
+    B["After releasing state locks<br/>Dirty(stable dependency tag)"]
+    C["JaWS selects matching Elements<br/>across live Requests"]
+    D["Their retained Go definitions rerun<br/>against current synchronized state"]
+    E["JaWS reconciles or updates Elements"]
+    F["Targeted DOM changes reach each browser"]
 
-    subgraph server["Go server"]
-        direction TB
-        M["SessionMiddleware<br/>session identifies Player"]
-        H["ui.Handler<br/>full-document render"]
-        P["Immediate projection<br/>Container, Template, Binder, Object"]
-        E["JaWS-owned Request and Elements<br/>handlers + dependency tags"]
-        S["Synchronized application state<br/>Manager, Room, Player"]
-        D["JaWS dirty dispatcher"]
-        T["Room review timer"]
-    end
-
-    A -->|"HTTP GET"| M
-    B -->|"HTTP GET"| M
-    M --> H
-    H -->|"fresh request-specific definitions"| P
-    P -->|"locked reads or snapshots"| S
-    P -->|"render or reconcile"| E
-
-    A <-->|"WebSocket events and DOM updates"| E
-    B <-->|"WebSocket events and DOM updates"| E
-    E -->|"revalidated input or click"| S
-    E -->|"Dirty after a successful action"| D
-    T -->|"mutate under the Room lock"| S
-    T -->|"Dirty deadline or Room"| D
-    D -->|"matching Elements in every live Request"| E
-    E -->|"rerun the selected live definition"| P
+    A --> B --> C --> D --> E --> F
 ```
 
 Initial HTML and live updates come from the same Go definitions and getters;
