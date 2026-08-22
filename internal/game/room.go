@@ -232,15 +232,6 @@ func (r *Room) NeedPick() (result int) {
 	return
 }
 
-func (r *Room) NeedDraw() (result int) {
-	r.mu.RLock()
-	if black := r.currentBlackLocked(); black != nil {
-		result = black.Draw
-	}
-	r.mu.RUnlock()
-	return
-}
-
 func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -792,10 +783,7 @@ func (r *Room) dealJoinedPlayerLocked(player *Player) {
 
 func (r *Room) uniqueNicknameLocked(player *Player) (result string) {
 	result = NormalizeNickname(player.NicknameInputValue())
-	nickname := player.Nickname
-	if player.Room() != r {
-		nickname = player.NicknameValue()
-	}
+	nickname := player.NicknameValue()
 	if result == "Player" && strings.TrimSpace(nickname) != "" {
 		result = NormalizeNickname(nickname)
 	}

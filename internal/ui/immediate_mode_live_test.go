@@ -27,10 +27,11 @@ import (
 const immediateModeTestTimeout = 5 * time.Second
 
 var (
-	immediateModeAttrRE     = regexp.MustCompile(`(?i)\b([a-z][a-z0-9:_-]*)\s*=\s*"([^"]*)"`)
-	immediateModeFirstTagRE = regexp.MustCompile(`(?is)^\s*<[a-z][a-z0-9:_-]*\b[^>]*>`)
-	immediateModeInputRE    = regexp.MustCompile(`(?is)<input\b[^>]*>`)
-	immediateModeSpanRE     = regexp.MustCompile(`(?is)<span\b[^>]*>`)
+	immediateModeAttrRE                 = regexp.MustCompile(`(?i)\b([a-z][a-z0-9:_-]*)\s*=\s*"([^"]*)"`)
+	immediateModeFirstTagRE             = regexp.MustCompile(`(?is)^\s*<[a-z][a-z0-9:_-]*\b[^>]*>`)
+	immediateModeInputRE                = regexp.MustCompile(`(?is)<input\b[^>]*>`)
+	immediateModeNicknameModalTriggerRE = regexp.MustCompile(`(?is)<button\b[^>]*\bdata-bs-toggle="modal"[^>]*>.*?</button>`)
+	immediateModeSpanRE                 = regexp.MustCompile(`(?is)<span\b[^>]*>`)
 )
 
 type immediateModeChildChanges struct {
@@ -214,6 +215,35 @@ func immediateModeElementJID(t *testing.T, markup string, tags *regexp.Regexp, m
 		}
 	}
 	t.Fatalf("managed element not found in markup: %s", markup)
+	return
+}
+
+func immediateModeNicknameModalSpanJID(t *testing.T, markup string) (result jid.Jid) {
+	t.Helper()
+	triggers := immediateModeNicknameModalTriggerRE.FindAllString(markup, -1)
+	if len(triggers) != 1 {
+		t.Fatalf("nickname modal triggers = %d, want one: %s", len(triggers), markup)
+	}
+	trigger := triggers[0]
+	buttonAttrs := immediateModeAttrs(immediateModeFirstTagRE.FindString(trigger))
+	if buttonAttrs["data-bs-target"] != "#nicknameModal" {
+		t.Fatalf("nickname modal target = %q, want #nicknameModal: %s", buttonAttrs["data-bs-target"], trigger)
+	}
+	if id := jid.ParseString(buttonAttrs["id"]); id > 0 {
+		t.Fatalf("nickname modal trigger is managed as %v: %s", id, trigger)
+	}
+	spans := immediateModeSpanRE.FindAllString(trigger, -1)
+	if len(spans) != 1 {
+		t.Fatalf("nickname modal trigger spans = %d, want one: %s", len(spans), trigger)
+	}
+	spanAttrs := immediateModeAttrs(spans[0])
+	result = jid.ParseString(spanAttrs["id"])
+	if result <= 0 {
+		t.Fatalf("nickname modal label is not managed: %s", trigger)
+	}
+	if !immediateModeHasClasses(spanAttrs, "pe-none") {
+		t.Fatalf("nickname modal label is not pointer-transparent: %s", trigger)
+	}
 	return
 }
 
@@ -904,6 +934,36 @@ func TestNicknameSaveReconcilesSiblingRequest(t *testing.T) {
 	}
 	if got := player.NicknameInputValue(); got != "Alice" {
 		t.Fatalf("NicknameInputValue() = %q, want Alice", got)
+	}
+}
+
+func TestNicknameModalTriggersLeaveClicksToBootstrap(t *testing.T) {
+	h := newLiveHarness(t)
+
+	lobbyHTML := h.get(t, "/")
+	sess := h.session(t)
+	player := h.app.player(sess, nil)
+	room, err := h.app.createRoom(player)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+	roomHTML := h.get(t, h.app.RoomURL(room.Code()))
+
+	for name, pageHTML := range map[string]string{
+		"lobby": lobbyHTML,
+		"room":  roomHTML,
+	} {
+		t.Run(name, func(t *testing.T) {
+			rq := immediateModeRequestForHTML(t, sess, pageHTML)
+			spanJID := immediateModeNicknameModalSpanJID(t, pageHTML)
+			span := rq.GetElementByJid(spanJID)
+			if span == nil {
+				t.Fatalf("nickname modal label %v is not registered", spanJID)
+			}
+			if _, ok := span.UI().(*jui.Span); !ok || !span.HasTag(player) {
+				t.Fatalf("nickname modal label = %#v, want Player-tagged Span", span.UI())
+			}
+		})
 	}
 }
 

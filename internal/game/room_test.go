@@ -77,8 +77,8 @@ func TestDrawCardRoundDealsExtraCards(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	forceRound(t, room, "b3")
-	if room.NeedDraw() != 1 {
-		t.Fatalf("NeedDraw() = %d, want 1", room.NeedDraw())
+	if black := room.CurrentBlack(); black == nil || black.Draw != 1 {
+		t.Fatalf("CurrentBlack() = %#v, want draw 1", black)
 	}
 	for _, player := range room.Players() {
 		hand := room.HandFor(player)

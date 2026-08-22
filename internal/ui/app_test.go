@@ -33,6 +33,28 @@ func TestSessionMapsToSinglePlayer(t *testing.T) {
 	}
 }
 
+func TestPlayerReleasesLookupLockBeforePublishingNickname(t *testing.T) {
+	app, _ := testApp(t)
+	sess := newTestSession(t, app)
+	player := &game.Player{Session: sess}
+	sess.Set(sessionKeyPlayer, player)
+
+	var playerMuUnlocked bool
+	app.Manager.SetDirty(func(...any) {
+		playerMuUnlocked = app.playerMu.TryLock()
+		if playerMuUnlocked {
+			app.playerMu.Unlock()
+		}
+	})
+
+	if got := app.player(sess, nil); got != player {
+		t.Fatalf("player() = %p, want %p", got, player)
+	}
+	if !playerMuUnlocked {
+		t.Fatal("nickname publication ran while playerMu was locked")
+	}
+}
+
 func TestCleanupExpiredSessionDeletesEmptyRoom(t *testing.T) {
 	h := newLiveHarness(t)
 

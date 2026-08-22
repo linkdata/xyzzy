@@ -18,20 +18,43 @@ type templateDot struct {
 
 type roomPageDot struct {
 	templateDot
+	RequestedCode string
+	RequestedRoom *game.Room
 }
 
 var _ jaws.ConnectHandler = roomPageDot{}
 
 func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) {
-	roomCode := normalizeRoomCode(rq.Initial().PathValue("code"))
-	if _, err = d.App.joinRoom(d.Player, roomCode); err == nil {
+	if current := d.Player.Room(); current != nil {
+		if current != d.RequestedRoom {
+			rq.Redirect(d.App.RoomURL(current.Code()))
+		}
+		return
+	}
+	if d.App.Manager.Room(d.RequestedCode) != d.RequestedRoom {
+		rq.Redirect(d.App.RoomURL(d.RequestedCode))
+		return
+	}
+	if d.RequestedRoom == nil {
+		return
+	}
+	var joined *game.Room
+	if joined, err = d.App.joinRoom(d.Player, d.RequestedCode); err == nil {
+		if joined != d.RequestedRoom {
+			rq.Redirect(d.App.RoomURL(joined.Code()))
+		}
 		return
 	}
 	if current := d.Player.Room(); current != nil {
 		err = nil
-		if current.Code() != roomCode {
+		if current != d.RequestedRoom {
 			rq.Redirect(d.App.RoomURL(current.Code()))
 		}
+		return
+	}
+	if d.App.Manager.Room(d.RequestedCode) != d.RequestedRoom {
+		err = nil
+		rq.Redirect(d.App.RoomURL(d.RequestedCode))
 		return
 	}
 	// These failures are normal rendered observer states. Returning one would
@@ -71,25 +94,23 @@ func (d gameTemplateDot) JawsGetTag() any {
 	return []any{d.Player, d.Room}
 }
 
-func (d templateDot) RoomSidebar(code string) (result jaws.Container) {
-	code = normalizeRoomCode(code)
+func (d roomPageDot) RoomSidebar() (result jaws.Container) {
 	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
-		RequestedCode: code,
-		RequestedRoom: d.App.Manager.Room(code),
+		RequestedCode: d.RequestedCode,
+		RequestedRoom: d.RequestedRoom,
 		Kind:          roomSectionSidebar,
 	}
 	return
 }
 
-func (d templateDot) RoomMain(code string) (result jaws.Container) {
-	code = normalizeRoomCode(code)
+func (d roomPageDot) RoomMain() (result jaws.Container) {
 	result = roomSection{
 		App:           d.App,
 		Player:        d.Player,
-		RequestedCode: code,
-		RequestedRoom: d.App.Manager.Room(code),
+		RequestedCode: d.RequestedCode,
+		RequestedRoom: d.RequestedRoom,
 		Kind:          roomSectionMain,
 	}
 	return

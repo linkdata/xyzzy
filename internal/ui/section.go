@@ -23,15 +23,17 @@ type roomSection struct {
 	Kind          roomSectionKind
 }
 
-func (s roomSection) JawsGetTag() any {
+func (s roomSection) JawsGetTag() (result any) {
 	if s.Kind == roomSectionSidebar {
-		return s.Player
+		result = s.Player
+		return
 	}
-	tags := []any{s.Player, s.App.Manager}
-	if s.RequestedRoom != nil {
-		tags = append(tags, s.RequestedRoom)
+	if s.RequestedRoom == nil {
+		result = []any{s.Player, s.App.Manager}
+		return
 	}
-	return tags
+	result = []any{s.Player, s.App.Manager, s.RequestedRoom}
+	return
 }
 
 func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
@@ -53,9 +55,16 @@ func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
 
 	dot := roomTemplateDot{
 		templateDot: root,
-		Room:        s.App.Manager.Room(s.RequestedCode),
+		Room:        s.requestedRoom(),
 	}
 	result = []jaws.UI{jui.NewTemplate("div", "room_single_panel.html", dot)}
+	return
+}
+
+func (s roomSection) requestedRoom() (result *game.Room) {
+	if s.App.Manager.Room(s.RequestedCode) == s.RequestedRoom {
+		result = s.RequestedRoom
+	}
 	return
 }
 

@@ -174,6 +174,51 @@ func TestRoomSectionTagsStayStableAcrossMembershipChange(t *testing.T) {
 	}
 }
 
+func TestRoomPageSectionsShareCapturedRoomIdentity(t *testing.T) {
+	app, _ := testApp(t)
+	host := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}
+	room, err := app.Manager.CreateRoom(host, app.Catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	viewer := &game.Player{Nickname: "Bob", NicknameInput: "Bob"}
+	dot := roomPageDot{
+		templateDot:   templateDot{App: app, Player: viewer},
+		RequestedCode: room.Code(),
+		RequestedRoom: room,
+	}
+
+	if left, empty := app.Manager.LeaveRoom(host); left != room || !empty {
+		t.Fatalf("LeaveRoom() = (%v, %t), want (%v, true)", left, empty, room)
+	}
+	for name, provider := range map[string]jaws.Container{
+		"sidebar": dot.RoomSidebar(),
+		"main":    dot.RoomMain(),
+	} {
+		section, ok := provider.(roomSection)
+		if !ok {
+			t.Fatalf("%s provider = %T, want roomSection", name, provider)
+		}
+		if section.RequestedCode != room.Code() || section.RequestedRoom != room {
+			t.Fatalf("%s identity = (%q, %p), want (%q, %p)", name, section.RequestedCode, section.RequestedRoom, room.Code(), room)
+		}
+	}
+
+	main := dot.RoomMain().(roomSection)
+	children := main.JawsContains(nil)
+	if len(children) != 1 {
+		t.Fatalf("main children = %#v, want one room_single_panel Template", children)
+	}
+	child, ok := children[0].(jui.Template)
+	if !ok || child.Name != "room_single_panel.html" {
+		t.Fatalf("main child = %#v, want room_single_panel.html Template", children[0])
+	}
+	childDot, ok := child.Dot.(roomTemplateDot)
+	if !ok || childDot.Room != nil {
+		t.Fatalf("removed-room child dot = %#v, want nil Room without a substituted identity", child.Dot)
+	}
+}
+
 func TestRoomGameTemplateName(t *testing.T) {
 	tests := []struct {
 		state game.RoomState

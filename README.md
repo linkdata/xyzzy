@@ -163,6 +163,11 @@ exact nickname-field dependency. A normalized save therefore reconciles sibling
 inputs and navbar labels as well as shared room text, while a canonical no-op
 publishes nothing.
 
+The navbar's Bootstrap modal trigger remains ordinary HTML around the bound
+nickname `Span`. The span uses Bootstrap's `pe-none` utility so pointer clicks
+target the outer button and reach Bootstrap's document-level modal handler;
+JaWS can still update the span's text through its element ID.
+
 Semantic actions are returned as `ui.Object` values. The object's primary
 getter may be a dynamic string getter, so its label, click behavior, dependency
 tag, and initial attributes stay together. Templates can therefore say, for
@@ -209,13 +214,16 @@ so concurrent page requests cannot create different players for one session.
 
 `GET /room/{code}` does not take a seat. Its top-level `roomPageDot` implements
 `jaws.ConnectHandler`, so the initial document describes the unseated state and
-the join runs only after JaWS accepts the page's WebSocket. A successful join
-dirties the existing `Player`, `Room`, and room-list dependencies; the retained
-sidebar and main `Container` values then reconcile into the seated UI. Plain
-crawlers, prefetchers, and link unfurlers therefore cannot fill a room by
-fetching its URL. A client that runs the JaWS script and opens the WebSocket can
-still join, because connection is the intended lifecycle boundary rather than
-proof of human intent.
+the join runs only after JaWS accepts the page's WebSocket. The handler resolves
+the route to one stable room identity shared by the connect hook and both room
+sections. If that identity disappears or changes before connection, the page
+reloads instead of attaching a replacement room to retained definitions for the
+old one. A successful join dirties the existing `Player`, `Room`, and room-list
+dependencies; the retained sidebar and main `Container` values then reconcile
+into the seated UI. Plain crawlers, prefetchers, and link unfurlers therefore
+cannot fill a room by fetching its URL. A client that runs the JaWS script and
+opens the WebSocket can still join, because connection is the intended lifecycle
+boundary rather than proof of human intent.
 
 Visiting `GET /` likewise leaves the player's current room before rendering the
 lobby.

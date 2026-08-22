@@ -644,6 +644,49 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	}
 }
 
+func TestRoomShowsPlayingHandToNonJudge(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err = app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !room.CanSubmit(guest) {
+		t.Fatal("expected guest to be able to submit in the opening round")
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(guestSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Your Hand") || !strings.Contains(body, ">Play Selected Cards<") {
+		t.Fatalf("expected playable hand controls, got %s", body)
+	}
+	if !strings.Contains(body, "card-face card-face-white") || !strings.Contains(body, "White card") {
+		t.Fatalf("expected playable hand cards, got %s", body)
+	}
+}
+
 func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	app, mux := testPlayableApp(t)
 	handler := app.Middleware(mux)
@@ -695,6 +738,54 @@ func TestRoomShowsJudgingSubmissionsToNonJudge(t *testing.T) {
 	}
 	if strings.Contains(body, ">Pick Winner<") {
 		t.Fatalf("did not expect non-judge judging view to render the pick button, got %s", body)
+	}
+}
+
+func TestRoomShowsJudgingActionsToJudge(t *testing.T) {
+	app, mux := testPlayableApp(t)
+	handler := app.Middleware(mux)
+
+	hostSess := newTestSession(t, app)
+	host := app.player(hostSess, nil)
+	app.Manager.SetNickname(host, "Alice")
+	room, err := app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestSess := newTestSession(t, app)
+	guest := app.player(guestSess, nil)
+	app.Manager.SetNickname(guest, "Bob")
+	if _, err = app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	hand := room.HandFor(guest)
+	if err = room.PlayCards(guest, hand[:room.NeedPick()]); err != nil {
+		t.Fatalf("PlayCards() error = %v", err)
+	}
+	if room.State() != game.StateJudging || !room.CanJudge(host) {
+		t.Fatalf("expected host to be able to judge in %s", game.StateJudging)
+	}
+
+	roomReq := httptest.NewRequest(http.MethodGet, "http://example.test/room/"+room.Code(), nil)
+	roomReq.SetPathValue("code", room.Code())
+	roomReq.AddCookie(hostSess.Cookie())
+	roomRec := httptest.NewRecorder()
+	handler.ServeHTTP(roomRec, roomReq)
+	if roomRec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d", roomRec.Code)
+	}
+
+	body := roomRec.Body.String()
+	if !strings.Contains(body, "Pick the Winner") || !strings.Contains(body, ">Pick Winner<") {
+		t.Fatalf("expected judging controls, got %s", body)
+	}
+	if !strings.Contains(body, "card-face card-face-white") || !strings.Contains(body, "White card") {
+		t.Fatalf("expected submitted card sets, got %s", body)
 	}
 }
 

@@ -93,3 +93,41 @@ func TestSecondRoomConnectionRedirectsToCurrentRoom(t *testing.T) {
 		t.Fatalf("player membership after second connect: current=%v first=%v second=%v", player.Room(), firstRoom.HasPlayer(player), secondRoom.HasPlayer(player))
 	}
 }
+
+func TestRoomConnectionReloadsAfterCapturedRoomRemoval(t *testing.T) {
+	h := newLiveHarness(t)
+	_, host := livePlayer(t, h, "Host")
+	room, err := h.app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	client := h.newClient(t)
+	pageHTML := h.getWithClient(t, client, h.app.RoomURL(room.Code()))
+	sess := h.sessionForClient(t, client)
+	player := h.app.player(sess, nil)
+	if player.Room() != nil {
+		t.Fatal("room GET seated the viewer")
+	}
+	if left := h.app.leaveRoom(host); left != room {
+		t.Fatalf("leaveRoom(host) = %v, want %v", left, room)
+	}
+	if current := h.app.Manager.Room(room.Code()); current != nil {
+		t.Fatalf("Manager.Room(%q) = %v, want nil", room.Code(), current)
+	}
+
+	conn, cancel := h.connectWithClient(t, client, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer done()
+	want := h.app.RoomURL(room.Code())
+	if err = reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.What == what.Redirect && msg.Data == want
+	}); err != nil {
+		t.Fatalf("waiting for removed-room reload to %q: %v", want, err)
+	}
+	if player.Room() != nil {
+		t.Fatalf("Room() after stale-page connect = %v, want nil", player.Room())
+	}
+}

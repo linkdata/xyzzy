@@ -115,8 +115,13 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
 		return
 	}
+	requestedRoom := a.Manager.Room(roomCode)
 	a.syncNicknameCookie(w, r, player)
-	jui.Handler(a.Jaws, "room.html", roomPageDot{templateDot: templateDot{App: a, Player: player}}).ServeHTTP(w, r)
+	jui.Handler(a.Jaws, "room.html", roomPageDot{
+		templateDot:   templateDot{App: a, Player: player},
+		RequestedCode: roomCode,
+		RequestedRoom: requestedRoom,
+	}).ServeHTTP(w, r)
 }
 
 func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -156,33 +161,33 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
 	a.playerMu.Lock()
-	defer a.playerMu.Unlock()
-
 	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result != nil {
 		if result.Session == nil {
 			result.Session = sess
 		}
-		if result.Room() == nil {
-			if nickname := result.NicknameValue(); nickname == "" {
-				a.Manager.SetNickname(result, generateNickname())
-			} else if result.NicknameInputValue() == "" {
-				a.Manager.SetNickname(result, nickname)
-			}
-		}
-		return
-	}
-	nickname := a.nicknameFromCookie(r)
-	if nickname == "" {
-		nickname = generateNickname()
 	} else {
-		nickname = game.NormalizeNickname(nickname)
+		nickname := a.nicknameFromCookie(r)
+		if nickname == "" {
+			nickname = generateNickname()
+		} else {
+			nickname = game.NormalizeNickname(nickname)
+		}
+		result = &game.Player{
+			Session:       sess,
+			Nickname:      nickname,
+			NicknameInput: nickname,
+		}
+		sess.Set(sessionKeyPlayer, result)
 	}
-	result = &game.Player{
-		Session:       sess,
-		Nickname:      nickname,
-		NicknameInput: nickname,
+	a.playerMu.Unlock()
+
+	if result.Room() == nil {
+		if nickname := result.NicknameValue(); nickname == "" {
+			a.Manager.SetNickname(result, generateNickname())
+		} else if result.NicknameInputValue() == "" {
+			a.Manager.SetNickname(result, nickname)
+		}
 	}
-	sess.Set(sessionKeyPlayer, result)
 	return
 }
 
