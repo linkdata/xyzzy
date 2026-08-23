@@ -94,11 +94,12 @@ func (m *Manager) PublicRooms() (result []*Room) {
 	return
 }
 
-// SetNickname normalizes and publishes the player's nickname.
+// SetNickname normalizes and stores the player's nickname.
 //
 // The operation is serialized with room membership changes. A seated nickname
-// is made unique within its [Room]; a standalone nickname is only normalized. A
-// nil player or unchanged value is not published.
+// is unique within its [Room]. Changed dependency tags are passed to
+// [Options.Dirty] when configured. A nil player or unchanged value does not
+// invoke the callback.
 func (m *Manager) SetNickname(player *Player, nickname string) {
 	if player != nil {
 		nickname = NormalizeNickname(nickname)
