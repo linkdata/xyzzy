@@ -691,6 +691,13 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		strings.Contains(button, " disabled") {
 		t.Fatalf("review submission wrapper = %q, want focusable aria-disabled button", button)
 	}
+	clickData := jaws.Click{Name: "ignored"}.String()
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
+		t.Fatalf("CallEventHandlers(review click) error = %v", err)
+	}
+	if host.SelectedSubmission != submission {
+		t.Fatalf("SelectedSubmission after review click = %#v, want %#v", host.SelectedSubmission, submission)
+	}
 }
 
 func TestRoomShowsPlayingHandToNonJudge(t *testing.T) {
