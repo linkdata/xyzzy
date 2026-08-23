@@ -40,6 +40,16 @@ go build -o xyzzy ./cmd/xyzzy
 
 Game and session state are in memory, so restarting the process starts fresh.
 
+### Reverse proxies
+
+When TLS terminates at a reverse proxy, use `-trust-forwarded-headers` so JaWS
+uses the forwarded client IP for request and session binding and the forwarded
+scheme for secure cookies and WebSocket origin checks. Enable this only behind
+one controlled proxy that removes client-supplied forwarding headers and sets
+the client IP and scheme itself. Leave it disabled when xyzzy is directly
+reachable. The proxy must preserve the public host for WebSocket origin checks
+and provide HSTS when it serves HTTPS.
+
 ## Design rationale
 
 ### Immediate-mode ownership

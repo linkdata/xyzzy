@@ -16,12 +16,13 @@ import (
 )
 
 var (
-	flagAddress   = flag.String("address", os.Getenv("WEBSERV_ADDRESS"), "serve HTTP requests on given [address][:port]")
-	flagCertDir   = flag.String("certdir", os.Getenv("WEBSERV_CERTDIR"), "where to find fullchain.pem and privkey.pem")
-	flagUser      = flag.String("user", envOrDefault("WEBSERV_USER", ""), "switch to this user after startup (*nix only)")
-	flagDataDir   = flag.String("datadir", envOrDefault("WEBSERV_DATADIR", "$HOME"), "where to store data files after startup")
-	flagListenURL = flag.String("listenurl", os.Getenv("WEBSERV_LISTENURL"), "specify the external URL clients can reach us at")
-	flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode, allow two-player games, allow target score 1, and force the first black card to the highest-pick prompt")
+	flagAddress               = flag.String("address", os.Getenv("WEBSERV_ADDRESS"), "serve HTTP requests on given [address][:port]")
+	flagCertDir               = flag.String("certdir", os.Getenv("WEBSERV_CERTDIR"), "where to find fullchain.pem and privkey.pem")
+	flagUser                  = flag.String("user", envOrDefault("WEBSERV_USER", ""), "switch to this user after startup (*nix only)")
+	flagDataDir               = flag.String("datadir", envOrDefault("WEBSERV_DATADIR", "$HOME"), "where to store data files after startup")
+	flagListenURL             = flag.String("listenurl", os.Getenv("WEBSERV_LISTENURL"), "specify the external URL clients can reach us at")
+	flagDebug                 = flag.Bool("debug", false, "enable JaWS debug mode, allow two-player games, allow target score 1, and force the first black card to the highest-pick prompt")
+	flagTrustForwardedHeaders = flag.Bool("trust-forwarded-headers", false, "trust sanitized client IP and scheme headers from one controlled reverse proxy")
 )
 
 func envOrDefault(envvar, fallback string) (result string) {
@@ -31,6 +32,13 @@ func envOrDefault(envvar, fallback string) (result string) {
 	}
 	result = fallback
 	return
+}
+
+func configureJaws(jw *jaws.Jaws, debug, trustForwardedHeaders bool) {
+	jw.Logger = slog.Default()
+	jw.CookieName = "xyzzy"
+	jw.Debug = debug
+	jw.TrustForwardedHeaders = trustForwardedHeaders
 }
 
 func main() {
@@ -47,9 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer jw.Close()
-	jw.Logger = slog.Default()
-	jw.CookieName = "xyzzy"
-	jw.Debug = *flagDebug
+	configureJaws(jw, *flagDebug, *flagTrustForwardedHeaders)
 
 	managerOpts := game.Options{Dirty: jw.Dirty}
 	if *flagDebug {
