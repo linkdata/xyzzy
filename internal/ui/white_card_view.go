@@ -14,7 +14,7 @@ type whiteCardView struct {
 	Card   *deck.WhiteCard
 }
 
-// JawsGetTag leaves refresh ownership to the enclosing game Template.
+// JawsGetTag returns no dependency tag.
 func (whiteCardView) JawsGetTag() any { return nil }
 
 func (v whiteCardView) SelectionOrder() (result int) {

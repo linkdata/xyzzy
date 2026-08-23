@@ -13,7 +13,7 @@ type submissionView struct {
 	Submission *game.Submission
 }
 
-// JawsGetTag leaves refresh ownership to the enclosing game Template.
+// JawsGetTag returns no dependency tag.
 func (submissionView) JawsGetTag() any { return nil }
 
 func (v submissionView) Cards() (result []whiteCardView) {
