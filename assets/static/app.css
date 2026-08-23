@@ -30,12 +30,13 @@
   font-family: Georgia, "Times New Roman", serif;
 }
 
-.card-face:hover:not(:disabled) {
+.card-face:hover:not(:disabled):not([aria-disabled="true"]) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0,0,0,.18);
 }
 
-.card-face:disabled {
+.card-face:disabled,
+.card-face[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;

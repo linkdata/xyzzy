@@ -32,7 +32,7 @@ func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLA
 	return
 }
 
-func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTMLAttr) {
+func cardInitialHTMLAttr(selected, winning, ariaDisabled bool) (result template.HTMLAttr) {
 	class := `class="card-face card-face-white w-100 text-start`
 	if winning {
 		class += ` is-winning`
@@ -41,8 +41,8 @@ func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTML
 		class += ` is-selected`
 	}
 	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-	if disabled {
-		result += ` disabled`
+	if ariaDisabled {
+		result += ` aria-disabled="true"`
 	}
 	return
 }

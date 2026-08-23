@@ -659,7 +659,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	view := dot.SubmissionViews()[0]
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
-		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "aria-disabled") {
 		t.Fatalf("initial attributes = %q, want enabled unselected submission", attr)
 	}
 
@@ -667,7 +667,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatal("ToggleSubmissionSelection() did not select submission")
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
-	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "aria-disabled") {
 		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
 	}
 
@@ -675,8 +675,9 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("Judge() error = %v", err)
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
-	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
-		t.Fatalf("review attributes = %q, want selected disabled winning submission", attr)
+	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") ||
+		!strings.Contains(attr, `aria-disabled="true"`) {
+		t.Fatalf("review attributes = %q, want selected aria-disabled winning submission", attr)
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
@@ -686,8 +687,9 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	button, _, _ := strings.Cut(rendered.String(), ">")
-	if !strings.Contains(button, "<button ") || !strings.Contains(button, " disabled") {
-		t.Fatalf("review submission wrapper = %q, want disabled button", button)
+	if !strings.Contains(button, "<button ") || !strings.Contains(button, `aria-disabled="true"`) ||
+		strings.Contains(button, " disabled") {
+		t.Fatalf("review submission wrapper = %q, want focusable aria-disabled button", button)
 	}
 }
 
