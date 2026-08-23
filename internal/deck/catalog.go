@@ -136,7 +136,6 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 					}
 					result = strings.Compare(a.Name, b.Name)
 					return
-
 				})
 				if len(loaded.defaults) == 0 && len(loaded.ordered) > 0 {
 					loaded.defaults = []*Deck{loaded.ordered[0]}

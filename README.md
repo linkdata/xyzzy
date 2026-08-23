@@ -252,6 +252,7 @@ Run the CI checks from the module root:
 
 ```sh
 test -z "$(gofmt -l .)"
+go mod tidy -diff
 go vet ./...
 staticcheck ./...
 golangci-lint run
