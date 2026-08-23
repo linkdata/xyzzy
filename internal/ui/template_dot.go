@@ -70,7 +70,7 @@ func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) {
 	return
 }
 
-// JawsGetTag leaves live-region dependencies to the rendered children.
+// JawsGetTag returns no dependency tag.
 func (templateDot) JawsGetTag() any { return nil }
 
 type roomTemplateDot struct {
@@ -121,11 +121,11 @@ func (d templateDot) SaveNicknameButton() (result jui.Object) {
 		d.App.Manager.SetNickname(d.Player, d.Player.NicknameInputValue())
 		// Reloading the current page closes the Bootstrap modal without adding
 		// application JavaScript; nickname dirtying updates sibling Requests.
-		redirectURL := elem.Request.Initial().URL.RequestURI()
+		redirectURL := elem.Initial().URL.RequestURI()
 		if redirectURL == "" {
 			redirectURL = "/"
 		}
-		elem.Request.Redirect(redirectURL)
+		elem.Redirect(redirectURL)
 		return
 	})
 	return
@@ -134,16 +134,16 @@ func (d templateDot) SaveNicknameButton() (result jui.Object) {
 func (d templateDot) CreateRoomButton() (result jui.Object) {
 	result = jui.New("Create Room").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) {
 		if current := d.Player.Room(); current != nil {
-			elem.Request.Redirect(d.App.RoomURL(current.Code()))
+			elem.Redirect(d.App.RoomURL(current.Code()))
 			return
 		}
-		if !d.App.createRoomLimiter.Allow(clientIP(elem.Request.Initial())) {
-			elem.Request.Alert("warning", "Please wait before creating another room.")
+		if !d.App.createRoomLimiter.Allow(clientIP(elem.Initial())) {
+			elem.Alert("warning", "Please wait before creating another room.")
 			return
 		}
 		var room *game.Room
 		if room, err = d.App.createRoom(d.Player); err == nil {
-			elem.Request.Redirect(d.App.RoomURL(room.Code()))
+			elem.Redirect(d.App.RoomURL(room.Code()))
 		}
 		return
 	})

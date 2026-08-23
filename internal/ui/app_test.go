@@ -692,7 +692,7 @@ func TestNicknameCookieSecureFollowsJawsProxyTrust(t *testing.T) {
 			app.setNicknameCookie(rec, req, "Alice")
 
 			resp := rec.Result()
-			defer resp.Body.Close()
+			defer closeResponseBody(t, resp.Body)
 			var nicknameCookie *http.Cookie
 			for _, cookie := range resp.Cookies() {
 				if cookie.Name == app.nicknameCookieName() {

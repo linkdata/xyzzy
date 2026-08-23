@@ -77,14 +77,14 @@ func loadWhiteCard(c *Catalog, name string, raw []byte) (err error) {
 
 // LoadFS loads a catalog from the provided filesystem.
 func LoadFS(fsys fs.FS) (c *Catalog, err error) {
-	tmp_c := &Catalog{
+	loaded := &Catalog{
 		BlackCards: make(map[string]*BlackCard),
 		WhiteCards: make(map[string]*WhiteCard),
 		Decks:      make(map[string]*Deck),
 	}
 
-	if err = loadJSONDir(fsys, blackDir, tmp_c, loadBlackCard); err == nil {
-		if err = loadJSONDir(fsys, whiteDir, tmp_c, loadWhiteCard); err == nil {
+	if err = loadJSONDir(fsys, blackDir, loaded, loadBlackCard); err == nil {
+		if err = loadJSONDir(fsys, whiteDir, loaded, loadWhiteCard); err == nil {
 			var deckEntries []fs.DirEntry
 			if deckEntries, err = fs.ReadDir(fsys, decksDir); err == nil {
 				for _, entry := range deckEntries {
@@ -103,12 +103,12 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 						BlackCards:   make([]*BlackCard, 0, len(blackIDs)),
 						WhiteCards:   make([]*WhiteCard, 0, len(whiteIDs)),
 					}
-					if _, exists := tmp_c.Decks[deck.ID]; exists {
+					if _, exists := loaded.Decks[deck.ID]; exists {
 						err = fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
 						return
 					}
 					for _, cardID := range blackIDs {
-						if card, ok := tmp_c.BlackCards[cardID]; ok {
+						if card, ok := loaded.BlackCards[cardID]; ok {
 							deck.BlackCards = append(deck.BlackCards, card)
 						} else {
 							err = fmt.Errorf("%s: %w: unknown black card id %q", dir, ErrInvalidDeck, cardID)
@@ -116,33 +116,32 @@ func LoadFS(fsys fs.FS) (c *Catalog, err error) {
 						}
 					}
 					for _, cardID := range whiteIDs {
-						if card, ok := tmp_c.WhiteCards[cardID]; ok {
+						if card, ok := loaded.WhiteCards[cardID]; ok {
 							deck.WhiteCards = append(deck.WhiteCards, card)
 						} else {
 							err = fmt.Errorf("%s: %w: unknown white card id %q", dir, ErrInvalidDeck, cardID)
 							return
 						}
 					}
-					tmp_c.Decks[deck.ID] = deck
-					tmp_c.ordered = append(tmp_c.ordered, deck)
+					loaded.Decks[deck.ID] = deck
+					loaded.ordered = append(loaded.ordered, deck)
 					if deck.EnabledByDefault {
-						tmp_c.defaults = append(tmp_c.defaults, deck)
+						loaded.defaults = append(loaded.defaults, deck)
 					}
 				}
-				slices.SortFunc(tmp_c.ordered, func(a, b *Deck) (result int) {
+				slices.SortFunc(loaded.ordered, func(a, b *Deck) (result int) {
 					if a.Weight != b.Weight {
 						result = a.Weight - b.Weight
 						return
 					}
 					result = strings.Compare(a.Name, b.Name)
 					return
-
 				})
-				if len(tmp_c.defaults) == 0 && len(tmp_c.ordered) > 0 {
-					tmp_c.defaults = []*Deck{tmp_c.ordered[0]}
+				if len(loaded.defaults) == 0 && len(loaded.ordered) > 0 {
+					loaded.defaults = []*Deck{loaded.ordered[0]}
 				}
-				slices.SortFunc(tmp_c.defaults, func(a, b *Deck) (result int) { result = strings.Compare(a.ID, b.ID); return })
-				c = tmp_c
+				slices.SortFunc(loaded.defaults, func(a, b *Deck) (result int) { result = strings.Compare(a.ID, b.ID); return })
+				c = loaded
 			}
 		}
 	}

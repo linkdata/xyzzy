@@ -325,7 +325,7 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	if match == "" || strings.Contains(match, `checked`) {
 		t.Fatalf("expected private checkbox to render unchecked by default, got %q", match)
 	}
-	if !(strings.Contains(body, "Target score") && strings.Contains(body, "Start Game")) {
+	if !strings.Contains(body, "Target score") || !strings.Contains(body, "Start Game") {
 		t.Fatalf("expected unified lobby controls to include target score and start button: %s", body)
 	}
 	if !strings.Contains(body, `row row-cols-1 row-cols-md-3 g-2`) {

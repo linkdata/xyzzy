@@ -140,7 +140,7 @@ func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path stri
 	if err != nil {
 		t.Fatalf("GET %s error = %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("ReadAll(%s) error = %v", path, err)
@@ -150,6 +150,13 @@ func (h *liveHarness) getWithClient(t *testing.T, client *http.Client, path stri
 	}
 	result = string(body)
 	return
+}
+
+func closeResponseBody(t *testing.T, body io.Closer) {
+	t.Helper()
+	if err := body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
 }
 
 func (h *liveHarness) cookiesFor(client *http.Client) (result []*http.Cookie) {
