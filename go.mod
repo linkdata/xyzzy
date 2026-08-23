@@ -7,7 +7,7 @@ require (
 	github.com/linkdata/jaws v0.802.0
 	github.com/linkdata/secureheaders v1.5.0
 	github.com/linkdata/staticserve v1.1.8
-	github.com/linkdata/webserv v1.1.2
+	github.com/linkdata/webserv v1.4.2
 )
 
 require (
