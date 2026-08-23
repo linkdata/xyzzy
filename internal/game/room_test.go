@@ -416,7 +416,21 @@ func TestRoundReviewAutoAdvancesAfterDelay(t *testing.T) {
 
 func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		manager := &Manager{}
+		var notificationsMu sync.Mutex
+		var notifications [][]any
+		manager := NewManagerWithOptions(nil, Options{
+			Dirty: func(tags ...any) {
+				notificationsMu.Lock()
+				notifications = append(notifications, append([]any(nil), tags...))
+				notificationsMu.Unlock()
+			},
+		})
+		notificationSnapshot := func() (result [][]any) {
+			notificationsMu.Lock()
+			defer notificationsMu.Unlock()
+			result = append([][]any(nil), notifications...)
+			return
+		}
 		judge := testPlayer("Judge")
 		winner := testPlayer("Winner")
 		room := &Room{
@@ -426,20 +440,6 @@ func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
 			host:        judge,
 			czarIndex:   0,
 			reviewDelay: 2500 * time.Millisecond,
-		}
-
-		var notificationsMu sync.Mutex
-		var notifications [][]any
-		manager.SetDirty(func(tags ...any) {
-			notificationsMu.Lock()
-			notifications = append(notifications, append([]any(nil), tags...))
-			notificationsMu.Unlock()
-		})
-		notificationSnapshot := func() (result [][]any) {
-			notificationsMu.Lock()
-			defer notificationsMu.Unlock()
-			result = append([][]any(nil), notifications...)
-			return
 		}
 
 		room.mu.Lock()
@@ -501,7 +501,21 @@ func TestReviewTimerUpdatesCountdownAndAdvances(t *testing.T) {
 
 func TestProceedReviewStopsCountdownUpdates(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		manager := &Manager{}
+		var notificationsMu sync.Mutex
+		var notifications int
+		manager := NewManagerWithOptions(nil, Options{
+			Dirty: func(...any) {
+				notificationsMu.Lock()
+				notifications++
+				notificationsMu.Unlock()
+			},
+		})
+		notificationCount := func() (result int) {
+			notificationsMu.Lock()
+			result = notifications
+			notificationsMu.Unlock()
+			return
+		}
 		judge := testPlayer("Judge")
 		winner := testPlayer("Winner")
 		room := &Room{
@@ -511,20 +525,6 @@ func TestProceedReviewStopsCountdownUpdates(t *testing.T) {
 			host:        judge,
 			czarIndex:   0,
 			reviewDelay: 2500 * time.Millisecond,
-		}
-
-		var notificationsMu sync.Mutex
-		var notifications int
-		manager.SetDirty(func(...any) {
-			notificationsMu.Lock()
-			notifications++
-			notificationsMu.Unlock()
-		})
-		notificationCount := func() (result int) {
-			notificationsMu.Lock()
-			result = notifications
-			notificationsMu.Unlock()
-			return
 		}
 
 		room.mu.Lock()

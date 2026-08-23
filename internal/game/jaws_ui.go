@@ -11,6 +11,9 @@ import (
 )
 
 // NicknameField returns a binder for the player's editable nickname.
+//
+// The binder serializes access with [Player.NicknameInputValue] and
+// [Manager.SetNickname].
 func (p *Player) NicknameField() bind.Binder[string] {
 	return bind.New(&p.uiMu, &p.NicknameInput)
 }
@@ -68,7 +71,7 @@ func (r *Room) LobbyControlAttrs(player *Player) (result template.HTMLAttr) {
 // StartGameButton returns the start-game action for player.
 //
 // The action is hidden from non-hosts and disabled until the lobby has enough
-// players and the selected packs provide enough cards. A successful click
+// players and the selected decks provide enough cards. A successful click
 // starts the game.
 func (r *Room) StartGameButton(player *Player) (result ui.Object) {
 	result = ui.New("Start Game").

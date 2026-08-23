@@ -9,34 +9,26 @@ import (
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
+// Manager owns the active rooms and coordinates room membership.
+//
+// Its methods are safe for concurrent use. Managers must be constructed with
+// [NewManager] or [NewManagerWithOptions]; the zero value is not ready for use.
 type Manager struct {
 	mu      sync.RWMutex
 	rooms   map[string]*Room
 	catalog *deck.Catalog
 	opts    Options
-	dirtyMu sync.RWMutex
-	dirty   func(...any)
-}
-
-// SetDirty sets the callback used to publish dependency changes.
-//
-// A nil callback disables publication. Callbacks run without Manager or Room
-// state locks held.
-func (m *Manager) SetDirty(fn func(...any)) {
-	m.dirtyMu.Lock()
-	m.dirty = fn
-	m.dirtyMu.Unlock()
 }
 
 func (m *Manager) notify(tags ...any) {
-	m.dirtyMu.RLock()
-	dirty := m.dirty
-	m.dirtyMu.RUnlock()
-	if dirty != nil {
+	if dirty := m.opts.Dirty; dirty != nil {
 		dirty(tags...)
 	}
 }
 
+// CreateRoom creates and hosts a room for player.
+//
+// An empty defaultDecks slice selects the catalog defaults.
 func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
 	err = ErrAlreadyInRoom
 	if player != nil {
@@ -68,6 +60,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
 	return
 }
 
+// Room returns the room matching code, or nil if no room matches.
 func (m *Manager) Room(code string) (result *Room) {
 	m.mu.RLock()
 	result = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
@@ -75,6 +68,9 @@ func (m *Manager) Room(code string) (result *Room) {
 	return
 }
 
+// Rooms returns all active rooms ordered by code.
+//
+// The returned slice has independent storage.
 func (m *Manager) Rooms() (result []*Room) {
 	m.mu.RLock()
 	result = make([]*Room, 0, len(m.rooms))
@@ -86,6 +82,9 @@ func (m *Manager) Rooms() (result []*Room) {
 	return
 }
 
+// PublicRooms returns the non-private active rooms ordered by code.
+//
+// The returned slice has independent storage.
 func (m *Manager) PublicRooms() (result []*Room) {
 	for _, room := range m.Rooms() {
 		if !room.IsPrivate() {
@@ -124,9 +123,10 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
 	}
 }
 
-// JoinRoom seats the player in the room with the given code. The manager
-// lock is held for the whole operation so the room cannot be removed from
-// the registry by a concurrent leave between lookup and join.
+// JoinRoom seats player in the room matching code.
+//
+// Room lookup and seating are one operation, so a concurrent leave cannot
+// remove the room between them.
 func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) {
 	err = ErrRoomNotFound
 	if player != nil {
@@ -143,10 +143,9 @@ func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) 
 	return
 }
 
-// LeaveRoom removes the player from their current room. If that empties
-// the room it is also removed from the registry while the manager lock is
-// still held, so no concurrent JoinRoom can seat a player into a room
-// that is about to disappear.
+// LeaveRoom removes player from their current room.
+//
+// If the room becomes empty, LeaveRoom also removes it from the manager.
 func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
 	if player != nil {
 		m.mu.Lock()
@@ -160,9 +159,10 @@ func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
 	return
 }
 
-// CleanupExpiredSessions drops players whose JaWS sessions have expired
-// and deletes any rooms that empty out as a result. Returns the rooms
-// that were affected (including ones that were deleted).
+// CleanupExpiredSessions removes players whose JaWS session is nil or expired.
+//
+// It deletes rooms that become empty and returns every affected room, including
+// deleted rooms, ordered by code. The returned slice has independent storage.
 func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

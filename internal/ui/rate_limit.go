@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -36,7 +35,7 @@ func newCreateRoomLimiter() (result *createRoomLimiter) {
 }
 
 // Allow reports whether one create-room attempt may proceed for ip.
-func (l *createRoomLimiter) Allow(ip string) (retryAfter time.Duration, ok bool) {
+func (l *createRoomLimiter) Allow(ip string) (ok bool) {
 	now := l.now()
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -61,13 +60,7 @@ func (l *createRoomLimiter) Allow(ip string) (retryAfter time.Duration, ok bool)
 		bucket.minuteTokens--
 		bucket.hourTokens--
 		ok = true
-		return
 	}
-
-	retryAfter = maxDuration(
-		tokenWait(bucket.minuteTokens, 5.0/60.0),
-		tokenWait(bucket.hourTokens, 50.0/3600.0),
-	)
 	return
 }
 
@@ -76,26 +69,6 @@ func refillTokens(tokens float64, lastSeen, now time.Time, rate float64, burst f
 	if result > burst {
 		result = burst
 	}
-	return
-}
-
-func tokenWait(tokens float64, rate float64) (result time.Duration) {
-	if tokens < 1 {
-		seconds := math.Ceil((1 - tokens) / rate)
-		if seconds < 1 {
-			seconds = 1
-		}
-		result = time.Duration(seconds) * time.Second
-	}
-	return
-}
-
-func maxDuration(a, b time.Duration) (result time.Duration) {
-	if a > b {
-		result = a
-		return
-	}
-	result = b
 	return
 }
 

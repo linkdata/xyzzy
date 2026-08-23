@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -31,21 +29,30 @@ func TestSessionMapsToSinglePlayer(t *testing.T) {
 	if player1 != player2 {
 		t.Fatal("expected one player per JaWS session")
 	}
+	if player1.Session != sess {
+		t.Fatal("expected Player to retain its creating JaWS session")
+	}
 }
 
 func TestPlayerReleasesLookupLockBeforePublishingNickname(t *testing.T) {
-	app, _ := testApp(t)
-	sess := newTestSession(t, app)
-	player := &game.Player{Session: sess}
-	sess.Set(sessionKeyPlayer, player)
-
+	jw, err := jaws.New()
+	if err != nil {
+		t.Fatalf("jaws.New() error = %v", err)
+	}
+	t.Cleanup(jw.Close)
+	catalog := testCatalog(t)
+	var app *App
 	var playerMuUnlocked bool
-	app.Manager.SetDirty(func(...any) {
+	manager := game.NewManagerWithOptions(catalog, game.Options{Dirty: func(...any) {
 		playerMuUnlocked = app.playerMu.TryLock()
 		if playerMuUnlocked {
 			app.playerMu.Unlock()
 		}
-	})
+	}})
+	app = New(jw, catalog, manager)
+	sess := newTestSession(t, app)
+	player := &game.Player{Session: sess}
+	sess.Set(sessionKeyPlayer, player)
 
 	if got := app.player(sess, nil); got != player {
 		t.Fatalf("player() = %p, want %p", got, player)
@@ -188,22 +195,6 @@ func liveJoinedPlayer(t *testing.T, h *liveHarness, nickname string) (result1 *j
 	player := h.app.player(sess, nil)
 	h.app.Manager.SetNickname(player, nickname)
 	result1, result2 = sess, player
-	return
-}
-
-func csrfTokenForSession(app *App, sess *jaws.Session) (result string) {
-	result = app.csrfToken(sess.CookieValue())
-	return
-}
-
-func createRoomPostRequest(t *testing.T, token string, cookies []*http.Cookie) (result *http.Request) {
-	t.Helper()
-	form := url.Values{csrfFieldName: {token}}
-	result = httptest.NewRequest(http.MethodPost, "http://example.test/create-room", strings.NewReader(form.Encode()))
-	result.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	for _, cookie := range cookies {
-		result.AddCookie(cookie)
-	}
 	return
 }
 
@@ -355,36 +346,6 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	}
 	if !strings.Contains(showMsg, "Bob") {
 		t.Fatalf("expected room reappearance update to mention host name, got %s", showMsg)
-	}
-}
-
-func TestCreateRoomWhileLobbyIsLiveStillOpensRoomPage(t *testing.T) {
-	h := newLiveHarness(t)
-
-	html := h.get(t, "/")
-	conn, cancel := h.connect(t, html)
-	defer cancel()
-	_ = conn
-	sess := h.session(t)
-
-	resp, err := h.client.PostForm(h.server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenForSession(h.app, sess)}})
-	if err != nil {
-		t.Fatalf("GET /create-room error = %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("ReadAll() error = %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("final status = %d body=%s", resp.StatusCode, body)
-	}
-	if !strings.Contains(resp.Request.URL.Path, "/room/") {
-		t.Fatalf("final URL path = %q, want /room/<code>", resp.Request.URL.Path)
-	}
-	if !strings.Contains(string(body), "Card Packs") {
-		t.Fatalf("expected room page body after redirect, got %s", body)
 	}
 }
 
@@ -632,6 +593,32 @@ func TestStaticMetadataAndUnknownRoutes(t *testing.T) {
 	}
 }
 
+func TestCreateRoomHTTPRoutesAreAbsent(t *testing.T) {
+	app, mux := testApp(t)
+	handler := app.Middleware(mux)
+
+	tests := []struct {
+		method     string
+		wantStatus int
+	}{
+		{method: http.MethodGet, wantStatus: http.StatusNotFound},
+		{method: http.MethodPost, wantStatus: http.StatusMethodNotAllowed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.method, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "http://example.test/create-room", nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("%s /create-room status = %d, want %d", tt.method, rec.Code, tt.wantStatus)
+			}
+			if rooms := app.Manager.Rooms(); len(rooms) != 0 {
+				t.Fatalf("%s /create-room created rooms: %v", tt.method, rooms)
+			}
+		})
+	}
+}
+
 func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
@@ -662,6 +649,64 @@ func TestLobbySetsNicknameCookieFromPlayer(t *testing.T) {
 	}
 	if got := string(raw); got != "Alice" {
 		t.Fatalf("nickname cookie = %q, want %q", got, "Alice")
+	}
+}
+
+func TestNicknameCookieSecureFollowsJawsProxyTrust(t *testing.T) {
+	forwardedHeaders := http.Header{
+		"Forwarded":         {"for=192.0.2.1;proto=https"},
+		"Front-End-Https":   {"on"},
+		"X-Forwarded-Proto": {"https"},
+		"X-Forwarded-Ssl":   {"on"},
+	}
+	tests := []struct {
+		name                  string
+		url                   string
+		trustForwardedHeaders bool
+		headers               http.Header
+		wantSecure            bool
+	}{
+		{name: "plain HTTP", url: "http://example.test/"},
+		{name: "direct HTTPS", url: "https://example.test/", wantSecure: true},
+		{name: "untrusted forwarded HTTPS", url: "http://example.test/", headers: forwardedHeaders},
+		{name: "trusted X-Forwarded-Proto", url: "http://example.test/", trustForwardedHeaders: true, headers: http.Header{"X-Forwarded-Proto": {"https"}}, wantSecure: true},
+		{name: "trusted X-Forwarded-Ssl", url: "http://example.test/", trustForwardedHeaders: true, headers: http.Header{"X-Forwarded-Ssl": {"on"}}, wantSecure: true},
+		{name: "trusted Front-End-Https", url: "http://example.test/", trustForwardedHeaders: true, headers: http.Header{"Front-End-Https": {"on"}}, wantSecure: true},
+		{name: "trusted Forwarded", url: "http://example.test/", trustForwardedHeaders: true, headers: http.Header{"Forwarded": {"for=192.0.2.1;proto=https"}}, wantSecure: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jw, err := jaws.New()
+			if err != nil {
+				t.Fatalf("jaws.New() error = %v", err)
+			}
+			t.Cleanup(jw.Close)
+			jw.CookieName = "xyzzy"
+			jw.TrustForwardedHeaders = tt.trustForwardedHeaders
+			catalog := testCatalog(t)
+			app := New(jw, catalog, game.NewManager(catalog))
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			req.Header = tt.headers.Clone()
+			rec := httptest.NewRecorder()
+
+			app.setNicknameCookie(rec, req, "Alice")
+
+			resp := rec.Result()
+			defer resp.Body.Close()
+			var nicknameCookie *http.Cookie
+			for _, cookie := range resp.Cookies() {
+				if cookie.Name == app.nicknameCookieName() {
+					nicknameCookie = cookie
+					break
+				}
+			}
+			if nicknameCookie == nil {
+				t.Fatalf("expected nickname cookie %q to be set", app.nicknameCookieName())
+			}
+			if nicknameCookie.Secure != tt.wantSecure {
+				t.Fatalf("Secure = %t, want %t", nicknameCookie.Secure, tt.wantSecure)
+			}
+		})
 	}
 }
 
@@ -713,144 +758,6 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	}
 	if player.Room() != nil {
 		t.Fatal("expected player to be in lobby")
-	}
-}
-
-func TestCreateRoomRouteRedirectsToRoom(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	sess := newTestSession(t, app)
-	token := csrfTokenForSession(app, sess)
-
-	createReq := createRoomPostRequest(t, token, []*http.Cookie{sess.Cookie()})
-	createRec := httptest.NewRecorder()
-	handler.ServeHTTP(createRec, createReq)
-
-	if createRec.Code != http.StatusSeeOther {
-		t.Fatalf("ServeHTTP() status = %d, want %d", createRec.Code, http.StatusSeeOther)
-	}
-	location := createRec.Header().Get("Location")
-	if !strings.HasPrefix(location, "/room/") {
-		t.Fatalf("Location = %q, want /room/<code>", location)
-	}
-
-	player := app.player(sess, createReq)
-	playerRoom := player.Room()
-	if playerRoom == nil {
-		t.Fatal("expected player to be seated in created room")
-	}
-	if got := app.Manager.Room(playerRoom.Code()); got != playerRoom {
-		t.Fatalf("Manager.Room(%q) = %v, want created room", playerRoom.Code(), got)
-	}
-	if location != "/room/"+playerRoom.Code() {
-		t.Fatalf("Location = %q, want %q", location, "/room/"+playerRoom.Code())
-	}
-}
-
-func TestCreateRoomRejectsUnsafeRequests(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	for _, method := range []string{http.MethodGet, http.MethodHead} {
-		req := httptest.NewRequest(method, "http://example.test/create-room", nil)
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusMethodNotAllowed {
-			t.Fatalf("%s /create-room status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
-		}
-		if got := rec.Header().Get("Allow"); got != http.MethodPost {
-			t.Fatalf("%s /create-room Allow = %q, want POST", method, got)
-		}
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "http://example.test/create-room", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("POST /create-room without token status = %d, want %d", rec.Code, http.StatusForbidden)
-	}
-	if rooms := app.Manager.PublicRooms(); len(rooms) != 0 {
-		t.Fatalf("unexpected room creation after rejected requests: %v", rooms)
-	}
-}
-
-func TestCreateRoomRejectsCrossOriginPost(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	sess := newTestSession(t, app)
-
-	createReq := createRoomPostRequest(t, csrfTokenForSession(app, sess), []*http.Cookie{sess.Cookie()})
-	createReq.Header.Set("Origin", "https://evil.example")
-	createRec := httptest.NewRecorder()
-	handler.ServeHTTP(createRec, createReq)
-
-	if createRec.Code != http.StatusForbidden {
-		t.Fatalf("cross-origin POST status = %d, want %d", createRec.Code, http.StatusForbidden)
-	}
-	if rooms := app.Manager.PublicRooms(); len(rooms) != 0 {
-		t.Fatalf("unexpected room creation after cross-origin POST: %v", rooms)
-	}
-}
-
-func TestCreateRoomRateLimit(t *testing.T) {
-	app, mux := testApp(t)
-	handler := app.Middleware(mux)
-
-	sessReq := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	sessReq.RemoteAddr = "203.0.113.9:12345"
-	sessRec := httptest.NewRecorder()
-	sess := app.Jaws.NewSession(sessRec, sessReq)
-	token := csrfTokenForSession(app, sess)
-	cookies := []*http.Cookie{sess.Cookie()}
-
-	var limited *httptest.ResponseRecorder
-	for range 11 {
-		createReq := createRoomPostRequest(t, token, cookies)
-		createReq.RemoteAddr = "203.0.113.9:12345"
-		createRec := httptest.NewRecorder()
-		handler.ServeHTTP(createRec, createReq)
-		if createRec.Code == http.StatusTooManyRequests {
-			limited = createRec
-			break
-		}
-	}
-	if limited == nil {
-		t.Fatal("expected create-room rate limit to return 429")
-	}
-	if got := limited.Header().Get("Retry-After"); got == "" {
-		t.Fatal("expected Retry-After header on rate-limited response")
-	}
-}
-
-func TestCreateRoomRouteFollowRedirectShowsRoomPage(t *testing.T) {
-	h := newLiveHarness(t)
-
-	html := h.get(t, "/")
-	conn, cancel := h.connect(t, html)
-	defer cancel()
-	_ = conn
-	sess := h.session(t)
-
-	resp, err := h.client.PostForm(h.server.URL+"/create-room", url.Values{csrfFieldName: {csrfTokenForSession(h.app, sess)}})
-	if err != nil {
-		t.Fatalf("POST /create-room error = %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("ReadAll() error = %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("final status = %d body=%s", resp.StatusCode, body)
-	}
-	if !strings.Contains(resp.Request.URL.Path, "/room/") {
-		t.Fatalf("final URL path = %q, want /room/<code>", resp.Request.URL.Path)
-	}
-	if !strings.Contains(string(body), "Card Packs") {
-		t.Fatalf("expected room page body after redirect, got %s", body)
 	}
 }
 
