@@ -213,6 +213,9 @@ race-free and the relevant dirty notification converges the display.
 - The first lobby or room visit from an anonymous browser creates an ephemeral
   session and player. Expired seated players are removed from rooms during
   later page requests; an unseated player has the JaWS session's lifetime.
+- Session-expiry cleanup scans all in-memory rooms during page requests, and
+  lobby validation recomputes selected-deck unions. Both assume demo-scale room
+  and deck counts.
 - JaWS-managed buttons and inputs require the WebSocket connection. The server
   does not replay actions performed while a browser is offline.
 
@@ -226,10 +229,14 @@ race-free and the relevant dirty notification converges the display.
   `Container` definitions.
 - [`internal/ui/template_dot.go`](internal/ui/template_dot.go) contains
   request dots and small template adapter definitions.
+- [`internal/deck/catalog.go`](internal/deck/catalog.go) loads the immutable
+  embedded card and deck catalog.
 - [`internal/game/jaws_ui.go`](internal/game/jaws_ui.go) keeps synchronized
   binders, dynamic getters, and semantic controls beside their state.
 - [`internal/game/room.go`](internal/game/room.go) contains the game state
   machine and review timer.
+- [`cmd/importpyx/main.go`](cmd/importpyx/main.go) imports PYX SQL data into the
+  tracked card assets.
 - [`assets/templates`](assets/templates) defines the HTML shape.
 - [`internal/ui/immediate_mode_live_test.go`](internal/ui/immediate_mode_live_test.go)
   exercises multi-browser reconciliation through real JaWS WebSockets.

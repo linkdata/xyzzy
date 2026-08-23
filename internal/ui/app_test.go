@@ -425,6 +425,9 @@ func TestLobbyRenders(t *testing.T) {
 	if !strings.Contains(body, "Create Room") {
 		t.Fatalf("expected lobby body to include create-room button, got %s", body)
 	}
+	if !strings.Contains(body, "room host chooses the") || !strings.Contains(body, "target score") || strings.Contains(body, "First to 5") {
+		t.Fatalf("expected lobby instructions to describe the configurable target score, got %s", body)
+	}
 }
 
 func TestLobbyShowsLiveOnlineSessionCount(t *testing.T) {

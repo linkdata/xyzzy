@@ -35,7 +35,7 @@
   </div>
   <div class="form-control d-flex align-items-center gap-3">
     <label class="mb-0 text-nowrap">Target score</label>
-    {{$.Range $targetScore $lobbyAttrs (printf "class=\"form-range flex-grow-1 mb-0\" min=\"%d\" max=\"10\" step=\"1\"" $room.MinTargetScore)}}
+    {{$.Range $targetScore $lobbyAttrs `class="form-range flex-grow-1 mb-0"` (printf `min="%d"` $room.MinTargetScore) `max="10"` `step="1"`}}
     {{$.Span $targetScore `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>
