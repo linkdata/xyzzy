@@ -184,10 +184,11 @@ successful join dirties the `Manager`, `Room`, and `Player`; the retained
 containers then reconcile into the seated UI. Plain crawlers and link unfurlers
 cannot fill a room by fetching its URL.
 
-The lobby binds a `Span` to `Jaws.ActiveSessionCount` and
-`ActiveSessionCountTag`, so distinct active sessions update live. Tabs sharing a
-session count once; GET-only and disconnected sessions do not count. Sampling
-may briefly coalesce intermediate changes.
+The lobby binds a `Span` directly to `Jaws.ActiveSessionCount` using
+`ActiveSessionCountTag`. JaWS dirties the tag as request and session activity
+changes, so the count reconciles live. It is an intentionally approximate
+indicator of distinct active sessions. Tabs sharing a session count once;
+GET-only and disconnected sessions do not count.
 
 Visiting `GET /` likewise leaves the player's current room before rendering the
 lobby.
