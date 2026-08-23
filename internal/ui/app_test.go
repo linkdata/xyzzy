@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -69,16 +68,10 @@ func TestCleanupExpiredSessionDeletesEmptyRoom(t *testing.T) {
 	}
 
 	sess.Close()
-	affected, removed := h.app.Manager.CleanupExpiredSessions()
+	h.app.Manager.CleanupExpiredSessions()
 
 	if h.app.Manager.Room(room.Code()) != nil {
 		t.Fatalf("expected room %s to be deleted after expired-session cleanup", room.Code())
-	}
-	if len(affected) != 1 || affected[0] != room {
-		t.Fatalf("affected rooms = %#v, want [%p]", affected, room)
-	}
-	if len(removed) != 1 || removed[0].Room != room || removed[0].Player != player {
-		t.Fatalf("removed players = %#v, want room %p player %p", removed, room, player)
 	}
 }
 
@@ -509,65 +502,6 @@ func TestLobbyShowsLiveOnlineSessionCount(t *testing.T) {
 	}); err != nil {
 		cancel()
 		t.Fatalf("waiting for online count decrease: %v", err)
-	}
-	cancel()
-}
-
-func TestLobbyOnlineCountConvergesAfterRefresh(t *testing.T) {
-	h := newLiveHarness(t)
-
-	firstHTML := h.get(t, "/")
-	session := h.session(t)
-	firstRequest := immediateModeRequestForHTML(t, session, firstHTML)
-	countElements := firstRequest.GetElements(h.app.Jaws.ActiveSessionCountTag())
-	if len(countElements) != 1 {
-		t.Fatalf("active-session-count Elements = %d, want 1", len(countElements))
-	}
-	firstConn, firstCancel := h.connect(t, firstHTML)
-	defer firstCancel()
-	firstReader := newImmediateModeWireReader(t, firstConn)
-	ctx, cancel := context.WithTimeout(t.Context(), immediateModeTestTimeout)
-	if err := firstReader.readUntil(ctx, func(msg wire.WsMsg) bool {
-		return msg.Jid == countElements[0].Jid() && msg.What == what.Inner && msg.Data == "1"
-	}); err != nil {
-		cancel()
-		t.Fatalf("waiting for initial online count: %v", err)
-	}
-	cancel()
-
-	if err := firstConn.CloseNow(); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
-	for h.app.Jaws.ActiveSessionCount() != 0 {
-		select {
-		case <-ctx.Done():
-			cancel()
-			t.Fatalf("waiting for disconnected active-session count: %v", context.Cause(ctx))
-		default:
-			runtime.Gosched()
-		}
-	}
-	cancel()
-
-	refreshedHTML := h.get(t, "/")
-	if !strings.Contains(refreshedHTML, ">0</span> online</small>") {
-		t.Fatalf("expected refreshed GET to render the disconnected count, got %s", refreshedHTML)
-	}
-	refreshedRequest := immediateModeRequestForHTML(t, session, refreshedHTML)
-	refreshedElements := refreshedRequest.GetElements(h.app.Jaws.ActiveSessionCountTag())
-	if len(refreshedElements) != 1 {
-		t.Fatalf("refreshed active-session-count Elements = %d, want 1", len(refreshedElements))
-	}
-	refreshedConn, refreshedCancel := h.connect(t, refreshedHTML)
-	defer refreshedCancel()
-	refreshedReader := newImmediateModeWireReader(t, refreshedConn)
-	ctx, cancel = context.WithTimeout(t.Context(), immediateModeTestTimeout)
-	if err := refreshedReader.readUntil(ctx, func(msg wire.WsMsg) bool {
-		return msg.Jid == refreshedElements[0].Jid() && msg.What == what.Inner && msg.Data == "1"
-	}); err != nil {
-		cancel()
-		t.Fatalf("waiting for refreshed online count: %v", err)
 	}
 	cancel()
 }

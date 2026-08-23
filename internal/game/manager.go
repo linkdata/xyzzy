@@ -18,12 +18,6 @@ type Manager struct {
 	dirty   func(...any)
 }
 
-// ExpiredPlayer identifies a player removed from a room during session cleanup.
-type ExpiredPlayer struct {
-	Room   *Room
-	Player *Player
-}
-
 // SetDirty sets the callback used to publish dependency changes.
 //
 // A nil callback disables publication. Callbacks run without Manager or Room
@@ -166,29 +160,27 @@ func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
 	return
 }
 
-// CleanupExpiredSessions removes players whose JaWS sessions have expired.
-//
-// It returns every affected room, including deleted rooms, and each removed
-// room membership. Rooms emptied by cleanup are deleted.
-func (m *Manager) CleanupExpiredSessions() (affected []*Room, removed []ExpiredPlayer) {
+// CleanupExpiredSessions drops players whose JaWS sessions have expired
+// and deletes any rooms that empty out as a result. Returns the rooms
+// that were affected (including ones that were deleted).
+func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	affected = make([]*Room, 0)
+	result = make([]*Room, 0)
 	for code, room := range m.rooms {
-		players := room.expiredPlayers()
-		if len(players) == 0 {
+		expired := room.expiredPlayers()
+		if len(expired) == 0 {
 			continue
 		}
-		affected = append(affected, room)
-		for _, player := range players {
-			removed = append(removed, ExpiredPlayer{Room: room, Player: player})
+		result = append(result, room)
+		for _, player := range expired {
 			if room.leave(player) {
 				delete(m.rooms, code)
 				break
 			}
 		}
 	}
-	slices.SortFunc(affected, func(a, b *Room) (cmp int) { cmp = strings.Compare(a.code, b.code); return })
+	slices.SortFunc(result, func(a, b *Room) (cmp int) { cmp = strings.Compare(a.code, b.code); return })
 	return
 }
 

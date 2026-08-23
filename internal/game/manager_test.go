@@ -162,36 +162,6 @@ func TestNicknameSanitizationAndConflictSuffixing(t *testing.T) {
 	}
 }
 
-func TestCleanupExpiredSessionsReportsRemovedPlayers(t *testing.T) {
-	catalog := testCatalog(t)
-	mgr := NewManager(catalog)
-	host := testPlayer("Alice")
-	guest := testPlayer("Bob")
-	room, err := mgr.CreateRoom(host, catalog.DefaultDecks())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = mgr.JoinRoom(room.Code(), guest); err != nil {
-		t.Fatal(err)
-	}
-
-	affected, removed := mgr.CleanupExpiredSessions()
-	if len(affected) != 1 || affected[0] != room {
-		t.Fatalf("affected rooms = %#v, want [%p]", affected, room)
-	}
-	if len(removed) != 2 {
-		t.Fatalf("removed players = %#v, want 2 entries", removed)
-	}
-	for i, player := range []*Player{host, guest} {
-		if removed[i].Room != room || removed[i].Player != player {
-			t.Fatalf("removed[%d] = %#v, want room %p player %p", i, removed[i], room, player)
-		}
-	}
-	if got := mgr.Room(room.Code()); got != nil {
-		t.Fatalf("Room(%q) = %p, want nil", room.Code(), got)
-	}
-}
-
 func TestNormalizeDecksFiltersDeduplicatesAndSorts(t *testing.T) {
 	catalog := testCatalog(t)
 	base := catalog.DeckByID("base")
