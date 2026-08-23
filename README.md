@@ -24,7 +24,8 @@ Open <http://127.0.0.1:8080/> once in a regular window and once in a private
 window, or use two separate browser profiles. A single browser profile shares
 one JaWS session and therefore represents one player. Debug mode lowers the
 normal minimum player count from three to two and makes short games easier to
-exercise.
+exercise. It also logs accepted connections, session activity transitions,
+player creation, and room entries and departures.
 
 All templates, styles, and card data are embedded in the binary. There is no
 database, Node.js build, or npm dependency. A production binary can be built
@@ -185,9 +186,10 @@ containers then reconcile into the seated UI. Plain crawlers and link unfurlers
 cannot fill a room by fetching its URL.
 
 The lobby binds a `Span` to `Jaws.ActiveSessionCount` and
-`ActiveSessionCountTag`, so distinct active sessions update live. Tabs sharing a
-session count once; GET-only and disconnected sessions do not count. Sampling
-may briefly coalesce intermediate changes.
+`ActiveSessionCountTag`. JaWS dirties the tag on relevant request and session
+lifecycle transitions, so the count reconciles live. The total is an
+intentionally approximate indicator of distinct active sessions. Tabs sharing a
+session count once; GET-only and disconnected sessions do not count.
 
 Visiting `GET /` likewise leaves the player's current room before rendering the
 lobby.

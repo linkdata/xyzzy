@@ -32,13 +32,20 @@ type App struct {
 	csrfSecret        [32]byte
 	createRoomLimiter *createRoomLimiter
 	playerMu          sync.Mutex
+	debugMu           sync.Mutex
+	debugConnections  map[*jaws.Session]int
+	debugConnectionID uint64
+	debugEventID      uint64
 }
 
 // New returns an App using the supplied JaWS server, catalog, and manager.
 //
 // It enables [jaws.StatusMetricActiveSessions] and connects manager changes to
-// JaWS updates. New panics if the operating system cannot provide cryptographic
-// randomness for CSRF protection.
+// JaWS updates. When [jaws.Jaws.Debug] is true and [jaws.Jaws.Logger] is non-nil,
+// the App reports accepted connections, session activity transitions, player
+// creation, and room entries and departures through [jaws.Logger.Info]. New
+// panics if the operating system cannot provide cryptographic randomness for
+// CSRF protection.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 	if jw != nil {
 		jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
@@ -160,6 +167,7 @@ func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
+	created := false
 	a.playerMu.Lock()
 	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result != nil {
 		if result.Session == nil {
@@ -178,6 +186,7 @@ func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) 
 			NicknameInput: nickname,
 		}
 		sess.Set(sessionKeyPlayer, result)
+		created = true
 	}
 	a.playerMu.Unlock()
 
@@ -188,15 +197,34 @@ func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) 
 			a.Manager.SetNickname(result, nickname)
 		}
 	}
+	if created && a.debugEnabled() {
+		a.debugInfo(
+			"player created",
+			"session", debugSessionLabel(sess),
+			"player", a.playerNickname(result),
+			"registered_sessions", a.Jaws.SessionCount(),
+		)
+	}
 	return
 }
 
 func (a *App) cleanupExpired() {
-	affected := a.Manager.CleanupExpiredSessions()
+	affected, removed := a.Manager.CleanupExpiredSessions()
 	if len(affected) > 0 {
 		tags := []any{a.Manager}
 		for _, room := range affected {
 			tags = append(tags, room)
+		}
+		if a.debugEnabled() {
+			for _, expired := range removed {
+				a.debugInfo(
+					"player left room",
+					"reason", "session_expired",
+					"room", expired.Room.Code(),
+					"session", debugPlayerSessionLabel(expired.Player),
+					"player", a.playerNickname(expired.Player),
+				)
+			}
 		}
 		a.Jaws.Dirty(tags...)
 	}
@@ -269,20 +297,72 @@ func generateNickname() (result string) {
 
 func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {
 	if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDecks()); err == nil {
+		if a.debugEnabled() {
+			nickname := room.NicknameFor(player)
+			players := room.PlayerCount()
+			session := debugPlayerSessionLabel(player)
+			a.debugInfo(
+				"player entered room",
+				"reason", "create",
+				"room", room.Code(),
+				"session", session,
+				"player", nickname,
+				"players", players,
+			)
+		}
 		a.Jaws.Dirty(a.Manager, room, player)
+	} else if a.debugEnabled() {
+		a.debugInfo(
+			"room creation rejected",
+			"session", debugPlayerSessionLabel(player),
+			"player", a.playerNickname(player),
+			"err", err,
+		)
 	}
 	return
 }
 
 func (a *App) joinRoom(player *game.Player, roomCode string) (room *game.Room, err error) {
 	if room, err = a.Manager.JoinRoom(roomCode, player); err == nil {
+		if a.debugEnabled() {
+			a.debugInfo(
+				"player entered room",
+				"reason", "join",
+				"room", room.Code(),
+				"session", debugPlayerSessionLabel(player),
+				"player", room.NicknameFor(player),
+				"players", room.PlayerCount(),
+			)
+		}
 		a.Jaws.Dirty(a.Manager, room, player)
+	} else if a.debugEnabled() {
+		a.debugInfo(
+			"room entry rejected",
+			"room", normalizeRoomCode(roomCode),
+			"session", debugPlayerSessionLabel(player),
+			"player", a.playerNickname(player),
+			"err", err,
+		)
 	}
 	return
 }
 
 func (a *App) leaveRoom(player *game.Player) (room *game.Room) {
+	nickname := ""
+	if a.debugEnabled() {
+		nickname = a.playerNickname(player)
+	}
 	room, _ = a.Manager.LeaveRoom(player)
+	if room != nil && a.debugEnabled() {
+		a.debugInfo(
+			"player left room",
+			"reason", "leave",
+			"room", room.Code(),
+			"session", debugPlayerSessionLabel(player),
+			"player", nickname,
+			"remaining_players", room.PlayerCount(),
+		)
+	}
 	a.Jaws.Dirty(a.Manager, room, player)
 	return
 }

@@ -83,10 +83,18 @@ func newPlayableLiveHarness(t *testing.T) (result *liveHarness) {
 }
 
 func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Options) (result *liveHarness) {
+	result = newConfiguredHarness(t, catalog, opts, nil)
+	return
+}
+
+func newConfiguredHarness(t *testing.T, catalog *deck.Catalog, opts game.Options, configure func(*jaws.Jaws)) (result *liveHarness) {
 	t.Helper()
 	jw, err := jaws.New()
 	if err != nil {
 		t.Fatalf("jaws.New() error = %v", err)
+	}
+	if configure != nil {
+		configure(jw)
 	}
 	app := New(jw, catalog, game.NewManagerWithOptions(catalog, opts))
 	mux := http.NewServeMux()

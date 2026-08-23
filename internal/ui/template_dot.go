@@ -22,9 +22,20 @@ type roomPageDot struct {
 	RequestedRoom *game.Room
 }
 
-var _ jaws.ConnectHandler = roomPageDot{}
+var (
+	_ jaws.ConnectHandler = templateDot{}
+	_ jaws.ConnectHandler = roomPageDot{}
+)
+
+func (d templateDot) JawsConnect(rq *jaws.Request) (err error) {
+	d.App.debugConnectionStarted(rq, d.Player)
+	return
+}
 
 func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) {
+	if err = d.templateDot.JawsConnect(rq); err != nil {
+		return
+	}
 	if current := d.Player.Room(); current != nil {
 		if current != d.RequestedRoom {
 			rq.Redirect(d.App.RoomURL(current.Code()))
