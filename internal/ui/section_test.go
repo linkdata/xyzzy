@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/linkdata/jaws"
@@ -249,7 +250,7 @@ func expandSectionTags(t *testing.T, value any) (result []any) {
 
 var htmlIDPattern = regexp.MustCompile(`\bid="([^"]*)"`)
 
-func TestRenderedDocumentsHaveUniqueHTMLIDs(t *testing.T) {
+func TestRenderedDocumentsHaveUniqueHTMLIDsAndOneAlertTarget(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
 
@@ -281,7 +282,11 @@ func TestRenderedDocumentsHaveUniqueHTMLIDs(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want %d; body=%s", tt.path, rec.Code, http.StatusOK, rec.Body.String())
 			}
-			assertUniqueHTMLIDs(t, rec.Body.String())
+			body := rec.Body.String()
+			assertUniqueHTMLIDs(t, body)
+			if got := strings.Count(body, "data-jaws-alerts"); got != 1 {
+				t.Errorf("JaWS alert target count = %d, want 1", got)
+			}
 		})
 	}
 }
