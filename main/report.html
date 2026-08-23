@@ -1,0 +1,3828 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>importpyx: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/linkdata/xyzzy/cmd/importpyx/main.go (71.7%)</option>
+				
+				<option value="file1">github.com/linkdata/xyzzy/cmd/xyzzy/main.go (0.0%)</option>
+				
+				<option value="file2">github.com/linkdata/xyzzy/internal/deck/cardhtml.go (100.0%)</option>
+				
+				<option value="file3">github.com/linkdata/xyzzy/internal/deck/catalog.go (90.1%)</option>
+				
+				<option value="file4">github.com/linkdata/xyzzy/internal/game/game.go (90.8%)</option>
+				
+				<option value="file5">github.com/linkdata/xyzzy/internal/game/jaws_ui.go (100.0%)</option>
+				
+				<option value="file6">github.com/linkdata/xyzzy/internal/game/manager.go (77.9%)</option>
+				
+				<option value="file7">github.com/linkdata/xyzzy/internal/game/player.go (100.0%)</option>
+				
+				<option value="file8">github.com/linkdata/xyzzy/internal/game/room.go (83.3%)</option>
+				
+				<option value="file9">github.com/linkdata/xyzzy/internal/ui/app.go (94.3%)</option>
+				
+				<option value="file10">github.com/linkdata/xyzzy/internal/ui/rate_limit.go (96.7%)</option>
+				
+				<option value="file11">github.com/linkdata/xyzzy/internal/ui/room.go (91.3%)</option>
+				
+				<option value="file12">github.com/linkdata/xyzzy/internal/ui/section.go (100.0%)</option>
+				
+				<option value="file13">github.com/linkdata/xyzzy/internal/ui/static_handlers.go (100.0%)</option>
+				
+				<option value="file14">github.com/linkdata/xyzzy/internal/ui/submission_view.go (100.0%)</option>
+				
+				<option value="file15">github.com/linkdata/xyzzy/internal/ui/template_dot.go (79.8%)</option>
+				
+				<option value="file16">github.com/linkdata/xyzzy/internal/ui/white_card_view.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "bufio"
+        "encoding/json"
+        "errors"
+        "flag"
+        "fmt"
+        "os"
+        "path/filepath"
+        "slices"
+        "strconv"
+        "strings"
+
+        "github.com/linkdata/xyzzy/internal/deck"
+)
+
+func main() <span class="cov0" title="0">{
+        inPath := flag.String("in", "", "path to PretendYoureXyzzy cah_cards.sql")
+        outDir := flag.String("out", "assets", "output directory")
+        flag.Parse()
+
+        if *inPath == "" </span><span class="cov0" title="0">{
+                fmt.Fprintln(os.Stderr, "-in is required")
+                os.Exit(2)
+        }</span>
+
+        <span class="cov0" title="0">data, err := parseSQL(*inPath)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Fprintln(os.Stderr, err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">if err := writeAssets(*outDir, data); err != nil </span><span class="cov0" title="0">{
+                fmt.Fprintln(os.Stderr, err)
+                os.Exit(1)
+        }</span>
+}
+
+func parseSQL(path string) (data *sqlData, err error) <span class="cov5" title="6">{
+        var f *os.File
+        // #nosec G304 -- the input path is explicitly supplied by the operator.
+        if f, err = os.Open(path); err == nil </span><span class="cov5" title="6">{
+                defer func() </span><span class="cov5" title="6">{ err = errors.Join(err, f.Close()) }</span>()
+                <span class="cov5" title="6">parsed := &amp;sqlData{
+                        blackCards:     make(map[int]deck.BlackCard),
+                        whiteCards:     make(map[int]deck.WhiteCard),
+                        decks:          make(map[int]deckRecord),
+                        deckBlackLinks: make(map[int][]int),
+                        deckWhiteLinks: make(map[int][]int),
+                }
+                scanner := bufio.NewScanner(f)
+                section := ""
+                for scanner.Scan() </span><span class="cov10" title="27">{
+                        line := scanner.Text()
+                        switch </span>{
+                        case strings.HasPrefix(line, "COPY black_cards "):<span class="cov2" title="2">
+                                section = "black"
+                                continue</span>
+                        case strings.HasPrefix(line, "COPY white_cards "):<span class="cov2" title="2">
+                                section = "white"
+                                continue</span>
+                        case strings.HasPrefix(line, "COPY card_set ("):<span class="cov2" title="2">
+                                section = "deck"
+                                continue</span>
+                        case strings.HasPrefix(line, "COPY card_set_black_card "):<span class="cov2" title="2">
+                                section = "deck_black"
+                                continue</span>
+                        case strings.HasPrefix(line, "COPY card_set_white_card "):<span class="cov2" title="2">
+                                section = "deck_white"
+                                continue</span>
+                        case line == `\.`:<span class="cov5" title="5">
+                                section = ""
+                                continue</span>
+                        }
+                        <span class="cov7" title="12">if section == "" || strings.TrimSpace(line) == "" || strings.HasPrefix(line, "--") </span><span class="cov0" title="0">{
+                                continue</span>
+                        }
+                        <span class="cov7" title="12">parts := strings.Split(line, "\t")
+                        switch section </span>{
+                        case "black":<span class="cov2" title="2">
+                                if len(parts) &lt; 5 </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("invalid black card row: %q", line)
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">var id, draw, pick int
+                                if id, err = parseNonNegativeInt(parts[0], "black card id"); err != nil </span><span class="cov1" title="1">{
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">if draw, err = parseNonNegativeInt(parts[1], "black card draw"); err != nil </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">if pick, err = parseNonNegativeInt(parts[2], "black card pick"); err != nil </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">parsed.blackCards[id] = deck.BlackCard{
+                                        ID:        fmt.Sprintf("pyx-b-%d", id),
+                                        Text:      parts[3],
+                                        Pick:      pick,
+                                        Draw:      draw,
+                                        Watermark: parts[4],
+                                }</span>
+                        case "white":<span class="cov4" title="3">
+                                if len(parts) &lt; 3 </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("invalid white card row: %q", line)
+                                        return
+                                }</span>
+                                <span class="cov4" title="3">var id int
+                                if id, err = parseNonNegativeInt(parts[0], "white card id"); err != nil </span><span class="cov1" title="1">{
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">parsed.whiteCards[id] = deck.WhiteCard{
+                                        ID:        fmt.Sprintf("pyx-w-%d", id),
+                                        Text:      parts[1],
+                                        Watermark: parts[2],
+                                }</span>
+                        case "deck":<span class="cov2" title="2">
+                                if len(parts) &lt; 6 </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("invalid deck row: %q", line)
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">var id, weight int
+                                if id, err = parseNonNegativeInt(parts[0], "deck id"); err != nil </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">if weight, err = parseInt(parts[5], "deck weight"); err != nil </span><span class="cov1" title="1">{
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">name := parts[4]
+                                deckID := slugify(name)
+                                if deckID == "" </span><span class="cov0" title="0">{
+                                        deckID = fmt.Sprintf("deck-%d", id)
+                                }</span>
+                                <span class="cov1" title="1">if _, exists := parsed.decks[id]; exists </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("duplicate deck row id %d", id)
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">parsed.decks[id] = deckRecord{
+                                        active: parts[1] == "t",
+                                        meta: deck.DeckMetadata{
+                                                ID:               deckID,
+                                                Name:             name,
+                                                Description:      parts[3],
+                                                Weight:           weight,
+                                                BaseDeck:         parts[2] == "t",
+                                                EnabledByDefault: name == "Base Game (US)",
+                                        },
+                                }</span>
+                        case "deck_black":<span class="cov2" title="2">
+                                if len(parts) &lt; 2 </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("invalid deck black row: %q", line)
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">var deckID, cardID int
+                                if deckID, err = parseNonNegativeInt(parts[0], "deck black deck id"); err != nil </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">if cardID, err = parseNonNegativeInt(parts[1], "deck black card id"); err != nil </span><span class="cov1" title="1">{
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">parsed.deckBlackLinks[deckID] = append(parsed.deckBlackLinks[deckID], cardID)</span>
+                        case "deck_white":<span class="cov4" title="3">
+                                if len(parts) &lt; 2 </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("invalid deck white row: %q", line)
+                                        return
+                                }</span>
+                                <span class="cov4" title="3">var deckID, cardID int
+                                if deckID, err = parseNonNegativeInt(parts[0], "deck white deck id"); err != nil </span><span class="cov1" title="1">{
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">if cardID, err = parseNonNegativeInt(parts[1], "deck white card id"); err != nil </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">parsed.deckWhiteLinks[deckID] = append(parsed.deckWhiteLinks[deckID], cardID)</span>
+                        }
+                }
+                <span class="cov1" title="1">if err == nil </span><span class="cov1" title="1">{
+                        if err = scanner.Err(); err == nil </span><span class="cov1" title="1">{
+                                data = parsed
+                        }</span>
+                }
+        }
+        <span class="cov1" title="1">return</span>
+}
+
+func writeAssets(outDir string, data *sqlData) (err error) <span class="cov1" title="1">{
+        if data != nil </span><span class="cov1" title="1">{
+                usedBlack := make(map[int]struct{})
+                usedWhite := make(map[int]struct{})
+                type deckOut struct {
+                        dir   string
+                        meta  deck.DeckMetadata
+                        black []string
+                        white []string
+                }
+                var decks []deckOut
+                seenDeckIDs := map[string]int{}
+                for legacyID, record := range data.decks </span><span class="cov1" title="1">{
+                        if !record.active </span><span class="cov0" title="0">{
+                                continue</span>
+                        }
+                        <span class="cov1" title="1">meta := record.meta
+                        if prev, ok := seenDeckIDs[meta.ID]; ok </span><span class="cov0" title="0">{
+                                meta.ID = fmt.Sprintf("%s-%d", meta.ID, legacyID)
+                                if prev == legacyID </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("duplicate deck id %q", meta.ID)
+                                        return
+                                }</span>
+                        }
+                        <span class="cov1" title="1">seenDeckIDs[meta.ID] = legacyID
+                        var blackIDs, whiteIDs []string
+                        for _, cardID := range data.deckBlackLinks[legacyID] </span><span class="cov1" title="1">{
+                                card, ok := data.blackCards[cardID]
+                                if !ok </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("deck %s references unknown black card %d", meta.ID, cardID)
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">usedBlack[cardID] = struct{}{}
+                                blackIDs = append(blackIDs, card.ID)</span>
+                        }
+                        <span class="cov1" title="1">for _, cardID := range data.deckWhiteLinks[legacyID] </span><span class="cov2" title="2">{
+                                card, ok := data.whiteCards[cardID]
+                                if !ok </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("deck %s references unknown white card %d", meta.ID, cardID)
+                                        return
+                                }</span>
+                                <span class="cov2" title="2">usedWhite[cardID] = struct{}{}
+                                whiteIDs = append(whiteIDs, card.ID)</span>
+                        }
+                        <span class="cov1" title="1">slices.Sort(blackIDs)
+                        slices.Sort(whiteIDs)
+                        decks = append(decks, deckOut{
+                                dir:   filepath.Join(outDir, "decks", meta.ID),
+                                meta:  meta,
+                                black: uniqueStrings(blackIDs),
+                                white: uniqueStrings(whiteIDs),
+                        })</span>
+                }
+                <span class="cov1" title="1">slices.SortFunc(decks, func(a, b deckOut) (result int) </span><span class="cov0" title="0">{ result = strings.Compare(a.meta.ID, b.meta.ID); return }</span>)
+
+                <span class="cov1" title="1">for _, dir := range []string{
+                        filepath.Join(outDir, "cards", "black"),
+                        filepath.Join(outDir, "cards", "white"),
+                        filepath.Join(outDir, "decks"),
+                } </span><span class="cov4" title="3">{
+                        // #nosec G301 -- generated asset directories are intentionally public-readable.
+                        if err = os.MkdirAll(dir, 0o755); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
+                <span class="cov1" title="1">for cardID := range usedBlack </span><span class="cov1" title="1">{
+                        card := data.blackCards[cardID]
+                        if err = writeJSON(filepath.Join(outDir, "cards", "black", card.ID+".json"), card); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
+                <span class="cov1" title="1">for cardID := range usedWhite </span><span class="cov2" title="2">{
+                        card := data.whiteCards[cardID]
+                        if err = writeJSON(filepath.Join(outDir, "cards", "white", card.ID+".json"), card); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
+                <span class="cov1" title="1">for _, d := range decks </span><span class="cov1" title="1">{
+                        // #nosec G301 -- generated asset directories are intentionally public-readable.
+                        if err = os.MkdirAll(d.dir, 0o755); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                        <span class="cov1" title="1">if err = writeJSON(filepath.Join(d.dir, "deck.json"), d.meta); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                        <span class="cov1" title="1">if err = writeJSON(filepath.Join(d.dir, "black.json"), d.black); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                        <span class="cov1" title="1">if err = writeJSON(filepath.Join(d.dir, "white.json"), d.white); err != nil </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
+        }
+        <span class="cov1" title="1">return</span>
+}
+
+func writeJSON(path string, value any) (err error) <span class="cov5" title="6">{
+        var data []byte
+        if data, err = json.MarshalIndent(value, "", "  "); err == nil </span><span class="cov5" title="6">{
+                data = append(data, '\n')
+                // #nosec G306 -- generated assets are intentionally public-readable.
+                err = os.WriteFile(path, data, 0o644)
+        }</span>
+        <span class="cov5" title="6">return</span>
+}
+
+func slugify(s string) (result string) <span class="cov1" title="1">{
+        s = strings.ToLower(strings.TrimSpace(s))
+        var b strings.Builder
+        lastDash := false
+        for _, r := range s </span><span class="cov8" title="14">{
+                switch </span>{
+                case (r &gt;= 'a' &amp;&amp; r &lt;= 'z') || (r &gt;= '0' &amp;&amp; r &lt;= '9'):<span class="cov7" title="10">
+                        b.WriteRune(r)
+                        lastDash = false</span>
+                default:<span class="cov4" title="4">
+                        if !lastDash </span><span class="cov4" title="3">{
+                                b.WriteByte('-')
+                                lastDash = true
+                        }</span>
+                }
+        }
+        <span class="cov1" title="1">result = strings.Trim(b.String(), "-")
+        result = strings.ReplaceAll(result, "--", "-")
+        return</span>
+}
+
+func uniqueStrings(values []string) []string <span class="cov2" title="2">{
+        slices.Sort(values)
+        return slices.Compact(values)
+}</span>
+
+func parseNonNegativeInt(s, name string) (result int, err error) <span class="cov8" title="18">{
+        if result, err = parseInt(s, name); err == nil </span><span class="cov8" title="14">{
+                if result &lt; 0 </span><span class="cov0" title="0">{
+                        err = fmt.Errorf("invalid %s %q: negative value", name, s)
+                }</span>
+        }
+        <span class="cov8" title="18">return</span>
+}
+
+func parseInt(s, name string) (result int, err error) <span class="cov9" title="20">{
+        if result, err = strconv.Atoi(s); err != nil </span><span class="cov5" title="5">{
+                err = fmt.Errorf("invalid %s %q: %w", name, s, err)
+        }</span>
+        <span class="cov9" title="20">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "context"
+        "flag"
+        "log/slog"
+        "net/http"
+        "os"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/webserv"
+        "github.com/linkdata/xyzzy"
+        "github.com/linkdata/xyzzy/internal/deck"
+        "github.com/linkdata/xyzzy/internal/game"
+        appui "github.com/linkdata/xyzzy/internal/ui"
+)
+
+var (
+        flagAddress   = flag.String("address", os.Getenv("WEBSERV_ADDRESS"), "serve HTTP requests on given [address][:port]")
+        flagCertDir   = flag.String("certdir", os.Getenv("WEBSERV_CERTDIR"), "where to find fullchain.pem and privkey.pem")
+        flagUser      = flag.String("user", envOrDefault("WEBSERV_USER", ""), "switch to this user after startup (*nix only)")
+        flagDataDir   = flag.String("datadir", envOrDefault("WEBSERV_DATADIR", "$HOME"), "where to store data files after startup")
+        flagListenURL = flag.String("listenurl", os.Getenv("WEBSERV_LISTENURL"), "specify the external URL clients can reach us at")
+        flagDebug     = flag.Bool("debug", false, "enable JaWS debug mode, allow two-player games, allow target score 1, and force the first black card to the highest-pick prompt")
+)
+
+func envOrDefault(envvar, fallback string) (result string) <span class="cov0" title="0">{
+        if value := os.Getenv(envvar); value != "" </span><span class="cov0" title="0">{
+                result = value
+                return
+        }</span>
+        <span class="cov0" title="0">result = fallback
+        return</span>
+}
+
+func main() <span class="cov0" title="0">{
+        flag.Parse()
+
+        catalog, err := deck.LoadFS(xyzzy.Assets)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("load catalog", "err", err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">jw, err := jaws.New()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("create jaws", "err", err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">defer jw.Close()
+        jw.Logger = slog.Default()
+        jw.CookieName = "xyzzy"
+        jw.Debug = *flagDebug
+
+        managerOpts := game.Options{Dirty: jw.Dirty}
+        if *flagDebug </span><span class="cov0" title="0">{
+                managerOpts.MinPlayers = 2
+                managerOpts.Debug = true
+        }</span>
+        <span class="cov0" title="0">manager := game.NewManagerWithOptions(catalog, managerOpts)
+        app := appui.New(jw, catalog, manager)
+
+        mux := http.NewServeMux()
+        if err := app.SetupRoutes(mux); err != nil </span><span class="cov0" title="0">{
+                slog.Error("setup routes", "err", err)
+                os.Exit(1)
+        }</span>
+
+        <span class="cov0" title="0">cfg := webserv.Config{
+                Address:   *flagAddress,
+                CertDir:   *flagCertDir,
+                User:      *flagUser,
+                DataDir:   *flagDataDir,
+                ListenURL: *flagListenURL,
+                Logger:    slog.Default(),
+        }
+
+        l, err := cfg.Listen()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("listen", "err", err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">go jw.Serve()
+        if err := cfg.Serve(context.Background(), l, app.Middleware(mux)); err != nil </span><span class="cov0" title="0">{
+                slog.Error("serve", "err", err)
+                os.Exit(1)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package deck
+
+import (
+        "html"
+        "html/template"
+        "strings"
+)
+
+var legacyCardTagReplacer = strings.NewReplacer(
+        "&amp;lt;i&amp;gt;", "&lt;i&gt;",
+        "&amp;lt;/i&amp;gt;", "&lt;/i&gt;",
+        "&amp;lt;em&amp;gt;", "&lt;em&gt;",
+        "&amp;lt;/em&amp;gt;", "&lt;/em&gt;",
+        "&amp;lt;b&amp;gt;", "&lt;b&gt;",
+        "&amp;lt;/b&amp;gt;", "&lt;/b&gt;",
+        "&amp;lt;strong&amp;gt;", "&lt;strong&gt;",
+        "&amp;lt;/strong&amp;gt;", "&lt;/strong&gt;",
+        "&amp;lt;br&amp;gt;", "&lt;br&gt;",
+        "&amp;lt;br/&amp;gt;", "&lt;br/&gt;",
+        "&amp;lt;br /&amp;gt;", "&lt;br /&gt;",
+)
+
+func formatCardHTML(text string) (result template.HTML) <span class="cov10" title="21">{
+        escaped := html.EscapeString(html.UnescapeString(text))
+        result = template.HTML(legacyCardTagReplacer.Replace(escaped)) // #nosec G203
+        return
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package deck
+
+import (
+        "encoding/json"
+        "errors"
+        "fmt"
+        "io/fs"
+        "path"
+        "slices"
+        "strings"
+)
+
+const (
+        blackDir         = "assets/cards/black"
+        whiteDir         = "assets/cards/white"
+        decksDir         = "assets/decks"
+        maxBlackCardPick = 3
+        maxBlackCardDraw = 2
+)
+
+var (
+        ErrDuplicateCardID = errors.New("duplicate card id")
+        ErrDuplicateDeckID = errors.New("duplicate deck id")
+        ErrInvalidCard     = errors.New("invalid card")
+        ErrInvalidDeck     = errors.New("invalid deck")
+)
+
+// Catalog is the immutable in-memory deck catalog loaded from embedded assets.
+type Catalog struct {
+        BlackCards map[string]*BlackCard
+        WhiteCards map[string]*WhiteCard
+        Decks      map[string]*Deck
+        ordered    []*Deck
+        defaults   []*Deck
+}
+
+func loadBlackCard(c *Catalog, name string, raw []byte) (err error) <span class="cov8" title="13">{
+        card := new(BlackCard)
+        if err = json.Unmarshal(raw, card); err == nil </span><span class="cov8" title="13">{
+                if card.Pick == 0 </span><span class="cov7" title="9">{
+                        card.Pick = 1
+                }</span>
+                <span class="cov8" title="13">if card.ID != "" &amp;&amp; strings.TrimSpace(card.Text) != "" </span><span class="cov8" title="13">{
+                        if card.Pick &lt; 1 || card.Pick &gt; maxBlackCardPick </span><span class="cov2" title="2">{
+                                err = fmt.Errorf("%s: %w: pick must be between 1 and %d", name, ErrInvalidCard, maxBlackCardPick)
+                                return
+                        }</span>
+                        <span class="cov7" title="11">if card.Draw &lt; 0 || card.Draw &gt; maxBlackCardDraw </span><span class="cov2" title="2">{
+                                err = fmt.Errorf("%s: %w: draw must be between 0 and %d", name, ErrInvalidCard, maxBlackCardDraw)
+                                return
+                        }</span>
+                        <span class="cov7" title="9">card.HTML = formatCardHTML(card.Text)
+                        if _, exists := c.BlackCards[card.ID]; exists </span><span class="cov0" title="0">{
+                                err = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+                                return
+                        }</span>
+                        <span class="cov7" title="9">c.BlackCards[card.ID] = card</span>
+                }
+        }
+        <span class="cov7" title="9">return</span>
+}
+
+func loadWhiteCard(c *Catalog, name string, raw []byte) (err error) <span class="cov7" title="10">{
+        card := new(WhiteCard)
+        if err = json.Unmarshal(raw, card); err == nil </span><span class="cov7" title="10">{
+                if card.ID != "" &amp;&amp; strings.TrimSpace(card.Text) != "" </span><span class="cov7" title="10">{
+                        card.HTML = formatCardHTML(card.Text)
+                        if _, exists := c.WhiteCards[card.ID]; exists </span><span class="cov0" title="0">{
+                                err = fmt.Errorf("%s: %w %q", name, ErrDuplicateCardID, card.ID)
+                                return
+                        }</span>
+                        <span class="cov7" title="10">c.WhiteCards[card.ID] = card</span>
+                }
+        }
+        <span class="cov7" title="10">return</span>
+}
+
+// LoadFS loads a catalog from the provided filesystem.
+func LoadFS(fsys fs.FS) (c *Catalog, err error) <span class="cov7" title="11">{
+        loaded := &amp;Catalog{
+                BlackCards: make(map[string]*BlackCard),
+                WhiteCards: make(map[string]*WhiteCard),
+                Decks:      make(map[string]*Deck),
+        }
+
+        if err = loadJSONDir(fsys, blackDir, loaded, loadBlackCard); err == nil </span><span class="cov6" title="7">{
+                if err = loadJSONDir(fsys, whiteDir, loaded, loadWhiteCard); err == nil </span><span class="cov6" title="7">{
+                        var deckEntries []fs.DirEntry
+                        if deckEntries, err = fs.ReadDir(fsys, decksDir); err == nil </span><span class="cov6" title="7">{
+                                for _, entry := range deckEntries </span><span class="cov7" title="11">{
+                                        if !entry.IsDir() </span><span class="cov0" title="0">{
+                                                continue</span>
+                                        }
+                                        <span class="cov7" title="11">dir := path.Join(decksDir, entry.Name())
+                                        var meta DeckMetadata
+                                        var blackIDs, whiteIDs []string
+                                        meta, blackIDs, whiteIDs, err = loadDeckDir(fsys, dir)
+                                        if err != nil </span><span class="cov0" title="0">{
+                                                return
+                                        }</span>
+                                        <span class="cov7" title="11">deck := &amp;Deck{
+                                                DeckMetadata: meta,
+                                                BlackCards:   make([]*BlackCard, 0, len(blackIDs)),
+                                                WhiteCards:   make([]*WhiteCard, 0, len(whiteIDs)),
+                                        }
+                                        if _, exists := loaded.Decks[deck.ID]; exists </span><span class="cov1" title="1">{
+                                                err = fmt.Errorf("%s: %w %q", dir, ErrDuplicateDeckID, deck.ID)
+                                                return
+                                        }</span>
+                                        <span class="cov7" title="10">for _, cardID := range blackIDs </span><span class="cov7" title="10">{
+                                                if card, ok := loaded.BlackCards[cardID]; ok </span><span class="cov7" title="10">{
+                                                        deck.BlackCards = append(deck.BlackCards, card)
+                                                }</span> else<span class="cov0" title="0"> {
+                                                        err = fmt.Errorf("%s: %w: unknown black card id %q", dir, ErrInvalidDeck, cardID)
+                                                        return
+                                                }</span>
+                                        }
+                                        <span class="cov7" title="10">for _, cardID := range whiteIDs </span><span class="cov8" title="12">{
+                                                if card, ok := loaded.WhiteCards[cardID]; ok </span><span class="cov7" title="11">{
+                                                        deck.WhiteCards = append(deck.WhiteCards, card)
+                                                }</span> else<span class="cov1" title="1"> {
+                                                        err = fmt.Errorf("%s: %w: unknown white card id %q", dir, ErrInvalidDeck, cardID)
+                                                        return
+                                                }</span>
+                                        }
+                                        <span class="cov7" title="9">loaded.Decks[deck.ID] = deck
+                                        loaded.ordered = append(loaded.ordered, deck)
+                                        if deck.EnabledByDefault </span><span class="cov4" title="4">{
+                                                loaded.defaults = append(loaded.defaults, deck)
+                                        }</span>
+                                }
+                                <span class="cov5" title="5">slices.SortFunc(loaded.ordered, func(a, b *Deck) (result int) </span><span class="cov4" title="3">{
+                                        if a.Weight != b.Weight </span><span class="cov1" title="1">{
+                                                result = a.Weight - b.Weight
+                                                return
+                                        }</span>
+                                        <span class="cov2" title="2">result = strings.Compare(a.Name, b.Name)
+                                        return</span>
+                                })
+                                <span class="cov5" title="5">if len(loaded.defaults) == 0 &amp;&amp; len(loaded.ordered) &gt; 0 </span><span class="cov2" title="2">{
+                                        loaded.defaults = []*Deck{loaded.ordered[0]}
+                                }</span>
+                                <span class="cov5" title="5">slices.SortFunc(loaded.defaults, func(a, b *Deck) (result int) </span><span class="cov1" title="1">{ result = strings.Compare(a.ID, b.ID); return }</span>)
+                                <span class="cov5" title="5">c = loaded</span>
+                        }
+                }
+        }
+        <span class="cov7" title="9">return</span>
+}
+
+func loadDeckDir(fsys fs.FS, dir string) (meta DeckMetadata, blackIDs []string, whiteIDs []string, err error) <span class="cov7" title="11">{
+        metaPath := path.Join(dir, "deck.json")
+        var raw []byte
+        if raw, err = fs.ReadFile(fsys, metaPath); err == nil </span><span class="cov7" title="11">{
+                if err = json.Unmarshal(raw, &amp;meta); err == nil </span><span class="cov7" title="11">{
+                        if meta.ID == "" || strings.TrimSpace(meta.Name) == "" </span><span class="cov0" title="0">{
+                                err = fmt.Errorf("%s: %w: deck missing id or name", metaPath, ErrInvalidDeck)
+                                return
+                        }</span>
+                        <span class="cov7" title="11">if blackIDs, err = loadStringList(fsys, path.Join(dir, "black.json")); err == nil </span><span class="cov7" title="11">{
+                                if whiteIDs, err = loadStringList(fsys, path.Join(dir, "white.json")); err == nil </span><span class="cov7" title="11">{
+                                        blackIDs = uniqueSorted(blackIDs)
+                                        whiteIDs = uniqueSorted(whiteIDs)
+                                        if len(blackIDs) == 0 &amp;&amp; len(whiteIDs) == 0 </span><span class="cov0" title="0">{
+                                                err = fmt.Errorf("%s: %w: deck must include at least one card", dir, ErrInvalidDeck)
+                                                return
+                                        }</span>
+                                }
+                        }
+                }
+        }
+        <span class="cov7" title="11">return</span>
+}
+
+func loadStringList(fsys fs.FS, name string) (ids []string, err error) <span class="cov9" title="22">{
+        var raw []byte
+        if raw, err = fs.ReadFile(fsys, name); err == nil </span><span class="cov9" title="22">{
+                if err = json.Unmarshal(raw, &amp;ids); err == nil </span><span class="cov9" title="22">{
+                        for i, id := range ids </span><span class="cov10" title="24">{
+                                ids[i] = strings.TrimSpace(id)
+                                if ids[i] == "" </span><span class="cov0" title="0">{
+                                        err = fmt.Errorf("%s: %w: blank card id", name, ErrInvalidDeck)
+                                        return
+                                }</span>
+                        }
+                }
+        }
+        <span class="cov9" title="22">return</span>
+}
+
+func loadJSONDir(fsys fs.FS, dir string, c *Catalog, fn func(c *Catalog, name string, raw []byte) error) (err error) <span class="cov9" title="18">{
+        var entries []fs.DirEntry
+        if entries, err = fs.ReadDir(fsys, dir); err == nil </span><span class="cov9" title="18">{
+                for _, entry := range entries </span><span class="cov9" title="23">{
+                        if entry.IsDir() || path.Ext(entry.Name()) != ".json" </span><span class="cov0" title="0">{
+                                continue</span>
+                        }
+                        <span class="cov9" title="23">name := path.Join(dir, entry.Name())
+                        var raw []byte
+                        if raw, err = fs.ReadFile(fsys, name); err == nil </span><span class="cov9" title="23">{
+                                err = fn(c, name, raw)
+                        }</span>
+                        <span class="cov9" title="23">if err != nil </span><span class="cov4" title="4">{
+                                return
+                        }</span>
+                }
+        }
+        <span class="cov8" title="14">return</span>
+}
+
+// OrderedDecks returns the deck list sorted by weight then name.
+func (c *Catalog) OrderedDecks() (result []*Deck) <span class="cov1" title="1">{
+        if c != nil </span><span class="cov1" title="1">{
+                result = make([]*Deck, len(c.ordered))
+                copy(result, c.ordered)
+        }</span>
+        <span class="cov1" title="1">return</span>
+}
+
+// DefaultDecks returns the default-selected decks.
+func (c *Catalog) DefaultDecks() (result []*Deck) <span class="cov2" title="2">{
+        if c != nil </span><span class="cov2" title="2">{
+                result = make([]*Deck, len(c.defaults))
+                copy(result, c.defaults)
+        }</span>
+        <span class="cov2" title="2">return</span>
+}
+
+// UnionCounts returns the unique black and white card counts for the selected decks.
+func (c *Catalog) UnionCounts(decks []*Deck) (blackCount, whiteCount int) <span class="cov2" title="2">{
+        blackSet, whiteSet := c.unionSet(decks)
+        blackCount, whiteCount = len(blackSet), len(whiteSet)
+        return
+}</span>
+
+// UnionCards returns unique cards from the selected decks, sorted by card ID.
+func (c *Catalog) UnionCards(decks []*Deck) (black []*BlackCard, white []*WhiteCard) <span class="cov1" title="1">{
+        blackSet, whiteSet := c.unionSet(decks)
+        for card := range blackSet </span><span class="cov2" title="2">{
+                black = append(black, card)
+        }</span>
+        <span class="cov1" title="1">for card := range whiteSet </span><span class="cov4" title="3">{
+                white = append(white, card)
+        }</span>
+        <span class="cov1" title="1">slices.SortFunc(black, func(a, b *BlackCard) (result int) </span><span class="cov1" title="1">{ result = strings.Compare(a.ID, b.ID); return }</span>)
+        <span class="cov1" title="1">slices.SortFunc(white, func(a, b *WhiteCard) (result int) </span><span class="cov4" title="3">{ result = strings.Compare(a.ID, b.ID); return }</span>)
+        <span class="cov1" title="1">return</span>
+}
+
+// DeckByID returns a deck by ID.
+func (c *Catalog) DeckByID(id string) (result *Deck) <span class="cov9" title="17">{
+        if c != nil </span><span class="cov9" title="17">{
+                result = c.Decks[id]
+        }</span>
+        <span class="cov9" title="17">return</span>
+}
+
+func (c *Catalog) unionSet(decks []*Deck) (blackSet map[*BlackCard]struct{}, whiteSet map[*WhiteCard]struct{}) <span class="cov4" title="3">{
+        if c != nil </span><span class="cov4" title="3">{
+                blackSet = make(map[*BlackCard]struct{})
+                whiteSet = make(map[*WhiteCard]struct{})
+                seen := make(map[*Deck]struct{}, len(decks))
+                for _, deck := range decks </span><span class="cov7" title="9">{
+                        if deck == nil </span><span class="cov1" title="1">{
+                                continue</span>
+                        }
+                        <span class="cov6" title="8">if canonical := c.DeckByID(deck.ID); canonical != deck </span><span class="cov1" title="1">{
+                                continue</span>
+                        }
+                        <span class="cov6" title="7">if _, ok := seen[deck]; ok </span><span class="cov1" title="1">{
+                                continue</span>
+                        }
+                        <span class="cov6" title="6">seen[deck] = struct{}{}
+                        for _, card := range deck.BlackCards </span><span class="cov6" title="8">{
+                                blackSet[card] = struct{}{}
+                        }</span>
+                        <span class="cov6" title="6">for _, card := range deck.WhiteCards </span><span class="cov7" title="10">{
+                                whiteSet[card] = struct{}{}
+                        }</span>
+                }
+        }
+        <span class="cov4" title="3">return</span>
+}
+
+func uniqueSorted(values []string) []string <span class="cov9" title="22">{
+        slices.Sort(values)
+        return slices.Compact(values)
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package game
+
+import (
+        "crypto/rand"
+        "encoding/binary"
+        "errors"
+        "fmt"
+        mathrand "math/rand/v2"
+        "slices"
+        "strings"
+        "time"
+
+        "github.com/linkdata/xyzzy/internal/deck"
+)
+
+const (
+        // MinPlayers is the default number of players required to start a game.
+        MinPlayers = 3
+        // MaxPlayers is the maximum number of players allowed in a room.
+        MaxPlayers = 10
+        // HandSize is the number of white cards normally held by each player.
+        HandSize = 10
+        // ScoreGoal is the default number of points required to win a game.
+        ScoreGoal = 5
+        // ReviewDelay is the automatic delay between a result and the next state.
+        ReviewDelay = 30 * time.Second
+        // MinBlackCards is the minimum selected black-card count required to start.
+        MinBlackCards = 50
+        // MinWhiteCardsPerPlayer is the selected white-card requirement per player.
+        MinWhiteCardsPerPlayer = 20
+        roomCodeLength         = 6
+        roomCodeAlphabet       = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+)
+
+var (
+        // ErrRoomNotFound indicates that a requested room does not exist.
+        ErrRoomNotFound = errors.New("room not found")
+        // ErrRoomFull indicates that a room has reached [MaxPlayers].
+        ErrRoomFull = errors.New("room is full")
+        // ErrGameInProgress indicates that an operation requires a lobby room.
+        ErrGameInProgress = errors.New("game already in progress")
+        // ErrAlreadyInRoom indicates that a player is already seated in a room.
+        ErrAlreadyInRoom = errors.New("player is already in a room")
+        // ErrOnlyHostCanEdit indicates that a non-host tried to edit lobby settings.
+        ErrOnlyHostCanEdit = errors.New("only the host can change lobby settings")
+        // ErrDecksLocked indicates that a deck edit was attempted outside the lobby.
+        ErrDecksLocked = errors.New("deck selection is locked after the game starts")
+        // ErrUnknownDeck indicates that a deck is not from the manager's catalog.
+        ErrUnknownDeck = errors.New("unknown deck")
+        // ErrNotEnoughBlackCards indicates that the selected decks cannot start a game.
+        ErrNotEnoughBlackCards = errors.New("selected decks need at least 50 unique black cards")
+        // ErrNotEnoughWhiteCards indicates that the selected decks cannot seat or deal all players.
+        ErrNotEnoughWhiteCards = errors.New("selected decks need at least 20 white cards per player")
+        // ErrOnlyHostCanStart indicates that a non-host tried to start the game.
+        ErrOnlyHostCanStart = errors.New("only the host can start the game")
+        // ErrOnlyPlayersCanPlay indicates that an unseated player tried to submit cards.
+        ErrOnlyPlayersCanPlay = errors.New("only players in the room can play")
+        // ErrNotYourTurn indicates that an action is invalid in the current room state.
+        ErrNotYourTurn = errors.New("not your turn")
+        // ErrJudgeCannotPlay indicates that the current judge tried to submit cards.
+        ErrJudgeCannotPlay = errors.New("judge cannot play cards")
+        // ErrNeedExactCards indicates that a submission has the wrong number of unique cards.
+        ErrNeedExactCards = errors.New("must select the exact number of cards")
+        // ErrCardNotInHand indicates that a submitted card is absent from the player's hand.
+        ErrCardNotInHand = errors.New("selected card is not in your hand")
+        // ErrAlreadySubmitted indicates that a player has already submitted this round.
+        ErrAlreadySubmitted = errors.New("cards already submitted")
+        // ErrSubmissionNotFound indicates that a submission is not in the current round.
+        ErrSubmissionNotFound = errors.New("submission not found")
+        // ErrNotJudge indicates that a judge-only action was attempted by another player.
+        ErrNotJudge = errors.New("only the judge can pick a winner")
+        // ErrReviewNotReady indicates that review progression was attempted outside review.
+        ErrReviewNotReady = errors.New("round result is not ready")
+)
+
+// NewManager creates a manager with default options.
+//
+// Dependency-tag publication is disabled. Use [NewManagerWithOptions] with a
+// non-nil Dirty callback in [Options] when changes must be published.
+func NewManager(catalog *deck.Catalog) (result *Manager) <span class="cov5" title="221">{
+        result = NewManagerWithOptions(catalog, Options{})
+        return
+}</span>
+
+// NewManagerWithOptions creates a manager using catalog and a copy of opts.
+//
+// An opts.MinPlayers value below two uses [MinPlayers]. The manager retains
+// catalog, whose contents must remain immutable.
+func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager) <span class="cov5" title="232">{
+        if opts.MinPlayers &lt; 2 </span><span class="cov5" title="224">{
+                opts.MinPlayers = MinPlayers
+        }</span>
+        <span class="cov5" title="232">result = &amp;Manager{
+                rooms:   make(map[string]*Room),
+                catalog: catalog,
+                opts:    opts,
+        }
+        return</span>
+}
+
+// NormalizeNickname removes characters other than ASCII letters and digits.
+//
+// It returns "Player" when no accepted characters remain.
+func NormalizeNickname(raw string) (result string) <span class="cov8" title="3957">{
+        var b strings.Builder
+        for _, r := range raw </span><span class="cov10" title="24015">{
+                switch </span>{
+                case r &gt;= '0' &amp;&amp; r &lt;= '9':<span class="cov0" title="0">
+                        b.WriteRune(r)</span>
+                case r &gt;= 'A' &amp;&amp; r &lt;= 'Z':<span class="cov8" title="3956">
+                        b.WriteRune(r)</span>
+                case r &gt;= 'a' &amp;&amp; r &lt;= 'z':<span class="cov9" title="16039">
+                        b.WriteRune(r)</span>
+                }
+        }
+        <span class="cov8" title="3957">if b.Len() == 0 </span><span class="cov1" title="1">{
+                result = "Player"
+                return
+        }</span>
+        <span class="cov8" title="3956">result = b.String()
+        return</span>
+}
+
+func normalizeDecks(catalog *deck.Catalog, decks []*deck.Deck) (result []*deck.Deck) <span class="cov5" title="232">{
+        if catalog == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov5" title="232">if len(decks) == 0 </span><span class="cov1" title="1">{
+                decks = catalog.DefaultDecks()
+        }</span>
+        <span class="cov5" title="232">result = make([]*deck.Deck, 0, len(decks))
+        seen := make(map[*deck.Deck]struct{}, len(decks))
+        for _, selected := range decks </span><span class="cov5" title="252">{
+                if selected == nil </span><span class="cov1" title="1">{
+                        continue</span>
+                }
+                <span class="cov5" title="251">if canonical := catalog.DeckByID(selected.ID); canonical != selected </span><span class="cov1" title="1">{
+                        continue</span>
+                }
+                <span class="cov5" title="250">if _, ok := seen[selected]; ok </span><span class="cov1" title="1">{
+                        continue</span>
+                }
+                <span class="cov5" title="249">seen[selected] = struct{}{}
+                result = append(result, selected)</span>
+        }
+        <span class="cov5" title="232">slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) </span><span class="cov3" title="17">{ cmp = strings.Compare(a.ID, b.ID); return }</span>)
+        <span class="cov5" title="232">return</span>
+}
+
+func normalizeWhiteCards(cards []*deck.WhiteCard) (result []*deck.WhiteCard) <span class="cov3" title="20">{
+        seen := make(map[*deck.WhiteCard]struct{}, len(cards))
+        result = make([]*deck.WhiteCard, 0, len(cards))
+        for _, card := range cards </span><span class="cov3" title="23">{
+                if card == nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov3" title="23">if _, ok := seen[card]; ok </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov3" title="23">seen[card] = struct{}{}
+                result = append(result, card)</span>
+        }
+        <span class="cov3" title="20">return</span>
+}
+
+func sortedSelectedDecks(values map[*deck.Deck]bool) (result []*deck.Deck) <span class="cov1" title="2">{
+        result = make([]*deck.Deck, 0, len(values))
+        for selected, enabled := range values </span><span class="cov1" title="1">{
+                if enabled </span><span class="cov1" title="1">{
+                        result = append(result, selected)
+                }</span>
+        }
+        <span class="cov1" title="2">slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) </span><span class="cov0" title="0">{ cmp = strings.Compare(a.ID, b.ID); return }</span>)
+        <span class="cov1" title="2">return</span>
+}
+
+func submissionID(round, seq int) (result string) <span class="cov3" title="20">{
+        result = fmt.Sprintf("r%d-s%d", round, seq)
+        return
+}</span>
+
+func randomCode() (result string) <span class="cov5" title="230">{
+        var raw [roomCodeLength]byte
+        _, _ = rand.Read(raw[:])
+        var b strings.Builder
+        for _, n := range raw </span><span class="cov7" title="1380">{
+                b.WriteByte(roomCodeAlphabet[n&amp;31])
+        }</span>
+        <span class="cov5" title="230">return b.String()</span>
+}
+
+func newRoomRand() *mathrand.Rand <span class="cov5" title="231">{
+        var seed [16]byte
+        _, _ = rand.Read(seed[:])
+        // #nosec G404 -- card shuffling is not a security boundary.
+        return mathrand.New(mathrand.NewPCG(
+                binary.LittleEndian.Uint64(seed[:8]),
+                binary.LittleEndian.Uint64(seed[8:]),
+        ))
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package game
+
+import (
+        "fmt"
+        "html/template"
+        "time"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/jaws/lib/bind"
+        "github.com/linkdata/jaws/lib/ui"
+)
+
+// NicknameField returns a binder for the player's editable nickname.
+//
+// The binder serializes access with [Player.NicknameInputValue] and
+// [Manager.SetNickname].
+func (p *Player) NicknameField() bind.Binder[string] <span class="cov1" title="2">{
+        return bind.New(&amp;p.uiMu, &amp;p.NicknameInput)
+}</span>
+
+// TargetScoreBinder binds the room's target score for player.
+//
+// Only the host may edit the score while the room is in the lobby. Accepted
+// values are clamped to [Room.MinTargetScore] through 10, and an unchanged value
+// returns [jaws.ErrValueUnchanged].
+func (r *Room) TargetScoreBinder(player *Player) (result bind.Binder[int]) <span class="cov2" title="3">{
+        result = bind.New(&amp;r.mu, &amp;r.targetScore).
+                SetLocked(func(prev bind.Binder[int], elem *jaws.Element, value int) (err error) </span><span class="cov3" title="6">{
+                        value = r.normalizeTargetScoreLocked(value)
+                        if err = r.lobbyControlErrorLocked(player); err == nil </span><span class="cov2" title="4">{
+                                err = prev.JawsSetLocked(elem, value)
+                        }</span>
+                        <span class="cov3" title="6">return</span>
+                })
+        <span class="cov2" title="3">return</span>
+}
+
+// PrivateToggle returns a privacy binder for player.
+//
+// Only the host may edit privacy while the room is in the lobby. An unchanged
+// value returns [jaws.ErrValueUnchanged].
+func (r *Room) PrivateToggle(player *Player) (result bind.Binder[bool]) <span class="cov2" title="3">{
+        result = bind.New(&amp;r.mu, &amp;r.private).
+                SetLocked(func(prev bind.Binder[bool], elem *jaws.Element, value bool) (err error) </span><span class="cov2" title="5">{
+                        if err = r.lobbyControlErrorLocked(player); err == nil </span><span class="cov2" title="3">{
+                                err = prev.JawsSetLocked(elem, value)
+                        }</span>
+                        <span class="cov2" title="5">return</span>
+                }).
+                Success(func(elem *jaws.Element) <span class="cov1" title="1">{
+                        // Success runs after the Binder releases r.mu.
+                        elem.Dirty(r.manager)
+                }</span>)
+        <span class="cov2" title="3">return</span>
+}
+
+// LobbyControlAttrs returns initial attributes for player-editable lobby controls.
+//
+// It returns disabled unless player is the host and the Room is in the lobby.
+func (r *Room) LobbyControlAttrs(player *Player) (result template.HTMLAttr) <span class="cov1" title="2">{
+        // Evaluate this outside Binder.InitialHTMLAttr: bind already holds an r.mu
+        // read lock while running that hook, so reacquiring it here can deadlock.
+        r.mu.RLock()
+        if r.lobbyControlErrorLocked(player) != nil </span><span class="cov1" title="1">{
+                result = `disabled`
+        }</span>
+        <span class="cov1" title="2">r.mu.RUnlock()
+        return</span>
+}
+
+// StartGameButton returns the start-game action for player.
+//
+// The action is hidden from non-hosts and disabled until the lobby has enough
+// players and the selected decks provide enough cards. A successful click
+// starts the game.
+func (r *Room) StartGameButton(player *Player) (result ui.Object) <span class="cov2" title="5">{
+        result = ui.New("Start Game").
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span><span class="cov1" title="1">{
+                        if err = r.Start(player); err == nil </span><span class="cov1" title="1">{
+                                elem.Dirty(r)
+                        }</span>
+                        <span class="cov1" title="1">return</span>
+                }).
+                InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) <span class="cov2" title="3">{
+                        r.mu.RLock()
+                        switch </span>{
+                        case player == nil || r.host != player:<span class="cov1" title="1">
+                                attrs = `hidden`</span>
+                        case !r.canStartLocked(player):<span class="cov1" title="1">
+                                attrs = `disabled`</span>
+                        }
+                        <span class="cov2" title="3">r.mu.RUnlock()
+                        return</span>
+                })
+        <span class="cov2" title="5">return</span>
+}
+
+// SubmitCardsButton returns the selected-card submission action for player.
+//
+// The action is disabled until player has a complete valid selection. A
+// successful click submits that selection.
+func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) <span class="cov2" title="4">{
+        result = ui.New("Play Selected Cards").
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span><span class="cov1" title="1">{
+                        if err = r.PlaySelectedCards(player); err == nil </span><span class="cov1" title="1">{
+                                elem.Dirty(r)
+                        }</span>
+                        <span class="cov1" title="1">return</span>
+                }).
+                InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) <span class="cov1" title="2">{
+                        r.mu.RLock()
+                        current := r.playerLocked(player)
+                        if current == nil || !r.canSubmitLocked(current) || len(current.SelectedCards) != r.needPickLocked() </span><span class="cov1" title="1">{
+                                attrs = `disabled`
+                        }</span>
+                        <span class="cov1" title="2">r.mu.RUnlock()
+                        return</span>
+                })
+        <span class="cov2" title="4">return</span>
+}
+
+// JudgeButton returns the selected-submission judging action for player.
+//
+// The action is disabled unless player is the current judge with a selected
+// submission. A successful click records the winner.
+func (r *Room) JudgeButton(player *Player) (result ui.Object) <span class="cov2" title="5">{
+        result = ui.New("Pick Winner").
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span><span class="cov1" title="1">{
+                        if err = r.JudgeSelectedSubmission(player); err == nil </span><span class="cov1" title="1">{
+                                elem.Dirty(r)
+                        }</span>
+                        <span class="cov1" title="1">return</span>
+                }).
+                InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) <span class="cov2" title="3">{
+                        r.mu.RLock()
+                        current := r.playerLocked(player)
+                        if current == nil || r.state != StateJudging || r.judgeLocked() != current || current.SelectedSubmission == nil </span><span class="cov1" title="2">{
+                                attrs = `disabled`
+                        }</span>
+                        <span class="cov2" title="3">r.mu.RUnlock()
+                        return</span>
+                })
+        <span class="cov2" title="5">return</span>
+}
+
+// ReviewTitle returns the current review heading.
+//
+// It returns an empty string outside review.
+func (r *Room) ReviewTitle() (result string) <span class="cov10" title="2012">{
+        var active bool
+        var gameWinner bool
+        var winnerName string
+
+        r.mu.RLock()
+        if r.state == StateReview &amp;&amp; r.reviewWinner != nil </span><span class="cov9" title="2010">{
+                active = true
+                gameWinner = r.reviewGameWinner
+                winnerName = r.reviewWinner.Nickname
+        }</span>
+        <span class="cov10" title="2012">r.mu.RUnlock()
+
+        if active </span><span class="cov9" title="2010">{
+                if gameWinner </span><span class="cov2" title="4">{
+                        result = fmt.Sprintf("%s won the game!", winnerName)
+                }</span> else<span class="cov9" title="2006"> {
+                        result = fmt.Sprintf("%s won the round!", winnerName)
+                }</span>
+        }
+        <span class="cov10" title="2012">return</span>
+}
+
+// ReviewStatus returns the non-judge review countdown getter.
+//
+// It returns nil outside review and for the current judge.
+func (r *Room) ReviewStatus(player *Player) (result bind.Getter[string]) <span class="cov4" title="13">{
+        active, canProceed := r.reviewControlRole(player)
+        if active &amp;&amp; !canProceed </span><span class="cov3" title="7">{
+                result = r.reviewCountdownGetter(false)
+        }</span>
+        <span class="cov4" title="13">return</span>
+}
+
+// ReviewButton returns the current judge's proceed-review action.
+//
+// It returns nil outside review and for non-judge players. A successful click
+// advances to the next round or returns a completed game to the lobby.
+func (r *Room) ReviewButton(player *Player) (result ui.Object) <span class="cov4" title="15">{
+        active, canProceed := r.reviewControlRole(player)
+        if active &amp;&amp; canProceed </span><span class="cov3" title="7">{
+                result = ui.New(r.reviewCountdownGetter(true)).
+                        Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span><span class="cov2" title="3">{
+                                if err = r.ProceedReview(player); err == nil </span><span class="cov1" title="1">{
+                                        elem.Dirty(r)
+                                }</span>
+                                <span class="cov2" title="3">return</span>
+                        })
+        }
+        <span class="cov4" title="15">return</span>
+}
+
+func (r *Room) reviewControlRole(player *Player) (active, canProceed bool) <span class="cov4" title="28">{
+        r.mu.RLock()
+        if r.state == StateReview &amp;&amp; r.reviewWinner != nil </span><span class="cov4" title="24">{
+                active = true
+                canProceed = player != nil &amp;&amp; r.judgeLocked() == player
+        }</span>
+        <span class="cov4" title="28">r.mu.RUnlock()
+        return</span>
+}
+
+func (r *Room) reviewCountdownGetter(actionable bool) (result bind.Getter[string]) <span class="cov4" title="14">{
+        result = bind.StringGetterFunc(func(*jaws.Element) (text string) </span><span class="cov4" title="13">{
+                r.mu.RLock()
+                active := r.state == StateReview &amp;&amp; r.reviewWinner != nil
+                deadline := r.reviewDeadline
+                gameWinner := r.reviewGameWinner
+                r.mu.RUnlock()
+                if active </span><span class="cov3" title="12">{
+                        text = reviewCountdownText(gameWinner, reviewCountdown(time.Now(), deadline), actionable)
+                }</span>
+                <span class="cov4" title="13">return</span>
+        }, &amp;r.reviewDeadline)
+        <span class="cov4" title="14">return</span>
+}
+
+func reviewCountdown(now, deadline time.Time) (result int) <span class="cov3" title="12">{
+        remaining := deadline.Sub(now)
+        if !deadline.IsZero() &amp;&amp; remaining &gt; 0 </span><span class="cov3" title="9">{
+                result = int((remaining + time.Second - time.Nanosecond) / time.Second)
+        }</span>
+        <span class="cov3" title="12">return</span>
+}
+
+func reviewCountdownText(gameWinner bool, countdown int, actionable bool) (result string) <span class="cov3" title="12">{
+        if actionable </span><span class="cov2" title="3">{
+                result = "Next Round"
+                if gameWinner </span><span class="cov1" title="1">{
+                        result = "Back to Lobby"
+                }</span>
+                <span class="cov2" title="3">if countdown &gt; 0 </span><span class="cov1" title="2">{
+                        result = fmt.Sprintf("%s (%d)", result, countdown)
+                }</span>
+                <span class="cov2" title="3">return</span>
+        }
+        <span class="cov3" title="9">unit := "seconds"
+        if countdown == 1 </span><span class="cov2" title="3">{
+                unit = "second"
+        }</span>
+        <span class="cov3" title="9">switch </span>{
+        case countdown &lt;= 0 &amp;&amp; gameWinner:<span class="cov1" title="1">
+                result = "Returning to the lobby."</span>
+        case countdown &lt;= 0:<span class="cov1" title="1">
+                result = "Advancing to the next round."</span>
+        case gameWinner:<span class="cov2" title="5">
+                result = fmt.Sprintf("Returning to the lobby in %d %s.", countdown, unit)</span>
+        default:<span class="cov1" title="2">
+                result = fmt.Sprintf("Next round in %d %s.", countdown, unit)</span>
+        }
+        <span class="cov3" title="9">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package game
+
+import (
+        "errors"
+        "slices"
+        "strings"
+        "sync"
+
+        "github.com/linkdata/xyzzy/internal/deck"
+)
+
+// Manager owns the active rooms and coordinates room membership.
+//
+// Its methods are safe for concurrent use. Managers must be constructed with
+// [NewManager] or [NewManagerWithOptions]; the zero value is not ready for use.
+type Manager struct {
+        mu      sync.RWMutex
+        rooms   map[string]*Room
+        catalog *deck.Catalog
+        opts    Options
+}
+
+func (m *Manager) notify(tags ...any) <span class="cov10" title="605">{
+        if dirty := m.opts.Dirty; dirty != nil </span><span class="cov3" title="5">{
+                dirty(tags...)
+        }</span>
+}
+
+// CreateRoom creates a room and seats player as its host.
+//
+// An empty defaultDecks slice uses the catalog defaults. It returns
+// [ErrAlreadyInRoom] when player is nil or already seated.
+func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) <span class="cov8" title="230">{
+        err = ErrAlreadyInRoom
+        if player != nil </span><span class="cov8" title="230">{
+                m.mu.Lock()
+                defer m.mu.Unlock()
+                if player.Room() == nil </span><span class="cov8" title="230">{
+                        var code string
+                        if code, err = m.newRoomCodeLocked(); err == nil </span><span class="cov8" title="230">{
+                                room = &amp;Room{
+                                        manager:       m,
+                                        code:          code,
+                                        catalog:       m.catalog,
+                                        rand:          newRoomRand(),
+                                        minPlayers:    m.opts.MinPlayers,
+                                        debug:         m.opts.Debug,
+                                        reviewDelay:   ReviewDelay,
+                                        targetScore:   ScoreGoal,
+                                        state:         StateLobby,
+                                        czarIndex:     -1,
+                                        selectedDecks: normalizeDecks(m.catalog, defaultDecks),
+                                }
+                                room.seatLocked(player)
+                                room.host = player
+                                room.players = []*Player{player}
+                                m.rooms[code] = room
+                        }</span>
+                }
+        }
+        <span class="cov8" title="230">return</span>
+}
+
+// Room returns the room matching code, or nil if no room matches.
+func (m *Manager) Room(code string) (result *Room) <span class="cov7" title="102">{
+        m.mu.RLock()
+        result = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
+        m.mu.RUnlock()
+        return
+}</span>
+
+// Rooms returns all active rooms ordered by code.
+//
+// The returned slice has independent storage.
+func (m *Manager) Rooms() (result []*Room) <span class="cov2" title="3">{
+        m.mu.RLock()
+        result = make([]*Room, 0, len(m.rooms))
+        for _, room := range m.rooms </span><span class="cov2" title="3">{
+                result = append(result, room)
+        }</span>
+        <span class="cov2" title="3">m.mu.RUnlock()
+        slices.SortFunc(result, func(a, b *Room) (result int) </span><span class="cov0" title="0">{ return strings.Compare(a.code, b.code) }</span>)
+        <span class="cov2" title="3">return</span>
+}
+
+// PublicRooms returns the non-private active rooms ordered by code.
+//
+// The returned slice has independent storage.
+func (m *Manager) PublicRooms() (result []*Room) <span class="cov2" title="3">{
+        for _, room := range m.Rooms() </span><span class="cov2" title="3">{
+                if !room.IsPrivate() </span><span class="cov1" title="2">{
+                        result = append(result, room)
+                }</span>
+        }
+        <span class="cov2" title="3">return</span>
+}
+
+// SetNickname normalizes and stores the player's nickname.
+//
+// The operation is serialized with room membership changes. A seated nickname
+// is unique within its [Room]. Changed dependency tags are passed to the
+// configured Dirty callback in [Options]. A nil player or unchanged value does
+// not invoke the callback.
+func (m *Manager) SetNickname(player *Player, nickname string) <span class="cov9" title="602">{
+        if player != nil </span><span class="cov9" title="602">{
+                nickname = NormalizeNickname(nickname)
+                var room *Room
+                var changed bool
+                m.mu.RLock()
+                if room = player.Room(); room != nil </span><span class="cov8" title="178">{
+                        changed = room.setNickname(player, nickname)
+                }</span> else<span class="cov9" title="424"> {
+                        changed = player.setNickname(nickname)
+                }</span>
+                <span class="cov9" title="602">m.mu.RUnlock()
+
+                if !changed </span><span class="cov1" title="2">{
+                        return
+                }</span>
+                <span class="cov9" title="600">if room != nil </span><span class="cov8" title="177">{
+                        m.notify(m, player, &amp;player.NicknameInput, room)
+                        return
+                }</span>
+                <span class="cov9" title="423">m.notify(m, player, &amp;player.NicknameInput)</span>
+        }
+}
+
+// JoinRoom seats player in the room matching code.
+//
+// Room lookup and seating are one operation, so a concurrent leave cannot
+// remove the room between them.
+func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) <span class="cov9" title="449">{
+        err = ErrRoomNotFound
+        if player != nil </span><span class="cov9" title="449">{
+                m.mu.Lock()
+                defer m.mu.Unlock()
+                room = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
+                if room != nil </span><span class="cov9" title="351">{
+                        err = ErrAlreadyInRoom
+                        if player.Room() != room </span><span class="cov9" title="351">{
+                                err = room.join(player)
+                        }</span>
+                }
+        }
+        <span class="cov9" title="449">return</span>
+}
+
+// LeaveRoom removes player from their current room.
+//
+// If the room becomes empty, LeaveRoom also removes it from the manager.
+func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) <span class="cov9" title="405">{
+        if player != nil </span><span class="cov9" title="405">{
+                m.mu.Lock()
+                defer m.mu.Unlock()
+                if room = player.Room(); room != nil </span><span class="cov9" title="405">{
+                        if empty = room.leave(player); empty &amp;&amp; m.rooms[room.code] == room </span><span class="cov7" title="98">{
+                                delete(m.rooms, room.code)
+                        }</span>
+                }
+        }
+        <span class="cov9" title="405">return</span>
+}
+
+// CleanupExpiredSessions removes players whose JaWS session is nil or expired.
+//
+// It deletes rooms that become empty and returns every affected room, including
+// deleted rooms, ordered by code. The returned slice has independent storage.
+func (m *Manager) CleanupExpiredSessions() (result []*Room) <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+        result = make([]*Room, 0)
+        for code, room := range m.rooms </span><span class="cov0" title="0">{
+                expired := room.expiredPlayers()
+                if len(expired) == 0 </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">result = append(result, room)
+                for _, player := range expired </span><span class="cov0" title="0">{
+                        if room.leave(player) </span><span class="cov0" title="0">{
+                                delete(m.rooms, code)
+                                break</span>
+                        }
+                }
+        }
+        <span class="cov0" title="0">slices.SortFunc(result, func(a, b *Room) (cmp int) </span><span class="cov0" title="0">{ cmp = strings.Compare(a.code, b.code); return }</span>)
+        <span class="cov0" title="0">return</span>
+}
+
+func (m *Manager) newRoomCodeLocked() (roomCode string, err error) <span class="cov8" title="230">{
+        for range 1024 </span><span class="cov8" title="230">{
+                s := randomCode()
+                if _, exists := m.rooms[s]; !exists </span><span class="cov8" title="230">{
+                        roomCode = s
+                        return
+                }</span>
+        }
+        <span class="cov0" title="0">err = errors.New("could not allocate room code")
+        return</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package game
+
+import (
+        "sync"
+        "sync/atomic"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/xyzzy/internal/deck"
+)
+
+// Player represents one participant's identity and game state.
+//
+// The zero value is detached. Room membership changes are published atomically
+// and observed with [Player.Room]. Once a player is shared between goroutines,
+// callers must use the concurrency-safe [Player], [Manager], and [Room] methods
+// documented for each field instead of accessing mutable fields directly.
+type Player struct {
+        // Session identifies the player's JaWS session. It is initialized before
+        // publication and immutable afterward. It may be nil when session expiry is
+        // not managed; [Manager.CleanupExpiredSessions] treats nil as expired.
+        Session *jaws.Session
+
+        // Nickname is the room-visible name. Use [Manager.SetNickname] and
+        // [Player.NicknameValue] during concurrent use.
+        Nickname string
+        // NicknameInput is the editable nickname value. Use [Player.NicknameField]
+        // and [Player.NicknameInputValue] during concurrent use.
+        NicknameInput string
+        // Score is managed by the player's current [Room]. Use [Room.ScoreFor]
+        // during concurrent use.
+        Score int
+        // Hand is managed by the player's current [Room]. Use [Room.HandFor] during
+        // concurrent use.
+        Hand []*deck.WhiteCard
+        // Submitted is managed by the player's current [Room]. Use [Room.SubmittedBy]
+        // during concurrent use.
+        Submitted []*deck.WhiteCard
+        // SelectedCards is managed by [Room.ToggleCardSelection]. Use
+        // [Room.SelectionOrderFor] during concurrent use.
+        SelectedCards []*deck.WhiteCard
+        // SelectedSubmission is managed by [Room.ToggleSubmissionSelection]. Use
+        // [Room.SubmissionSelected] during concurrent use.
+        SelectedSubmission *Submission
+
+        room atomic.Pointer[Room]
+        // Nested locking follows Manager.mu -&gt; Room.mu -&gt; Player.uiMu.
+        uiMu sync.Mutex
+}
+
+// Room returns the room in which the player is currently seated.
+//
+// It returns nil for a nil or detached player and is safe to call concurrently.
+func (p *Player) Room() (result *Room) <span class="cov9" title="2341">{
+        if p != nil </span><span class="cov9" title="2341">{
+                result = p.room.Load()
+        }</span>
+        <span class="cov9" title="2341">return</span>
+}
+
+// setRoom updates the player's current room. Writes are expected to happen
+// while the manager and room locks are held; the atomic store ensures
+// concurrent readers see a consistent value.
+func (p *Player) setRoom(r *Room) <span class="cov8" title="987">{
+        p.room.Store(r)
+}</span>
+
+// NicknameValue returns the player's room-visible nickname.
+//
+// It returns an empty string for a nil player and is safe to call concurrently.
+func (p *Player) NicknameValue() (result string) <span class="cov8" title="780">{
+        if p != nil </span><span class="cov8" title="780">{
+                p.uiMu.Lock()
+                result = p.Nickname
+                p.uiMu.Unlock()
+        }</span>
+        <span class="cov8" title="780">return</span>
+}
+
+// NicknameInputValue returns the player's current nickname input.
+//
+// It returns an empty string for a nil player and is safe to call concurrently.
+func (p *Player) NicknameInputValue() (result string) <span class="cov8" title="982">{
+        if p != nil </span><span class="cov8" title="982">{
+                p.uiMu.Lock()
+                result = p.NicknameInput
+                p.uiMu.Unlock()
+        }</span>
+        <span class="cov8" title="982">return</span>
+}
+
+func (p *Player) setNickname(nickname string) (changed bool) <span class="cov10" title="3182">{
+        if p != nil </span><span class="cov10" title="3182">{
+                p.uiMu.Lock()
+                if changed = p.Nickname != nickname || p.NicknameInput != nickname; changed </span><span class="cov9" title="2696">{
+                        p.Nickname = nickname
+                        p.NicknameInput = nickname
+                }</span>
+                <span class="cov10" title="3182">p.uiMu.Unlock()</span>
+        }
+        <span class="cov10" title="3182">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package game
+
+import (
+        "fmt"
+        mathrand "math/rand/v2"
+        "slices"
+        "strings"
+        "sync"
+        "time"
+
+        "github.com/linkdata/xyzzy/internal/deck"
+)
+
+// RoomState identifies a room's current phase.
+type RoomState string
+
+const (
+        // StateLobby accepts players and lobby-setting changes.
+        StateLobby RoomState = "lobby"
+        // StatePlaying accepts card submissions from players other than the judge.
+        StatePlaying RoomState = "playing"
+        // StateJudging accepts the judge's winning submission.
+        StateJudging RoomState = "judging"
+        // StateReview displays the round result before the next state begins.
+        StateReview RoomState = "results"
+)
+
+// Room coordinates one synchronized game and its seated players.
+//
+// Its methods may be called concurrently. Rooms are created by [Manager]; the
+// zero value is not ready for use.
+type Room struct {
+        manager          *Manager
+        code             string
+        catalog          *deck.Catalog
+        rand             *mathrand.Rand
+        minPlayers       int
+        debug            bool
+        mu               sync.RWMutex
+        host             *Player
+        players          []*Player
+        selectedDecks    []*deck.Deck
+        private          bool
+        targetScore      int
+        state            RoomState
+        round            int
+        czarIndex        int
+        currentBlack     *deck.BlackCard
+        submissionSeq    int
+        lastGameWinner   string
+        lastGameScores   []FinalScore
+        blackDraw        []*deck.BlackCard
+        blackDiscard     []*deck.BlackCard
+        whiteDraw        []*deck.WhiteCard
+        whiteDiscard     []*deck.WhiteCard
+        submissions      []*Submission
+        reviewDelay      time.Duration
+        reviewTimer      *time.Timer
+        reviewDeadline   time.Time
+        reviewWinner     *Player
+        reviewSubmission *Submission
+        reviewGameWinner bool
+        reviewToken      uint64
+}
+
+// Code returns the room's immutable join code.
+func (r *Room) Code() string <span class="cov7" title="449">{ return r.code }</span>
+
+// State returns the room's current phase.
+func (r *Room) State() (result RoomState) <span class="cov4" title="30">{
+        r.mu.RLock()
+        result = r.state
+        r.mu.RUnlock()
+        return
+}</span>
+
+// Host returns the current host, or nil when the room is empty.
+func (r *Room) Host() (result *Player) <span class="cov1" title="2">{
+        r.mu.RLock()
+        result = r.host
+        r.mu.RUnlock()
+        return
+}</span>
+
+// HostName returns the current host's nickname.
+//
+// It returns an empty string when the room has no host.
+func (r *Room) HostName() (result string) <span class="cov0" title="0">{
+        r.mu.RLock()
+        if r.host != nil </span><span class="cov0" title="0">{
+                result = r.host.Nickname
+        }</span>
+        <span class="cov0" title="0">r.mu.RUnlock()
+        return</span>
+}
+
+// Players returns a shallow copy of the seated-player list.
+func (r *Room) Players() (result []*Player) <span class="cov3" title="11">{
+        r.mu.RLock()
+        result = append([]*Player(nil), r.players...)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// PlayerCount returns the number of seated players.
+func (r *Room) PlayerCount() (result int) <span class="cov1" title="2">{
+        r.mu.RLock()
+        result = len(r.players)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// ScoreFor returns a seated player's current score.
+//
+// It returns zero when player is nil or not seated in the room.
+func (r *Room) ScoreFor(player *Player) (result int) <span class="cov2" title="3">{
+        r.mu.RLock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov2" title="3">{
+                result = current.Score
+        }</span>
+        <span class="cov2" title="3">r.mu.RUnlock()
+        return</span>
+}
+
+// SubmittedBy reports whether a seated player has submitted this round.
+func (r *Room) SubmittedBy(player *Player) (result bool) <span class="cov0" title="0">{
+        r.mu.RLock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov0" title="0">{
+                result = len(current.Submitted) &gt; 0
+        }</span>
+        <span class="cov0" title="0">r.mu.RUnlock()
+        return</span>
+}
+
+// HasPlayer reports whether player is seated in the room.
+func (r *Room) HasPlayer(player *Player) (result bool) <span class="cov0" title="0">{
+        r.mu.RLock()
+        result = r.playerLocked(player) != nil
+        r.mu.RUnlock()
+        return
+}</span>
+
+// IsHost reports whether player is the current host.
+func (r *Room) IsHost(player *Player) (result bool) <span class="cov0" title="0">{
+        r.mu.RLock()
+        result = player != nil &amp;&amp; r.host == player
+        r.mu.RUnlock()
+        return
+}</span>
+
+// IsJudge reports whether player is the current judge in an active game.
+func (r *Room) IsJudge(player *Player) (result bool) <span class="cov2" title="3">{
+        r.mu.RLock()
+        result = player != nil &amp;&amp; r.state != StateLobby &amp;&amp; r.judgeLocked() == player
+        r.mu.RUnlock()
+        return
+}</span>
+
+// CanJoin reports whether player can currently join the room.
+func (r *Room) CanJoin(player *Player) (result bool) <span class="cov1" title="1">{
+        r.mu.RLock()
+        result = r.canJoinLocked(player) == nil
+        r.mu.RUnlock()
+        return
+}</span>
+
+// CanSubmit reports whether player can currently submit cards.
+func (r *Room) CanSubmit(player *Player) (result bool) <span class="cov2" title="5">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+        current := r.playerLocked(player)
+        result = current != nil &amp;&amp; r.canSubmitLocked(current)
+        return
+}</span>
+
+// CanJudge reports whether player can currently choose the winning submission.
+func (r *Room) CanJudge(player *Player) (result bool) <span class="cov1" title="2">{
+        r.mu.RLock()
+        result = player != nil &amp;&amp; r.state == StateJudging &amp;&amp; r.judgeLocked() == player
+        r.mu.RUnlock()
+        return
+}</span>
+
+// DeckEnabled reports whether d is selected for the room.
+func (r *Room) DeckEnabled(d *deck.Deck) (result bool) <span class="cov1" title="2">{
+        if d != nil </span><span class="cov1" title="2">{
+                r.mu.RLock()
+                result = slices.Contains(r.selectedDecks, d)
+                r.mu.RUnlock()
+        }</span>
+        <span class="cov1" title="2">return</span>
+}
+
+// BlackCount returns the number of black cards in the selected decks.
+func (r *Room) BlackCount() (result int) <span class="cov1" title="1">{
+        r.mu.RLock()
+        result, _ = r.catalog.UnionCounts(r.selectedDecks)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// WhiteCount returns the number of white cards in the selected decks.
+func (r *Room) WhiteCount() (result int) <span class="cov1" title="1">{
+        r.mu.RLock()
+        _, result = r.catalog.UnionCounts(r.selectedDecks)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// RequiredWhite returns the minimum white-card count for the current players.
+func (r *Room) RequiredWhite() (result int) <span class="cov1" title="1">{
+        r.mu.RLock()
+        result = MinWhiteCardsPerPlayer * max(len(r.players), 1)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// TargetScore returns the number of points required to win the game.
+func (r *Room) TargetScore() (result int) <span class="cov2" title="5">{
+        r.mu.RLock()
+        result = r.targetScore
+        r.mu.RUnlock()
+        return
+}</span>
+
+// IsPrivate reports whether the room is omitted from the public room list.
+func (r *Room) IsPrivate() (result bool) <span class="cov2" title="6">{
+        r.mu.RLock()
+        result = r.private
+        r.mu.RUnlock()
+        return
+}</span>
+
+// MinTargetScore returns the smallest accepted target score.
+func (r *Room) MinTargetScore() (result int) <span class="cov1" title="1">{
+        r.mu.RLock()
+        result = r.minTargetScoreLocked()
+        r.mu.RUnlock()
+        return
+}</span>
+
+// CurrentBlack returns the current black card, or nil outside an active round.
+func (r *Room) CurrentBlack() (result *deck.BlackCard) <span class="cov2" title="5">{
+        r.mu.RLock()
+        result = r.currentBlackLocked()
+        r.mu.RUnlock()
+        return
+}</span>
+
+// NeedPick returns the number of white cards required by the current prompt.
+//
+// It returns zero outside an active round.
+func (r *Room) NeedPick() (result int) <span class="cov3" title="10">{
+        r.mu.RLock()
+        if black := r.currentBlackLocked(); black != nil </span><span class="cov3" title="10">{
+                result = black.Pick
+        }</span>
+        <span class="cov3" title="10">r.mu.RUnlock()
+        return</span>
+}
+
+// HandFor returns a shallow copy of a seated player's hand.
+//
+// It returns nil when player is nil or not seated in the room.
+func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) <span class="cov4" title="27">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov4" title="27">{
+                cards = append(cards, current.Hand...)
+        }</span>
+        <span class="cov4" title="27">return</span>
+}
+
+// NicknameFor returns a seated player's room-visible nickname.
+//
+// It returns an empty string when player is nil or not seated in the room.
+func (r *Room) NicknameFor(player *Player) (result string) <span class="cov6" title="201">{
+        r.mu.RLock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov6" title="201">{
+                result = current.Nickname
+        }</span>
+        <span class="cov6" title="201">r.mu.RUnlock()
+        return</span>
+}
+
+// SelectionOrderFor returns card's one-based selection order for player.
+//
+// It returns zero when the player, card, or selection is absent.
+func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result int) <span class="cov1" title="2">{
+        r.mu.RLock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov1" title="2">{
+                result = selectionOrderLocked(current, card)
+        }</span>
+        <span class="cov1" title="2">r.mu.RUnlock()
+        return</span>
+}
+
+// ToggleCardSelection toggles card in player's current submission selection.
+//
+// It reports whether the selection changed. Invalid cards and players that
+// cannot currently submit leave the selection unchanged.
+func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) <span class="cov1" title="2">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current == nil || !r.canSubmitLocked(current) || card == nil || !slices.Contains(current.Hand, card) </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov1" title="2">needPick := r.needPickLocked()
+        if idx := slices.Index(current.SelectedCards, card); idx &gt;= 0 </span><span class="cov0" title="0">{
+                current.SelectedCards = slices.Delete(current.SelectedCards, idx, idx+1)
+                changed = true
+                return
+        }</span>
+        <span class="cov1" title="2">if needPick == 1 </span><span class="cov1" title="2">{
+                current.SelectedCards = []*deck.WhiteCard{card}
+                changed = true
+                return
+        }</span>
+        <span class="cov0" title="0">if len(current.SelectedCards) &gt;= needPick </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">current.SelectedCards = append(current.SelectedCards, card)
+        changed = true
+        return</span>
+}
+
+// SubmissionSelected reports whether submission is selected by player.
+func (r *Room) SubmissionSelected(player *Player, submission *Submission) (result bool) <span class="cov1" title="2">{
+        r.mu.RLock()
+        if current := r.playerLocked(player); current != nil </span><span class="cov1" title="2">{
+                result = submission != nil &amp;&amp; current.SelectedSubmission == submission
+        }</span>
+        <span class="cov1" title="2">r.mu.RUnlock()
+        return</span>
+}
+
+// ToggleSubmissionSelection toggles submission in the judge's current selection.
+//
+// It reports whether the selection changed. Unknown submissions and players
+// that cannot currently judge leave the selection unchanged.
+func (r *Room) ToggleSubmissionSelection(player *Player, submission *Submission) (changed bool) <span class="cov1" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current == nil || r.state != StateJudging || r.judgeLocked() != current || submission == nil || !slices.Contains(r.submissions, submission) </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov1" title="1">if current.SelectedSubmission == submission </span><span class="cov0" title="0">{
+                current.SelectedSubmission = nil
+        }</span> else<span class="cov1" title="1"> {
+                current.SelectedSubmission = submission
+        }</span>
+        <span class="cov1" title="1">changed = true
+        return</span>
+}
+
+// Submissions returns a shallow copy of the current round's submissions.
+func (r *Room) Submissions() (submissions []*Submission) <span class="cov3" title="14">{
+        r.mu.RLock()
+        submissions = append(submissions, r.submissions...)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// SubmissionCards returns a copy of submission's card slice.
+//
+// It returns nil for a nil submission.
+func (r *Room) SubmissionCards(submission *Submission) (cards []*deck.WhiteCard) <span class="cov0" title="0">{
+        if submission != nil </span><span class="cov0" title="0">{
+                r.mu.RLock()
+                cards = append(cards, submission.Cards...)
+                r.mu.RUnlock()
+        }</span>
+        <span class="cov0" title="0">return</span>
+}
+
+// JudgePlayer returns the current judge, or nil when no judge is assigned.
+func (r *Room) JudgePlayer() (result *Player) <span class="cov3" title="11">{
+        r.mu.RLock()
+        result = r.judgeLocked()
+        r.mu.RUnlock()
+        return
+}</span>
+
+// JudgeName returns the current judge's nickname.
+//
+// It returns an empty string when there is no judge.
+func (r *Room) JudgeName() (result string) <span class="cov1" title="1">{
+        r.mu.RLock()
+        if judge := r.judgeLocked(); judge != nil </span><span class="cov1" title="1">{
+                result = judge.Nickname
+        }</span>
+        <span class="cov1" title="1">r.mu.RUnlock()
+        return</span>
+}
+
+// LastGameWinner returns the captured nickname of the most recent game winner.
+//
+// It returns an empty string until a game has completed or after a new game starts.
+func (r *Room) LastGameWinner() (result string) <span class="cov1" title="2">{
+        r.mu.RLock()
+        result = r.lastGameWinner
+        r.mu.RUnlock()
+        return
+}</span>
+
+// LastGameScores returns a copy of the most recently completed game's scores.
+func (r *Room) LastGameScores() (result []FinalScore) <span class="cov2" title="5">{
+        r.mu.RLock()
+        result = append([]FinalScore(nil), r.lastGameScores...)
+        r.mu.RUnlock()
+        return
+}</span>
+
+// IsRoundWinner reports whether player won the round currently under review.
+func (r *Room) IsRoundWinner(player *Player) (result bool) <span class="cov1" title="1">{
+        r.mu.RLock()
+        result = r.state == StateReview &amp;&amp; player != nil &amp;&amp; r.reviewWinner == player
+        r.mu.RUnlock()
+        return
+}</span>
+
+// IsWinningSubmission reports whether submission won the round under review.
+func (r *Room) IsWinningSubmission(submission *Submission) (result bool) <span class="cov1" title="2">{
+        r.mu.RLock()
+        result = r.state == StateReview &amp;&amp; submission != nil &amp;&amp; r.reviewSubmission == submission
+        r.mu.RUnlock()
+        return
+}</span>
+
+// SetPrivate changes whether the room appears in the public room list.
+//
+// Only the host may change this setting while the room is in [StateLobby].
+func (r *Room) SetPrivate(player *Player, private bool) (err error) <span class="cov2" title="4">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        err = r.setPrivateLocked(player, private)
+        return
+}</span>
+
+func (r *Room) setNickname(player *Player, nickname string) (changed bool) <span class="cov8" title="2178">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current != nil </span><span class="cov8" title="2178">{
+                nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
+                changed = current.setNickname(nickname)
+        }</span>
+        <span class="cov8" title="2178">return</span>
+}
+
+// SetTargetScore changes the number of points required to win.
+//
+// Only the host may change this setting while the room is in [StateLobby]. The
+// value is clamped to [Room.MinTargetScore] through 10.
+func (r *Room) SetTargetScore(player *Player, score int) (err error) <span class="cov1" title="2">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        err = r.setTargetScoreLocked(player, score)
+        return
+}</span>
+
+// SetDeckEnabled updates the room's deck selection.
+//
+// It reports whether the selection changed. Only the host can change a deck
+// from the room's catalog while the room is in [StateLobby].
+func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled bool) (changed bool, err error) <span class="cov3" title="7">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        if r.host != player </span><span class="cov1" title="1">{
+                err = ErrOnlyHostCanEdit
+                return
+        }</span>
+        <span class="cov2" title="6">if r.state != StateLobby </span><span class="cov1" title="1">{
+                err = ErrDecksLocked
+                return
+        }</span>
+        <span class="cov2" title="5">if selectedDeck == nil || r.catalog.DeckByID(selectedDeck.ID) != selectedDeck </span><span class="cov1" title="1">{
+                err = ErrUnknownDeck
+                return
+        }</span>
+        <span class="cov2" title="4">if slices.Contains(r.selectedDecks, selectedDeck) == enabled </span><span class="cov1" title="2">{
+                return
+        }</span>
+        <span class="cov1" title="2">selected := make(map[*deck.Deck]bool, len(r.selectedDecks))
+        for _, chosen := range r.selectedDecks </span><span class="cov1" title="1">{
+                selected[chosen] = true
+        }</span>
+        <span class="cov1" title="2">if enabled </span><span class="cov1" title="1">{
+                selected[selectedDeck] = true
+        }</span> else<span class="cov1" title="1"> {
+                delete(selected, selectedDeck)
+        }</span>
+        <span class="cov1" title="2">r.selectedDecks = sortedSelectedDecks(selected)
+        changed = true
+        return</span>
+}
+
+// Start begins a game and deals its opening round.
+//
+// The caller must be the host of a lobby with enough players and enough cards
+// in its selected decks.
+func (r *Room) Start(player *Player) (err error) <span class="cov4" title="22">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        if r.host != player </span><span class="cov0" title="0">{
+                err = ErrOnlyHostCanStart
+                return
+        }</span>
+        <span class="cov4" title="22">if r.state != StateLobby </span><span class="cov1" title="1">{
+                err = ErrGameInProgress
+                return
+        }</span>
+        <span class="cov4" title="21">if len(r.players) &lt; r.minPlayers </span><span class="cov0" title="0">{
+                err = fmt.Errorf("need at least %d players to start", r.minPlayers)
+                return
+        }</span>
+        <span class="cov4" title="21">blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
+        if blackCount &lt; MinBlackCards </span><span class="cov0" title="0">{
+                err = ErrNotEnoughBlackCards
+                return
+        }</span>
+        <span class="cov4" title="21">if whiteCount &lt; MinWhiteCardsPerPlayer*len(r.players) </span><span class="cov0" title="0">{
+                err = ErrNotEnoughWhiteCards
+                return
+        }</span>
+        <span class="cov4" title="21">blackCards, whiteCards := r.catalog.UnionCards(r.selectedDecks)
+        r.blackDraw = append([]*deck.BlackCard(nil), blackCards...)
+        r.whiteDraw = append([]*deck.WhiteCard(nil), whiteCards...)
+        r.rand.Shuffle(len(r.blackDraw), func(i, j int) </span><span class="cov8" title="1199">{ r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] }</span>)
+        <span class="cov4" title="21">r.rand.Shuffle(len(r.whiteDraw), func(i, j int) </span><span class="cov8" title="1579">{ r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] }</span>)
+        <span class="cov4" title="21">r.prepareOpeningBlackLocked(blackCards)
+        r.blackDiscard = nil
+        r.whiteDiscard = nil
+        r.submissions = nil
+        r.clearReviewLocked()
+        r.currentBlack = nil
+        r.submissionSeq = 0
+        r.lastGameWinner = ""
+        r.lastGameScores = nil
+        r.round = 0
+        r.czarIndex = -1
+        for _, current := range r.players </span><span class="cov5" title="61">{
+                current.Score = 0
+                current.Hand = nil
+                current.Submitted = nil
+                current.SelectedCards = nil
+                current.SelectedSubmission = nil
+        }</span>
+        <span class="cov4" title="21">r.advanceRoundLocked()
+        return</span>
+}
+
+// PlayCards submits cards from player's hand for the current prompt.
+//
+// The card slice is copied on success. The submission must contain exactly the
+// required number of unique cards, and the judge cannot submit.
+func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (err error) <span class="cov4" title="19">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        err = r.playCardsLocked(current, cards)
+        return
+}</span>
+
+// PlaySelectedCards submits and clears the player's current card selection.
+//
+// The selection is cleared only after a successful submission.
+func (r *Room) PlaySelectedCards(player *Player) (err error) <span class="cov1" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current != nil </span><span class="cov1" title="1">{
+                err = r.playCardsLocked(current, current.SelectedCards)
+                if err == nil </span><span class="cov1" title="1">{
+                        current.SelectedCards = nil
+                }</span>
+        } else<span class="cov0" title="0"> {
+                err = ErrOnlyPlayersCanPlay
+        }</span>
+        <span class="cov1" title="1">return</span>
+}
+
+func (r *Room) playCardsLocked(current *Player, cards []*deck.WhiteCard) (err error) <span class="cov4" title="20">{
+        if current == nil </span><span class="cov0" title="0">{
+                err = ErrOnlyPlayersCanPlay
+                return
+        }</span>
+        <span class="cov4" title="20">if r.state != StatePlaying </span><span class="cov0" title="0">{
+                err = ErrNotYourTurn
+                return
+        }</span>
+        <span class="cov4" title="20">if r.judgeLocked() == current </span><span class="cov0" title="0">{
+                err = ErrJudgeCannotPlay
+                return
+        }</span>
+        <span class="cov4" title="20">if len(current.Submitted) &gt; 0 </span><span class="cov0" title="0">{
+                err = ErrAlreadySubmitted
+                return
+        }</span>
+        <span class="cov4" title="20">cards = normalizeWhiteCards(cards)
+        if len(cards) != r.currentBlackLocked().Pick </span><span class="cov0" title="0">{
+                err = ErrNeedExactCards
+                return
+        }</span>
+        <span class="cov4" title="20">handSet := make(map[*deck.WhiteCard]struct{}, len(current.Hand))
+        for _, card := range current.Hand </span><span class="cov6" title="203">{
+                handSet[card] = struct{}{}
+        }</span>
+        <span class="cov4" title="20">for _, card := range cards </span><span class="cov4" title="23">{
+                if _, ok := handSet[card]; !ok </span><span class="cov0" title="0">{
+                        err = ErrCardNotInHand
+                        return
+                }</span>
+        }
+        <span class="cov4" title="20">remaining := make([]*deck.WhiteCard, 0, len(current.Hand)-len(cards))
+        selected := make(map[*deck.WhiteCard]struct{}, len(cards))
+        for _, card := range cards </span><span class="cov4" title="23">{
+                selected[card] = struct{}{}
+        }</span>
+        <span class="cov4" title="20">for _, card := range current.Hand </span><span class="cov6" title="203">{
+                if _, ok := selected[card]; ok </span><span class="cov4" title="23">{
+                        continue</span>
+                }
+                <span class="cov6" title="180">remaining = append(remaining, card)</span>
+        }
+        <span class="cov4" title="20">current.Hand = remaining
+        current.Submitted = append([]*deck.WhiteCard(nil), cards...)
+        r.submissionSeq++
+        r.submissions = append(r.submissions, &amp;Submission{
+                ID:     submissionID(r.round, r.submissionSeq),
+                Player: current,
+                Cards:  append([]*deck.WhiteCard(nil), cards...),
+        })
+        if len(r.submissions) == len(r.players)-1 </span><span class="cov3" title="8">{
+                r.rand.Shuffle(len(r.submissions), func(i, j int) </span><span class="cov3" title="11">{
+                        r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i]
+                }</span>)
+                <span class="cov3" title="8">r.state = StateJudging</span>
+        }
+        <span class="cov4" title="20">return</span>
+}
+
+// Judge records submission as the winner of the current round.
+//
+// The caller must be the current judge and submission must belong to the round.
+func (r *Room) Judge(player *Player, submission *Submission) (err error) <span class="cov2" title="6">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        err = r.judgeSubmissionLocked(player, submission)
+        return
+}</span>
+
+// JudgeSelectedSubmission records and clears the judge's selected submission.
+//
+// The selection is cleared only after a successful result.
+func (r *Room) JudgeSelectedSubmission(player *Player) (err error) <span class="cov1" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current == nil </span><span class="cov0" title="0">{
+                err = ErrNotJudge
+                return
+        }</span>
+        <span class="cov1" title="1">submission := current.SelectedSubmission
+        if err = r.judgeSubmissionLocked(player, submission); err == nil </span><span class="cov1" title="1">{
+                current.SelectedSubmission = nil
+        }</span>
+        <span class="cov1" title="1">return</span>
+}
+
+func (r *Room) judgeSubmissionLocked(player *Player, submission *Submission) (err error) <span class="cov3" title="7">{
+        if r.state != StateJudging </span><span class="cov0" title="0">{
+                err = ErrNotYourTurn
+                return
+        }</span>
+        <span class="cov3" title="7">if r.judgeLocked() != player </span><span class="cov0" title="0">{
+                err = ErrNotJudge
+                return
+        }</span>
+        <span class="cov3" title="7">var winner *Player
+        for _, candidate := range r.submissions </span><span class="cov3" title="7">{
+                if candidate == submission </span><span class="cov3" title="7">{
+                        winner = candidate.Player
+                        break</span>
+                }
+        }
+        <span class="cov3" title="7">if winner == nil </span><span class="cov0" title="0">{
+                err = ErrSubmissionNotFound
+                return
+        }</span>
+        <span class="cov3" title="7">winner.Score++
+        gameWinner := winner.Score &gt;= r.targetScore
+        if gameWinner </span><span class="cov1" title="1">{
+                r.captureLastGameLocked(winner)
+        }</span>
+        <span class="cov3" title="7">r.beginReviewLocked(winner, submission, gameWinner)
+        return</span>
+}
+
+// ProceedReview advances a completed round immediately.
+//
+// The caller must be the current judge while the room is in [StateReview]. It
+// starts the next round or returns a completed game to the lobby.
+func (r *Room) ProceedReview(player *Player) (err error) <span class="cov3" title="8">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        if r.state != StateReview </span><span class="cov1" title="1">{
+                err = ErrReviewNotReady
+                return
+        }</span>
+        <span class="cov3" title="7">if r.judgeLocked() != player </span><span class="cov1" title="1">{
+                err = ErrNotJudge
+                return
+        }</span>
+        <span class="cov2" title="6">r.finishReviewLocked()
+        return</span>
+}
+
+func (r *Room) join(player *Player) (err error) <span class="cov7" title="351">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        if r.playerLocked(player) == nil </span><span class="cov7" title="351">{
+                if err = r.canJoinLocked(player); err == nil </span><span class="cov7" title="350">{
+                        r.seatLocked(player)
+                        r.players = append(r.players, player)
+                        if r.host == nil </span><span class="cov0" title="0">{
+                                r.host = player
+                        }</span>
+                        <span class="cov7" title="350">r.dealJoinedPlayerLocked(player)</span>
+                }
+        }
+        <span class="cov7" title="351">return</span>
+}
+
+func (r *Room) leave(player *Player) (empty bool) <span class="cov7" title="405">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        current := r.playerLocked(player)
+        if current != nil </span><span class="cov7" title="405">{
+                wasJudge := r.judgeLocked() == current
+                wasReviewWinner := r.state == StateReview &amp;&amp; r.reviewWinner == current
+                idx := slices.Index(r.players, current)
+                if idx &gt;= 0 </span><span class="cov7" title="405">{
+                        if idx &lt; r.czarIndex </span><span class="cov0" title="0">{
+                                r.czarIndex--
+                        }</span>
+                        <span class="cov7" title="405">r.whiteDiscard = append(r.whiteDiscard, current.Hand...)
+                        r.whiteDiscard = append(r.whiteDiscard, current.Submitted...)
+                        current.setRoom(nil)
+                        current.Score = 0
+                        current.Hand = nil
+                        current.Submitted = nil
+                        current.SelectedCards = nil
+                        current.SelectedSubmission = nil
+                        r.players = append(r.players[:idx], r.players[idx+1:]...)
+                        r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) </span><span class="cov2" title="6">{ result = sub.Player == current; return }</span>)
+                        <span class="cov7" title="405">for _, other := range r.players </span><span class="cov6" title="313">{
+                                if other.SelectedSubmission != nil &amp;&amp; other.SelectedSubmission.Player == current </span><span class="cov1" title="1">{
+                                        other.SelectedSubmission = nil
+                                }</span>
+                        }
+                        <span class="cov7" title="405">if r.host == current </span><span class="cov6" title="202">{
+                                if len(r.players) &gt; 0 </span><span class="cov5" title="104">{
+                                        r.host = r.players[0]
+                                }</span> else<span class="cov5" title="98"> {
+                                        r.host = nil
+                                }</span>
+                        }
+                        <span class="cov7" title="405">if len(r.players) == 0 </span><span class="cov5" title="98">{
+                                r.clearReviewLocked()
+                        }</span> else<span class="cov6" title="307"> if r.state != StateLobby </span><span class="cov2" title="4">{
+                                switch </span>{
+                                case len(r.players) &lt; r.minPlayers:<span class="cov1" title="2">
+                                        r.resetToLobbyLocked()</span>
+                                case wasJudge:<span class="cov0" title="0">
+                                        r.resetToLobbyLocked()</span>
+                                case wasReviewWinner:<span class="cov1" title="1">
+                                        r.finishReviewLocked()</span>
+                                case len(r.submissions) == len(r.players)-1 &amp;&amp; r.state == StatePlaying:<span class="cov0" title="0">
+                                        r.rand.Shuffle(len(r.submissions), func(i, j int) </span><span class="cov0" title="0">{ r.submissions[i], r.submissions[j] = r.submissions[j], r.submissions[i] }</span>)
+                                        <span class="cov0" title="0">r.state = StateJudging</span>
+                                }
+                        }
+                }
+        }
+        <span class="cov7" title="405">return len(r.players) == 0</span>
+}
+
+func (r *Room) expiredPlayers() (result []*Player) <span class="cov0" title="0">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+        result = make([]*Player, 0)
+        for _, player := range r.players </span><span class="cov0" title="0">{
+                if player == nil || player.Session == nil || player.Session.Cookie().MaxAge &lt; 0 </span><span class="cov0" title="0">{
+                        result = append(result, player)
+                }</span>
+        }
+        <span class="cov0" title="0">return</span>
+}
+
+func (r *Room) seatLocked(player *Player) <span class="cov7" title="580">{
+        player.setNickname(r.uniqueNicknameLocked(player))
+        player.setRoom(r)
+        player.Score = 0
+        player.Hand = nil
+        player.Submitted = nil
+        player.SelectedCards = nil
+        player.SelectedSubmission = nil
+}</span>
+
+func (r *Room) canJoinLocked(player *Player) (err error) <span class="cov7" title="352">{
+        if player == nil </span><span class="cov0" title="0">{
+                err = ErrRoomNotFound
+                return
+        }</span>
+        <span class="cov7" title="352">if player.Room() != nil </span><span class="cov0" title="0">{
+                err = ErrAlreadyInRoom
+                return
+        }</span>
+        <span class="cov7" title="352">if len(r.players) &gt;= MaxPlayers </span><span class="cov0" title="0">{
+                err = ErrRoomFull
+                return
+        }</span>
+        <span class="cov7" title="352">if r.state == StateLobby </span><span class="cov7" title="348">{
+                return
+        }</span>
+        <span class="cov2" title="4">_, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
+        if whiteCount &lt; MinWhiteCardsPerPlayer*(len(r.players)+1) </span><span class="cov1" title="2">{
+                err = ErrNotEnoughWhiteCards
+        }</span>
+        <span class="cov2" title="4">return</span>
+}
+
+func (r *Room) dealJoinedPlayerLocked(player *Player) <span class="cov7" title="350">{
+        if player == nil || r.state == StateLobby </span><span class="cov7" title="348">{
+                return
+        }</span>
+        <span class="cov1" title="2">for len(player.Hand) &lt; HandSize </span><span class="cov4" title="20">{
+                card := r.drawWhiteLocked()
+                if card == nil </span><span class="cov0" title="0">{
+                        break</span>
+                }
+                <span class="cov4" title="20">player.Hand = append(player.Hand, card)</span>
+        }
+        <span class="cov1" title="2">if r.state != StatePlaying </span><span class="cov1" title="1">{
+                return
+        }</span>
+        <span class="cov1" title="1">black := r.currentBlackLocked()
+        if black == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov1" title="1">for range black.Draw </span><span class="cov1" title="1">{
+                card := r.drawWhiteLocked()
+                if card == nil </span><span class="cov0" title="0">{
+                        break</span>
+                }
+                <span class="cov1" title="1">player.Hand = append(player.Hand, card)</span>
+        }
+}
+
+func (r *Room) uniqueNicknameLocked(player *Player) (result string) <span class="cov7" title="580">{
+        result = NormalizeNickname(player.NicknameInputValue())
+        nickname := player.NicknameValue()
+        if result == "Player" &amp;&amp; strings.TrimSpace(nickname) != "" </span><span class="cov5" title="106">{
+                result = NormalizeNickname(nickname)
+        }</span>
+        <span class="cov7" title="580">result = r.uniqueNicknameForLocked(player, result)
+        return</span>
+}
+
+func (r *Room) uniqueNicknameForLocked(player *Player, nickname string) (result string) <span class="cov9" title="2758">{
+        result = nickname
+        base := result
+        for suffix := 2; ; suffix++ </span><span class="cov9" title="2960">{
+                if !r.nicknameTakenLocked(result, player) </span><span class="cov9" title="2758">{
+                        return
+                }</span>
+                <span class="cov6" title="202">result = fmt.Sprintf("%s-%d", base, suffix)</span>
+        }
+}
+
+func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bool) <span class="cov9" title="2960">{
+        for _, player := range r.players </span><span class="cov9" title="4934">{
+                if player == exclude </span><span class="cov8" title="2178">{
+                        continue</span>
+                }
+                <span class="cov9" title="2756">if strings.EqualFold(player.Nickname, candidate) </span><span class="cov6" title="202">{
+                        result = true
+                        return
+                }</span>
+        }
+        <span class="cov9" title="2758">return</span>
+}
+
+func (r *Room) resetToLobbyLocked() <span class="cov2" title="6">{
+        r.clearReviewLocked()
+        r.state = StateLobby
+        r.round = 0
+        r.czarIndex = -1
+        r.currentBlack = nil
+        r.submissionSeq = 0
+        r.blackDraw = nil
+        r.blackDiscard = nil
+        r.whiteDraw = nil
+        r.whiteDiscard = nil
+        r.submissions = nil
+        for _, player := range r.players </span><span class="cov3" title="13">{
+                player.Score = 0
+                player.Hand = nil
+                player.Submitted = nil
+                player.SelectedCards = nil
+                player.SelectedSubmission = nil
+        }</span>
+}
+
+func (r *Room) captureLastGameLocked(winner *Player) <span class="cov1" title="1">{
+        r.lastGameWinner = ""
+        r.lastGameScores = make([]FinalScore, 0, len(r.players))
+        for _, player := range r.players </span><span class="cov2" title="3">{
+                score := FinalScore{
+                        Player:   player,
+                        Nickname: player.Nickname,
+                        Score:    player.Score,
+                        IsWinner: player == winner,
+                }
+                if score.IsWinner </span><span class="cov1" title="1">{
+                        r.lastGameWinner = player.Nickname
+                }</span>
+                <span class="cov2" title="3">r.lastGameScores = append(r.lastGameScores, score)</span>
+        }
+        <span class="cov1" title="1">slices.SortStableFunc(r.lastGameScores, func(a, b FinalScore) (result int) </span><span class="cov1" title="2">{
+                if a.Score != b.Score </span><span class="cov1" title="1">{
+                        result = b.Score - a.Score
+                        return
+                }</span>
+                <span class="cov1" title="1">result = strings.Compare(a.Nickname, b.Nickname)
+                return</span>
+        })
+}
+
+func (r *Room) advanceRoundLocked() <span class="cov4" title="36">{
+        r.clearReviewLocked()
+        if r.currentBlack != nil </span><span class="cov2" title="5">{
+                r.blackDiscard = append(r.blackDiscard, r.currentBlack)
+        }</span>
+        <span class="cov4" title="36">for _, submission := range r.submissions </span><span class="cov3" title="11">{
+                r.whiteDiscard = append(r.whiteDiscard, submission.Cards...)
+        }</span>
+        <span class="cov4" title="36">for _, player := range r.players </span><span class="cov5" title="109">{
+                player.Submitted = nil
+        }</span>
+        <span class="cov4" title="36">r.submissions = nil
+        r.submissionSeq = 0
+        if len(r.players) == 0 </span><span class="cov0" title="0">{
+                r.resetToLobbyLocked()
+                return
+        }</span>
+        <span class="cov4" title="36">r.czarIndex++
+        if r.czarIndex &gt;= len(r.players) </span><span class="cov0" title="0">{
+                r.czarIndex = 0
+        }</span>
+        <span class="cov4" title="36">for _, player := range r.players </span><span class="cov5" title="109">{
+                for len(player.Hand) &lt; HandSize </span><span class="cov8" title="934">{
+                        card := r.drawWhiteLocked()
+                        if card == nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                        <span class="cov8" title="934">player.Hand = append(player.Hand, card)</span>
+                }
+        }
+        <span class="cov4" title="36">r.currentBlack = r.drawBlackLocked()
+        if r.currentBlack == nil </span><span class="cov0" title="0">{
+                r.resetToLobbyLocked()
+                return
+        }</span>
+        <span class="cov4" title="36">black := r.currentBlackLocked()
+        judge := r.judgeLocked()
+        for _, player := range r.players </span><span class="cov5" title="109">{
+                if player == judge </span><span class="cov4" title="36">{
+                        continue</span>
+                }
+                <span class="cov5" title="73">for i := 0; black != nil &amp;&amp; i &lt; black.Draw; i++ </span><span class="cov2" title="4">{
+                        card := r.drawWhiteLocked()
+                        if card == nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                        <span class="cov2" title="4">player.Hand = append(player.Hand, card)</span>
+                }
+        }
+        <span class="cov4" title="36">r.round++
+        r.state = StatePlaying</span>
+}
+
+func (r *Room) beginReviewLocked(winner *Player, submission *Submission, gameWinner bool) <span class="cov3" title="9">{
+        r.clearReviewLocked()
+        r.state = StateReview
+        r.reviewWinner = winner
+        r.reviewSubmission = submission
+        r.reviewGameWinner = gameWinner
+        delay := r.reviewDelay
+        if delay &lt;= 0 </span><span class="cov0" title="0">{
+                delay = ReviewDelay
+        }</span>
+        <span class="cov3" title="9">r.reviewDeadline = time.Now().Add(delay)
+        r.scheduleReviewTimerLocked()</span>
+}
+
+func (r *Room) finishReviewLocked() <span class="cov3" title="9">{
+        if r.reviewGameWinner </span><span class="cov2" title="4">{
+                r.resetToLobbyLocked()
+                return
+        }</span>
+        <span class="cov2" title="5">r.advanceRoundLocked()</span>
+}
+
+func (r *Room) scheduleReviewTimerLocked() <span class="cov3" title="12">{
+        delay := reviewTimerDelay(time.Now(), r.reviewDeadline)
+        token := r.reviewToken
+        r.reviewTimer = time.AfterFunc(delay, func() </span><span class="cov2" title="5">{
+                r.reviewTimerElapsed(token)
+        }</span>)
+}
+
+func reviewTimerDelay(now, deadline time.Time) (result time.Duration) <span class="cov3" title="12">{
+        remaining := deadline.Sub(now)
+        switch </span>{
+        case remaining &lt;= 0:<span class="cov0" title="0"></span>
+        case remaining &lt;= time.Second:<span class="cov1" title="2">
+                result = remaining</span>
+        default:<span class="cov3" title="10">
+                result = remaining % time.Second
+                if result == 0 </span><span class="cov1" title="2">{
+                        result = time.Second
+                }</span>
+        }
+        <span class="cov3" title="12">return</span>
+}
+
+func (r *Room) reviewTimerElapsed(token uint64) <span class="cov2" title="5">{
+        var manager *Manager
+        var dirty any
+        r.mu.Lock()
+        if r.state == StateReview &amp;&amp; r.reviewToken == token </span><span class="cov2" title="5">{
+                manager = r.manager
+                if time.Now().Before(r.reviewDeadline) </span><span class="cov2" title="3">{
+                        r.scheduleReviewTimerLocked()
+                        dirty = &amp;r.reviewDeadline
+                }</span> else<span class="cov1" title="2"> {
+                        r.finishReviewLocked()
+                        dirty = r
+                }</span>
+        }
+        <span class="cov2" title="5">r.mu.Unlock()
+        if manager != nil &amp;&amp; dirty != nil </span><span class="cov2" title="5">{
+                manager.notify(dirty)
+        }</span>
+}
+
+func (r *Room) clearReviewLocked() <span class="cov6" title="170">{
+        if r.reviewTimer != nil </span><span class="cov3" title="8">{
+                r.reviewTimer.Stop()
+                r.reviewTimer = nil
+        }</span>
+        <span class="cov6" title="170">r.reviewToken++
+        r.reviewDeadline = time.Time{}
+        r.reviewWinner = nil
+        r.reviewSubmission = nil
+        r.reviewGameWinner = false</span>
+}
+
+func (r *Room) drawWhiteLocked() (result *deck.WhiteCard) <span class="cov8" title="960">{
+        if len(r.whiteDraw) == 0 </span><span class="cov2" title="3">{
+                r.whiteDraw = append(r.whiteDraw, r.whiteDiscard...)
+                r.whiteDiscard = nil
+                r.rand.Shuffle(len(r.whiteDraw), func(i, j int) </span><span class="cov3" title="16">{ r.whiteDraw[i], r.whiteDraw[j] = r.whiteDraw[j], r.whiteDraw[i] }</span>)
+        }
+        <span class="cov8" title="960">if len(r.whiteDraw) == 0 </span><span class="cov1" title="1">{
+                return
+        }</span>
+        <span class="cov8" title="959">result = r.whiteDraw[len(r.whiteDraw)-1]
+        r.whiteDraw = r.whiteDraw[:len(r.whiteDraw)-1]
+        return</span>
+}
+
+func (r *Room) drawBlackLocked() (result *deck.BlackCard) <span class="cov4" title="37">{
+        if len(r.blackDraw) == 0 </span><span class="cov2" title="6">{
+                r.blackDraw = append(r.blackDraw, r.blackDiscard...)
+                r.blackDiscard = nil
+                r.rand.Shuffle(len(r.blackDraw), func(i, j int) </span><span class="cov0" title="0">{ r.blackDraw[i], r.blackDraw[j] = r.blackDraw[j], r.blackDraw[i] }</span>)
+        }
+        <span class="cov4" title="37">if len(r.blackDraw) == 0 </span><span class="cov1" title="1">{
+                return
+        }</span>
+        <span class="cov4" title="36">result = r.blackDraw[len(r.blackDraw)-1]
+        r.blackDraw = r.blackDraw[:len(r.blackDraw)-1]
+        return</span>
+}
+
+func (r *Room) judgeLocked() (result *Player) <span class="cov7" title="529">{
+        if len(r.players) == 0 || r.czarIndex &lt; 0 || r.czarIndex &gt;= len(r.players) </span><span class="cov7" title="401">{
+                return
+        }</span>
+        <span class="cov6" title="128">result = r.players[r.czarIndex]
+        return</span>
+}
+
+func (r *Room) currentBlackLocked() (result *deck.BlackCard) <span class="cov5" title="76">{
+        result = r.currentBlack
+        return
+}</span>
+
+func (r *Room) canSubmitLocked(player *Player) (result bool) <span class="cov3" title="9">{
+        result = player != nil &amp;&amp; r.state == StatePlaying &amp;&amp; r.judgeLocked() != player &amp;&amp; len(player.Submitted) == 0
+        return
+}</span>
+
+func (r *Room) needPickLocked() (result int) <span class="cov2" title="4">{
+        if black := r.currentBlackLocked(); black != nil </span><span class="cov2" title="4">{
+                result = black.Pick
+        }</span>
+        <span class="cov2" title="4">return</span>
+}
+
+func (r *Room) playerLocked(player *Player) (result *Player) <span class="cov9" title="3203">{
+        for _, current := range r.players </span><span class="cov10" title="5913">{
+                if current == player </span><span class="cov9" title="2852">{
+                        result = current
+                        return
+                }</span>
+        }
+        <span class="cov7" title="351">return</span>
+}
+
+func selectionOrderLocked(player *Player, card *deck.WhiteCard) (result int) <span class="cov1" title="2">{
+        for i, selected := range player.SelectedCards </span><span class="cov1" title="1">{
+                if selected == card </span><span class="cov1" title="1">{
+                        result = i + 1
+                        return
+                }</span>
+        }
+        <span class="cov1" title="1">return</span>
+}
+
+// FirstSelectedDeckNameForWhiteCard returns the first selected deck containing card.
+//
+// It returns an empty string for a nil room, a nil card, or a card absent from
+// the selected decks.
+func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result string) <span class="cov0" title="0">{
+        if r != nil &amp;&amp; card != nil </span><span class="cov0" title="0">{
+                r.mu.RLock()
+                defer r.mu.RUnlock()
+                result = r.firstSelectedDeckNameForWhiteCardLocked(card)
+        }</span>
+        <span class="cov0" title="0">return</span>
+}
+
+// FirstSelectedDeckNameForBlackCard returns the first selected deck containing card.
+//
+// It returns an empty string for a nil room, a nil card, or a card absent from
+// the selected decks.
+func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result string) <span class="cov0" title="0">{
+        if r != nil &amp;&amp; card != nil </span><span class="cov0" title="0">{
+                r.mu.RLock()
+                defer r.mu.RUnlock()
+                result = r.firstSelectedDeckNameForBlackCardLocked(card)
+        }</span>
+        <span class="cov0" title="0">return</span>
+}
+
+func (r *Room) firstSelectedDeckNameForWhiteCardLocked(card *deck.WhiteCard) (result string) <span class="cov0" title="0">{
+        for _, d := range r.selectedDecks </span><span class="cov0" title="0">{
+                if slices.Contains(d.WhiteCards, card) </span><span class="cov0" title="0">{
+                        result = d.Name
+                        return
+                }</span>
+        }
+        <span class="cov0" title="0">return</span>
+}
+
+func (r *Room) firstSelectedDeckNameForBlackCardLocked(card *deck.BlackCard) (result string) <span class="cov0" title="0">{
+        for _, d := range r.selectedDecks </span><span class="cov0" title="0">{
+                if slices.Contains(d.BlackCards, card) </span><span class="cov0" title="0">{
+                        result = d.Name
+                        return
+                }</span>
+        }
+        <span class="cov0" title="0">return</span>
+}
+
+func (r *Room) setTargetScoreLocked(player *Player, score int) (err error) <span class="cov1" title="2">{
+        score = r.normalizeTargetScoreLocked(score)
+        if err = r.lobbyControlErrorLocked(player); err == nil </span><span class="cov1" title="1">{
+                r.targetScore = score
+        }</span>
+        <span class="cov1" title="2">return</span>
+}
+
+func (r *Room) setPrivateLocked(player *Player, private bool) (err error) <span class="cov2" title="4">{
+        if err = r.lobbyControlErrorLocked(player); err == nil </span><span class="cov1" title="2">{
+                r.private = private
+        }</span>
+        <span class="cov2" title="4">return</span>
+}
+
+func (r *Room) lobbyControlErrorLocked(player *Player) (err error) <span class="cov4" title="19">{
+        if player == nil || r.host != player </span><span class="cov2" title="5">{
+                err = ErrOnlyHostCanEdit
+                return
+        }</span>
+        <span class="cov3" title="14">if r.state != StateLobby </span><span class="cov2" title="3">{
+                err = ErrGameInProgress
+                return
+        }</span>
+        <span class="cov3" title="11">return</span>
+}
+
+func (r *Room) normalizeTargetScoreLocked(score int) (result int) <span class="cov3" title="8">{
+        result = score
+        if result &lt; r.minTargetScoreLocked() </span><span class="cov2" title="3">{
+                result = r.minTargetScoreLocked()
+        }</span> else<span class="cov2" title="5"> if result &gt; 10 </span><span class="cov1" title="1">{
+                result = 10
+        }</span>
+        <span class="cov3" title="8">return</span>
+}
+
+func (r *Room) canStartLocked(player *Player) (result bool) <span class="cov1" title="2">{
+        if player == nil || r.host != player || r.state != StateLobby || len(r.players) &lt; r.minPlayers </span><span class="cov1" title="1">{
+                return
+        }</span>
+        <span class="cov1" title="1">blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
+        result = blackCount &gt;= MinBlackCards &amp;&amp; whiteCount &gt;= MinWhiteCardsPerPlayer*len(r.players)
+        return</span>
+}
+
+func (r *Room) minTargetScoreLocked() (result int) <span class="cov3" title="12">{
+        if r.debug </span><span class="cov1" title="2">{
+                result = 1
+                return
+        }</span>
+        <span class="cov3" title="10">result = 2
+        return</span>
+}
+
+func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) <span class="cov4" title="21">{
+        if !r.debug || len(r.blackDraw) == 0 </span><span class="cov4" title="19">{
+                return
+        }</span>
+        <span class="cov1" title="2">var best *deck.BlackCard
+        bestPick := -1
+        bestDraw := -1
+        for _, card := range cards </span><span class="cov5" title="120">{
+                if card == nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov5" title="120">if card.Pick &gt; bestPick || (card.Pick == bestPick &amp;&amp; card.Draw &gt; bestDraw) || (card.Pick == bestPick &amp;&amp; card.Draw == bestDraw &amp;&amp; (best == nil || card.ID &lt; best.ID)) </span><span class="cov2" title="4">{
+                        best = card
+                        bestPick = card.Pick
+                        bestDraw = card.Draw
+                }</span>
+        }
+        <span class="cov1" title="2">if best == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov1" title="2">for i, card := range r.blackDraw </span><span class="cov5" title="63">{
+                if card == best </span><span class="cov1" title="2">{
+                        last := len(r.blackDraw) - 1
+                        r.blackDraw[i], r.blackDraw[last] = r.blackDraw[last], r.blackDraw[i]
+                        return
+                }</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package ui
+
+import (
+        "crypto/rand"
+        "encoding/base64"
+        "fmt"
+        "html/template"
+        "net/http"
+        "path"
+        "strings"
+        "sync"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/jaws/jawsboot"
+        jui "github.com/linkdata/jaws/lib/ui"
+        "github.com/linkdata/secureheaders"
+        "github.com/linkdata/staticserve"
+        "github.com/linkdata/xyzzy"
+        "github.com/linkdata/xyzzy/internal/deck"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+const (
+        sessionKeyPlayer  = "player"
+        nicknameCookieTTL = 365 * 24 * 60 * 60
+)
+
+// App serves the xyzzy HTTP and JaWS user interface.
+type App struct {
+        Jaws              *jaws.Jaws
+        Catalog           *deck.Catalog
+        Manager           *game.Manager
+        createRoomLimiter *createRoomLimiter
+        playerMu          sync.Mutex
+}
+
+// New returns an App using the supplied JaWS server, catalog, and manager.
+//
+// It enables [jaws.StatusMetricActiveSessions]. To publish game changes to live
+// pages, manager must be constructed with [game.Options.Dirty] set to jw.Dirty.
+func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App <span class="cov5" title="71">{
+        jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
+        return &amp;App{
+                Jaws:              jw,
+                Catalog:           catalog,
+                Manager:           manager,
+                createRoomLimiter: newCreateRoomLimiter(),
+        }
+}</span>
+
+// SetupRoutes registers the App's HTTP routes and templates on mux.
+func (a *App) SetupRoutes(mux *http.ServeMux) (err error) <span class="cov5" title="63">{
+        var templates *template.Template
+        if templates, err = template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html"); err == nil </span><span class="cov5" title="63">{
+                if err = a.Jaws.AddTemplateLookuper(templates); err == nil </span><span class="cov5" title="63">{
+                        if err = a.Jaws.Setup(
+                                mux.Handle, "/static",
+                                jawsboot.Setup,
+                                staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
+                        ); err == nil </span><span class="cov5" title="63">{
+                                mux.Handle("GET /jaws/", a.Jaws)
+                                mux.Handle("GET /robots.txt", http.HandlerFunc(a.serveRobots))
+                                mux.Handle("GET /.well-known/security.txt", http.HandlerFunc(a.serveSecurityTxt))
+                                mux.Handle("GET /{$}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveLobby)))
+                                mux.Handle("GET /room/{code}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveRoom)))
+                                mux.Handle("GET /{path...}", http.HandlerFunc(a.serveNotFound))
+                        }</span>
+                }
+        }
+        <span class="cov5" title="63">return</span>
+}
+
+// Middleware applies the App's HTTP security headers to next.
+func (a *App) Middleware(next http.Handler) http.Handler <span class="cov5" title="49">{
+        return a.Jaws.SecureHeadersMiddleware(next)
+}</span>
+
+func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) <span class="cov5" title="85">{
+        sess := a.Jaws.GetSession(r)
+        if sess == nil </span><span class="cov1" title="1">{
+                http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+                return
+        }</span>
+        <span class="cov5" title="84">player := a.player(sess, r)
+        a.cleanupExpired()
+        if player.Room() != nil </span><span class="cov1" title="2">{
+                a.leaveRoom(player)
+        }</span>
+        <span class="cov5" title="84">a.syncNicknameCookie(w, r, player)
+        jui.Handler(a.Jaws, "index.html", templateDot{App: a, Player: player}).ServeHTTP(w, r)</span>
+}
+
+func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) <span class="cov5" title="45">{
+        sess := a.Jaws.GetSession(r)
+        if sess == nil </span><span class="cov1" title="1">{
+                http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+                return
+        }</span>
+        <span class="cov5" title="44">player := a.player(sess, r)
+        a.cleanupExpired()
+        roomCode := normalizeRoomCode(r.PathValue("code"))
+        if current := player.Room(); current != nil &amp;&amp; current.Code() != roomCode </span><span class="cov1" title="1">{
+                http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
+                return
+        }</span>
+        <span class="cov5" title="43">requestedRoom := a.Manager.Room(roomCode)
+        a.syncNicknameCookie(w, r, player)
+        jui.Handler(a.Jaws, "room.html", roomPageDot{
+                templateDot:   templateDot{App: a, Player: player},
+                RequestedCode: roomCode,
+                RequestedRoom: requestedRoom,
+        }).ServeHTTP(w, r)</span>
+}
+
+func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) <span class="cov10" title="3437">{
+        a.playerMu.Lock()
+        if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result == nil </span><span class="cov7" title="228">{
+                nickname := a.nicknameFromCookie(r)
+                if nickname == "" </span><span class="cov6" title="227">{
+                        nickname = generateNickname()
+                }</span> else<span class="cov1" title="1"> {
+                        nickname = game.NormalizeNickname(nickname)
+                }</span>
+                <span class="cov7" title="228">result = &amp;game.Player{
+                        Session:       sess,
+                        Nickname:      nickname,
+                        NicknameInput: nickname,
+                }
+                sess.Set(sessionKeyPlayer, result)</span>
+        }
+        <span class="cov10" title="3437">a.playerMu.Unlock()
+
+        if result.Room() == nil </span><span class="cov9" title="3412">{
+                if nickname := result.NicknameValue(); nickname == "" </span><span class="cov1" title="1">{
+                        a.Manager.SetNickname(result, generateNickname())
+                }</span> else<span class="cov9" title="3411"> if result.NicknameInputValue() == "" </span><span class="cov0" title="0">{
+                        a.Manager.SetNickname(result, nickname)
+                }</span>
+        }
+        <span class="cov10" title="3437">return</span>
+}
+
+func (a *App) cleanupExpired() <span class="cov6" title="129">{
+        affected := a.Manager.CleanupExpiredSessions()
+        if len(affected) &gt; 0 </span><span class="cov1" title="2">{
+                tags := []any{a.Manager}
+                for _, room := range affected </span><span class="cov1" title="2">{
+                        tags = append(tags, room)
+                }</span>
+                <span class="cov1" title="2">a.Jaws.Dirty(tags...)</span>
+        }
+}
+
+func (a *App) nicknameCookieName() (result string) <span class="cov7" title="364">{
+        result = strings.TrimSpace(a.Jaws.CookieName)
+        if result == "" </span><span class="cov0" title="0">{
+                result = "jaws"
+        }</span>
+        <span class="cov7" title="364">result += "_nickname"
+        return</span>
+}
+
+func (a *App) nicknameFromCookie(r *http.Request) (result string) <span class="cov7" title="355">{
+        if r != nil </span><span class="cov7" title="231">{
+                cookie, err := r.Cookie(a.nicknameCookieName())
+                if err == nil &amp;&amp; cookie.Value != "" </span><span class="cov4" title="20">{
+                        if raw, err := base64.RawURLEncoding.DecodeString(cookie.Value); err == nil </span><span class="cov4" title="20">{
+                                result = strings.TrimSpace(string(raw))
+                        }</span>
+                }
+        }
+        <span class="cov7" title="355">return</span>
+}
+
+func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname string) <span class="cov6" title="124">{
+        nickname = strings.TrimSpace(nickname)
+        value := ""
+        if nickname != "" </span><span class="cov6" title="124">{
+                value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
+        }</span>
+        <span class="cov6" title="124">http.SetCookie(w, &amp;http.Cookie{ // #nosec G124 -- Secure follows JaWS proxy trust; HttpOnly and SameSite are set below.
+                Name:     a.nicknameCookieName(),
+                Value:    value,
+                Path:     "/",
+                MaxAge:   nicknameCookieTTL,
+                HttpOnly: true,
+                SameSite: http.SameSiteLaxMode,
+                Secure:   secureheaders.RequestIsSecure(r, a.Jaws.TrustForwardedHeaders),
+        })</span>
+}
+
+func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player *game.Player) <span class="cov6" title="127">{
+        if player != nil </span><span class="cov6" title="127">{
+                nickname := strings.TrimSpace(a.playerNickname(player))
+                if nickname == "" </span><span class="cov0" title="0">{
+                        a.Manager.SetNickname(player, generateNickname())
+                        nickname = a.playerNickname(player)
+                }</span>
+                <span class="cov6" title="127">if nickname != a.nicknameFromCookie(r) </span><span class="cov6" title="117">{
+                        a.setNicknameCookie(w, r, nickname)
+                }</span>
+        }
+}
+
+func (a *App) playerNickname(player *game.Player) (result string) <span class="cov7" title="266">{
+        if player != nil </span><span class="cov7" title="266">{
+                if room := player.Room(); room != nil </span><span class="cov5" title="53">{
+                        result = room.NicknameFor(player)
+                        return
+                }</span>
+                <span class="cov6" title="213">result = player.NicknameValue()</span>
+        }
+        <span class="cov6" title="213">return</span>
+}
+
+func generateNickname() (result string) <span class="cov7" title="228">{
+        var b [3]byte
+        _, _ = rand.Read(b[:])
+        result = fmt.Sprintf("Player%X", b)
+        return
+}</span>
+
+func (a *App) createRoom(player *game.Player) (room *game.Room, err error) <span class="cov5" title="39">{
+        if room, err = a.Manager.CreateRoom(player, a.Catalog.DefaultDecks()); err == nil </span><span class="cov5" title="39">{
+                a.Jaws.Dirty(a.Manager, room, player)
+        }</span>
+        <span class="cov5" title="39">return</span>
+}
+
+func (a *App) joinRoom(player *game.Player, roomCode string) (room *game.Room, err error) <span class="cov4" title="28">{
+        if room, err = a.Manager.JoinRoom(roomCode, player); err == nil </span><span class="cov4" title="26">{
+                a.Jaws.Dirty(a.Manager, room, player)
+        }</span>
+        <span class="cov4" title="28">return</span>
+}
+
+func (a *App) leaveRoom(player *game.Player) (room *game.Room) <span class="cov2" title="4">{
+        room, _ = a.Manager.LeaveRoom(player)
+        a.Jaws.Dirty(a.Manager, room, player)
+        return
+}</span>
+
+// RoomURL returns the canonical path for code, or the lobby path for an empty code.
+func (a *App) RoomURL(code string) (result string) <span class="cov3" title="15">{
+        code = strings.ToUpper(strings.TrimSpace(code))
+        if code == "" </span><span class="cov0" title="0">{
+                result = "/"
+                return
+        }</span>
+        <span class="cov3" title="15">result = path.Join("/room", code)
+        return</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package ui
+
+import (
+        "net"
+        "net/http"
+        "strings"
+        "sync"
+        "time"
+)
+
+const (
+        createRoomMinuteBurst = 10
+        createRoomHourBurst   = 50
+)
+
+type createRoomLimiter struct {
+        mu      sync.Mutex
+        now     func() time.Time
+        buckets map[string]*createRoomBucket
+}
+
+type createRoomBucket struct {
+        minuteTokens float64
+        hourTokens   float64
+        minuteSeen   time.Time
+        hourSeen     time.Time
+}
+
+func newCreateRoomLimiter() (result *createRoomLimiter) <span class="cov8" title="73">{
+        result = &amp;createRoomLimiter{
+                now:     time.Now,
+                buckets: make(map[string]*createRoomBucket),
+        }
+        return
+}</span>
+
+// Allow reports whether one create-room attempt may proceed for ip.
+func (l *createRoomLimiter) Allow(ip string) (ok bool) <span class="cov8" title="84">{
+        now := l.now()
+        l.mu.Lock()
+        defer l.mu.Unlock()
+
+        bucket := l.buckets[ip]
+        if bucket == nil </span><span class="cov3" title="5">{
+                bucket = &amp;createRoomBucket{
+                        minuteTokens: createRoomMinuteBurst,
+                        hourTokens:   createRoomHourBurst,
+                        minuteSeen:   now,
+                        hourSeen:     now,
+                }
+                l.buckets[ip] = bucket
+        }</span>
+
+        <span class="cov8" title="84">bucket.minuteTokens = refillTokens(bucket.minuteTokens, bucket.minuteSeen, now, 5.0/60.0, createRoomMinuteBurst)
+        bucket.hourTokens = refillTokens(bucket.hourTokens, bucket.hourSeen, now, 50.0/3600.0, createRoomHourBurst)
+        bucket.minuteSeen = now
+        bucket.hourSeen = now
+
+        if bucket.minuteTokens &gt;= 1 &amp;&amp; bucket.hourTokens &gt;= 1 </span><span class="cov8" title="81">{
+                bucket.minuteTokens--
+                bucket.hourTokens--
+                ok = true
+        }</span>
+        <span class="cov8" title="84">return</span>
+}
+
+func refillTokens(tokens float64, lastSeen, now time.Time, rate float64, burst float64) (result float64) <span class="cov10" title="168">{
+        result = tokens + now.Sub(lastSeen).Seconds()*rate
+        if result &gt; burst </span><span class="cov0" title="0">{
+                result = burst
+        }</span>
+        <span class="cov10" title="168">return</span>
+}
+
+func clientIP(r *http.Request) (result string) <span class="cov4" title="8">{
+        if r != nil </span><span class="cov4" title="7">{
+                host := r.RemoteAddr
+                if splitHost, _, err := net.SplitHostPort(host); err == nil </span><span class="cov3" title="5">{
+                        host = splitHost
+                }</span>
+                <span class="cov4" title="7">result = strings.TrimSpace(host)</span>
+        }
+        <span class="cov4" title="8">if result == "" </span><span class="cov2" title="2">{
+                result = "unknown"
+        }</span>
+        <span class="cov4" title="8">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package ui
+
+import (
+        "strings"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/xyzzy/internal/deck"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+type deckInput struct {
+        Room   *game.Room
+        Player *game.Player
+        Deck   *deck.Deck
+}
+
+type roomDeckTag struct {
+        Room *game.Room
+        Deck *deck.Deck
+}
+
+func (d deckInput) JawsGet(*jaws.Element) (result bool) <span class="cov7" title="46">{
+        result = d.Room.DeckEnabled(d.Deck)
+        return
+}</span>
+
+func (d deckInput) JawsSet(elem *jaws.Element, value bool) (err error) <span class="cov3" title="5">{
+        var changed bool
+        if changed, err = d.Room.SetDeckEnabled(d.Player, d.Deck, value); err == nil </span><span class="cov3" title="4">{
+                if !changed </span><span class="cov1" title="1">{
+                        err = jaws.ErrValueUnchanged
+                        return
+                }</span>
+                <span class="cov2" title="3">elem.Dirty(d.Room)</span>
+        }
+        <span class="cov3" title="4">return</span>
+}
+
+func (d deckInput) JawsGetTag() (result any) <span class="cov7" title="43">{
+        if d.Room != nil </span><span class="cov7" title="42">{
+                result = roomDeckTag{Room: d.Room, Deck: d.Deck}
+        }</span>
+        <span class="cov7" title="43">return</span>
+}
+
+func cardFootnote(deckName, cardID string) (result string) <span class="cov8" title="56">{
+        number := strings.Map(func(r rune) (result rune) </span><span class="cov10" title="166">{
+                if r &gt;= '0' &amp;&amp; r &lt;= '9' </span><span class="cov9" title="110">{
+                        result = r
+                        return
+                }</span>
+                <span class="cov8" title="56">result = -1
+                return</span>
+        }, cardID)
+        <span class="cov8" title="56">switch </span>{
+        case deckName == "":<span class="cov0" title="0">
+                result = number</span>
+        case number == "":<span class="cov0" title="0">
+                result = deckName</span>
+        default:<span class="cov8" title="56">
+                result = deckName + " · " + number</span>
+        }
+        <span class="cov8" title="56">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file12" style="display: none">package ui
+
+import (
+        "strings"
+
+        "github.com/linkdata/jaws"
+        jui "github.com/linkdata/jaws/lib/ui"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+type roomSectionKind uint8
+
+const (
+        roomSectionSidebar roomSectionKind = iota
+        roomSectionMain
+)
+
+type roomSection struct {
+        App           *App
+        Player        *game.Player
+        RequestedCode string
+        RequestedRoom *game.Room
+        Kind          roomSectionKind
+}
+
+func (s roomSection) JawsGetTag() (result any) <span class="cov9" title="90">{
+        if s.Kind == roomSectionSidebar </span><span class="cov8" title="45">{
+                result = s.Player
+                return
+        }</span>
+        <span class="cov8" title="45">if s.RequestedRoom == nil </span><span class="cov2" title="2">{
+                result = []any{s.Player, s.App.Manager}
+                return
+        }</span>
+        <span class="cov7" title="43">result = []any{s.Player, s.App.Manager, s.RequestedRoom}
+        return</span>
+}
+
+func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) <span class="cov10" title="128">{
+        root := templateDot{App: s.App, Player: s.Player}
+        room := s.currentRoom()
+        if s.Kind == roomSectionSidebar </span><span class="cov8" title="59">{
+                if room != nil </span><span class="cov7" title="33">{
+                        dot := roomTemplateDot{templateDot: root, Room: room}
+                        result = []jaws.UI{jui.NewTemplate("div", "room_summary_panel.html", dot)}
+                }</span>
+                <span class="cov8" title="59">return</span>
+        }
+
+        <span class="cov8" title="69">if room != nil </span><span class="cov7" title="40">{
+                dot := gameTemplateDot{templateDot: root, Room: room}
+                result = []jaws.UI{jui.NewTemplate("div", roomGameTemplateName(room.State()), dot)}
+                return
+        }</span>
+
+        <span class="cov7" title="29">dot := roomTemplateDot{
+                templateDot: root,
+                Room:        s.requestedRoom(),
+        }
+        result = []jaws.UI{jui.NewTemplate("div", "room_single_panel.html", dot)}
+        return</span>
+}
+
+func (s roomSection) requestedRoom() (result *game.Room) <span class="cov7" title="29">{
+        if s.App.Manager.Room(s.RequestedCode) == s.RequestedRoom </span><span class="cov7" title="27">{
+                result = s.RequestedRoom
+        }</span>
+        <span class="cov7" title="29">return</span>
+}
+
+func (s roomSection) currentRoom() (result *game.Room) <span class="cov10" title="128">{
+        if s.Player != nil </span><span class="cov10" title="128">{
+                if room := s.Player.Room(); room != nil &amp;&amp; room == s.RequestedRoom </span><span class="cov8" title="73">{
+                        result = room
+                }</span>
+        }
+        <span class="cov10" title="128">return</span>
+}
+
+func roomGameTemplateName(state game.RoomState) (result string) <span class="cov8" title="45">{
+        switch state </span>{
+        case game.StateLobby:<span class="cov7" title="28">
+                result = "room_game_lobby.html"</span>
+        case game.StatePlaying:<span class="cov4" title="6">
+                result = "room_game_playing.html"</span>
+        case game.StateJudging:<span class="cov3" title="3">
+                result = "room_game_judging.html"</span>
+        case game.StateReview:<span class="cov4" title="7">
+                result = "room_game_review.html"</span>
+        }
+        <span class="cov8" title="45">return</span>
+}
+
+func normalizeRoomCode(roomCode string) (result string) <span class="cov8" title="44">{
+        result = strings.ToUpper(strings.TrimSpace(roomCode))
+        return
+}</span>
+</pre>
+		
+		<pre class="file" id="file13" style="display: none">package ui
+
+import (
+        "io"
+        "net/http"
+)
+
+func (a *App) serveRobots(w http.ResponseWriter, r *http.Request) <span class="cov1" title="1">{
+        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+        _, _ = io.WriteString(w, "User-agent: *\nDisallow: /room/\n")
+}</span>
+
+func (a *App) serveSecurityTxt(w http.ResponseWriter, r *http.Request) <span class="cov1" title="1">{
+        w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+        _, _ = io.WriteString(w, "Contact: mailto:jli@cparta.se\nExpires: 2027-05-19T00:00:00Z\nPreferred-Languages: en, sv\n")
+}</span>
+
+func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) <span class="cov10" title="4">{
+        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+        w.WriteHeader(http.StatusNotFound)
+        _, _ = io.WriteString(w, "&lt;!doctype html&gt;&lt;title&gt;Not Found&lt;/title&gt;&lt;h1&gt;Not Found&lt;/h1&gt;\n")
+}</span>
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package ui
+
+import (
+        "html/template"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+type submissionView struct {
+        Room       *game.Room
+        Player     *game.Player
+        Submission *game.Submission
+}
+
+// JawsGetTag returns no dependency tag.
+func (submissionView) JawsGetTag() any <span class="cov9" title="11">{ return nil }</span>
+
+func (v submissionView) Cards() (result []whiteCardView) <span class="cov9" title="11">{
+        if v.Room != nil &amp;&amp; v.Submission != nil </span><span class="cov9" title="11">{
+                result = submissionCardViews(v.Room, v.Submission)
+        }</span>
+        <span class="cov9" title="11">return</span>
+}
+
+func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) <span class="cov10" title="14">{
+        result = cardInitialHTMLAttr(
+                v.Room.SubmissionSelected(v.Player, v.Submission),
+                v.Room.IsWinningSubmission(v.Submission),
+                !v.Room.CanJudge(v.Player),
+        )
+        return
+}</span>
+
+func (v submissionView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) <span class="cov4" title="3">{
+        if v.Room.ToggleSubmissionSelection(v.Player, v.Submission) </span><span class="cov3" title="2">{
+                // Wrapper attributes are initial-only, so reconstruct the cards through
+                // their player-tagged parent after selection changes.
+                elem.Dirty(v.Player)
+        }</span>
+        <span class="cov4" title="3">return</span>
+}
+
+func submissionCardViews(room *game.Room, submission *game.Submission) (result []whiteCardView) <span class="cov9" title="11">{
+        cards := room.SubmissionCards(submission)
+        result = make([]whiteCardView, 0, len(cards))
+        for _, card := range cards </span><span class="cov9" title="12">{
+                // Submitted cards omit Player so hand-selection ordinals stay private.
+                result = append(result, whiteCardView{Room: room, Card: card})
+        }</span>
+        <span class="cov9" title="11">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file15" style="display: none">package ui
+
+import (
+        "errors"
+        "strconv"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/jaws/lib/bind"
+        jui "github.com/linkdata/jaws/lib/ui"
+        "github.com/linkdata/xyzzy/internal/deck"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+type templateDot struct {
+        App    *App
+        Player *game.Player
+}
+
+type roomPageDot struct {
+        templateDot
+        RequestedCode string
+        RequestedRoom *game.Room
+}
+
+var _ jaws.ConnectHandler = roomPageDot{}
+
+func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) <span class="cov6" title="23">{
+        if current := d.Player.Room(); current != nil </span><span class="cov5" title="14">{
+                if current != d.RequestedRoom </span><span class="cov1" title="1">{
+                        rq.Redirect(d.App.RoomURL(current.Code()))
+                }</span>
+                <span class="cov5" title="14">return</span>
+        }
+        <span class="cov5" title="9">if d.App.Manager.Room(d.RequestedCode) != d.RequestedRoom </span><span class="cov1" title="1">{
+                rq.Redirect(d.App.RoomURL(d.RequestedCode))
+                return
+        }</span>
+        <span class="cov4" title="8">if d.RequestedRoom == nil </span><span class="cov1" title="1">{
+                return
+        }</span>
+        <span class="cov4" title="7">var joined *game.Room
+        if joined, err = d.App.joinRoom(d.Player, d.RequestedCode); err == nil </span><span class="cov3" title="5">{
+                if joined != d.RequestedRoom </span><span class="cov0" title="0">{
+                        rq.Redirect(d.App.RoomURL(joined.Code()))
+                }</span>
+                <span class="cov3" title="5">return</span>
+        }
+        <span class="cov2" title="2">if current := d.Player.Room(); current != nil </span><span class="cov0" title="0">{
+                err = nil
+                if current != d.RequestedRoom </span><span class="cov0" title="0">{
+                        rq.Redirect(d.App.RoomURL(current.Code()))
+                }</span>
+                <span class="cov0" title="0">return</span>
+        }
+        <span class="cov2" title="2">if d.App.Manager.Room(d.RequestedCode) != d.RequestedRoom </span><span class="cov0" title="0">{
+                err = nil
+                rq.Redirect(d.App.RoomURL(d.RequestedCode))
+                return
+        }</span>
+        // These failures are normal rendered observer states. Returning one would
+        // close the WebSocket. Any intervening state change has already published its
+        // dependencies to pending and active Requests.
+        <span class="cov2" title="2">switch </span>{
+        case errors.Is(err, game.ErrAlreadyInRoom),
+                errors.Is(err, game.ErrRoomNotFound),
+                errors.Is(err, game.ErrRoomFull),
+                errors.Is(err, game.ErrNotEnoughWhiteCards):<span class="cov2" title="2">
+                err = nil</span>
+        }
+        <span class="cov2" title="2">return</span>
+}
+
+// JawsGetTag returns no dependency tag.
+func (templateDot) JawsGetTag() any <span class="cov9" title="84">{ return nil }</span>
+
+type roomTemplateDot struct {
+        templateDot
+        Room *game.Room
+}
+
+func (d roomTemplateDot) JawsGetTag() (result any) <span class="cov8" title="47">{
+        if d.Room != nil </span><span class="cov7" title="44">{
+                result = d.Room
+        }</span>
+        <span class="cov8" title="47">return</span>
+}
+
+type gameTemplateDot struct {
+        templateDot
+        Room *game.Room
+}
+
+func (d gameTemplateDot) JawsGetTag() any <span class="cov6" title="25">{
+        return []any{d.Player, d.Room}
+}</span>
+
+func (d roomPageDot) RoomSidebar() (result jaws.Container) <span class="cov7" title="44">{
+        result = roomSection{
+                App:           d.App,
+                Player:        d.Player,
+                RequestedCode: d.RequestedCode,
+                RequestedRoom: d.RequestedRoom,
+                Kind:          roomSectionSidebar,
+        }
+        return
+}</span>
+
+func (d roomPageDot) RoomMain() (result jaws.Container) <span class="cov7" title="45">{
+        result = roomSection{
+                App:           d.App,
+                Player:        d.Player,
+                RequestedCode: d.RequestedCode,
+                RequestedRoom: d.RequestedRoom,
+                Kind:          roomSectionMain,
+        }
+        return
+}</span>
+
+func (d templateDot) SaveNicknameButton() (result jui.Object) <span class="cov9" title="127">{
+        result = jui.New("Save Nickname").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) </span><span class="cov1" title="1">{
+                d.App.Manager.SetNickname(d.Player, d.Player.NicknameInputValue())
+                // Reloading the current page closes the Bootstrap modal without adding
+                // application JavaScript; nickname dirtying updates sibling Requests.
+                redirectURL := elem.Initial().URL.RequestURI()
+                if redirectURL == "" </span><span class="cov0" title="0">{
+                        redirectURL = "/"
+                }</span>
+                <span class="cov1" title="1">elem.Redirect(redirectURL)
+                return</span>
+        })
+        <span class="cov9" title="127">return</span>
+}
+
+func (d templateDot) CreateRoomButton() (result jui.Object) <span class="cov9" title="95">{
+        result = jui.New("Create Room").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) </span><span class="cov2" title="2">{
+                if current := d.Player.Room(); current != nil </span><span class="cov0" title="0">{
+                        elem.Redirect(d.App.RoomURL(current.Code()))
+                        return
+                }</span>
+                <span class="cov2" title="2">if !d.App.createRoomLimiter.Allow(clientIP(elem.Initial())) </span><span class="cov1" title="1">{
+                        elem.Alert("warning", "Please wait before creating another room.")
+                        return
+                }</span>
+                <span class="cov1" title="1">var room *game.Room
+                if room, err = d.App.createRoom(d.Player); err == nil </span><span class="cov1" title="1">{
+                        elem.Redirect(d.App.RoomURL(room.Code()))
+                }</span>
+                <span class="cov1" title="1">return</span>
+        })
+        <span class="cov9" title="95">return</span>
+}
+
+func (d templateDot) DisplayNickname() (result bind.Getter[string]) <span class="cov9" title="127">{
+        result = bind.StringGetterFunc(func(*jaws.Element) (nickname string) </span><span class="cov10" title="139">{
+                nickname = d.App.playerNickname(d.Player)
+                return
+        }</span>, d.Player)
+        <span class="cov9" title="127">return</span>
+}
+
+func (d templateDot) OnlineCount() (result bind.Getter[string]) <span class="cov9" title="84">{
+        result = bind.StringGetterFunc(func(*jaws.Element) (count string) </span><span class="cov9" title="91">{
+                count = strconv.Itoa(d.App.Jaws.ActiveSessionCount())
+                return
+        }</span>, d.App.Jaws.ActiveSessionCountTag())
+        <span class="cov9" title="84">return</span>
+}
+
+func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) <span class="cov7" title="41">{
+        result = deckInput{Room: d.Room, Player: d.Player, Deck: selectedDeck}
+        return
+}</span>
+
+func (d gameTemplateDot) HandCardViews() (result []whiteCardView) <span class="cov3" title="3">{
+        cards := d.Room.HandFor(d.Player)
+        result = make([]whiteCardView, 0, len(cards))
+        for _, card := range cards </span><span class="cov7" title="30">{
+                result = append(result, whiteCardView{
+                        Room:   d.Room,
+                        Player: d.Player,
+                        Card:   card,
+                })
+        }</span>
+        <span class="cov3" title="3">return</span>
+}
+
+func (d gameTemplateDot) SubmissionViews() (result []submissionView) <span class="cov5" title="10">{
+        submissions := d.Room.Submissions()
+        result = make([]submissionView, 0, len(submissions))
+        for _, submission := range submissions </span><span class="cov5" title="10">{
+                result = append(result, submissionView{
+                        Room:       d.Room,
+                        Player:     d.Player,
+                        Submission: submission,
+                })
+        }</span>
+        <span class="cov5" title="10">return</span>
+}
+
+func (d gameTemplateDot) WaitingTitle() (result string) <span class="cov3" title="3">{
+        switch d.Room.State() </span>{
+        case game.StateJudging:<span class="cov1" title="1">
+                if judge := d.Room.JudgeName(); judge != "" </span><span class="cov1" title="1">{
+                        result = judge + " is picking the winner"
+                        return
+                }</span>
+                <span class="cov0" title="0">result = "Waiting for the judge"</span>
+        case game.StatePlaying:<span class="cov2" title="2">
+                if d.Room.IsJudge(d.Player) </span><span class="cov2" title="2">{
+                        result = "Waiting for answers"
+                        return
+                }</span>
+                <span class="cov0" title="0">if d.Room.SubmittedBy(d.Player) </span><span class="cov0" title="0">{
+                        result = "Waiting for the rest of the table"
+                        return
+                }</span>
+                <span class="cov0" title="0">result = "Waiting"</span>
+        default:<span class="cov0" title="0">
+                result = "Waiting"</span>
+        }
+        <span class="cov0" title="0">return</span>
+}
+
+func (d gameTemplateDot) WaitingDetail() (result string) <span class="cov2" title="2">{
+        if d.Room.State() == game.StatePlaying </span><span class="cov2" title="2">{
+                if d.Room.IsJudge(d.Player) </span><span class="cov2" title="2">{
+                        result = "You'll choose the winner once every answer is in."
+                        return
+                }</span>
+                <span class="cov0" title="0">if d.Room.SubmittedBy(d.Player) </span><span class="cov0" title="0">{
+                        result = "Your cards are in."
+                }</span>
+        }
+        <span class="cov0" title="0">return</span>
+}
+
+func (d gameTemplateDot) BlackFootnote(card *deck.BlackCard) (result string) <span class="cov5" title="13">{
+        result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
+        return
+}</span>
+
+func (roomTemplateDot) StateBadgeClass(state game.RoomState) (result string) <span class="cov7" title="35">{
+        switch state </span>{
+        case game.StateLobby:<span class="cov6" title="22">
+                result = "bg-secondary"</span>
+        case game.StatePlaying:<span class="cov3" title="5">
+                result = "bg-success"</span>
+        case game.StateReview:<span class="cov4" title="6">
+                result = "bg-info text-dark"</span>
+        default:<span class="cov2" title="2">
+                result = "bg-warning text-dark"</span>
+        }
+        <span class="cov7" title="35">return</span>
+}
+</pre>
+		
+		<pre class="file" id="file16" style="display: none">package ui
+
+import (
+        "html/template"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/xyzzy/internal/deck"
+        "github.com/linkdata/xyzzy/internal/game"
+)
+
+type whiteCardView struct {
+        Player *game.Player
+        Room   *game.Room
+        Card   *deck.WhiteCard
+}
+
+// JawsGetTag returns no dependency tag.
+func (whiteCardView) JawsGetTag() any <span class="cov8" title="31">{ return nil }</span>
+
+func (v whiteCardView) SelectionOrder() (result int) <span class="cov10" title="78">{
+        result = v.Room.SelectionOrderFor(v.Player, v.Card)
+        return
+}</span>
+
+func (v whiteCardView) WhiteFootnote() (result string) <span class="cov8" title="43">{
+        result = cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
+        return
+}</span>
+
+func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) <span class="cov8" title="34">{
+        result = cardInitialHTMLAttr(v.SelectionOrder() &gt; 0, false, false)
+        return
+}</span>
+
+func cardInitialHTMLAttr(selected, winning, ariaDisabled bool) (result template.HTMLAttr) <span class="cov8" title="48">{
+        class := `class="card-face card-face-white w-100 text-start`
+        if winning </span><span class="cov5" title="8">{
+                class += ` is-winning`
+        }</span>
+        <span class="cov8" title="48">if selected </span><span class="cov4" title="5">{
+                class += ` is-selected`
+        }</span>
+        <span class="cov8" title="48">result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
+        if ariaDisabled </span><span class="cov5" title="10">{
+                result += ` aria-disabled="true"`
+        }</span>
+        <span class="cov8" title="48">return</span>
+}
+
+func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) <span class="cov3" title="3">{
+        if d.Room.ToggleCardSelection(d.Player, d.Card) </span><span class="cov3" title="3">{
+                // Wrapper attributes are initial-only, so reconstruct the cards through
+                // their player-tagged parent after selection changes.
+                elem.Dirty(d.Player)
+        }</span>
+        <span class="cov3" title="3">return</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
