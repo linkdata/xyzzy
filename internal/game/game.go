@@ -75,8 +75,8 @@ var (
 
 // NewManager creates a manager with default options.
 //
-// Dependency-tag publication is disabled. Use [NewManagerWithOptions] with
-// [Options.Dirty] when changes must be published.
+// Dependency-tag publication is disabled. Use [NewManagerWithOptions] with a
+// non-nil Dirty callback in [Options] when changes must be published.
 func NewManager(catalog *deck.Catalog) (result *Manager) {
 	result = NewManagerWithOptions(catalog, Options{})
 	return
@@ -84,7 +84,7 @@ func NewManager(catalog *deck.Catalog) (result *Manager) {
 
 // NewManagerWithOptions creates a manager using catalog and a copy of opts.
 //
-// An [Options.MinPlayers] value below two uses [MinPlayers]. The manager retains
+// An opts.MinPlayers value below two uses [MinPlayers]. The manager retains
 // catalog, whose contents must remain immutable.
 func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager) {
 	if opts.MinPlayers < 2 {

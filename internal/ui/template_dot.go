@@ -70,7 +70,7 @@ func (d roomPageDot) JawsConnect(rq *jaws.Request) (err error) {
 	return
 }
 
-// JawsGetTag leaves live-region dependencies to the rendered children.
+// JawsGetTag returns no dependency tag.
 func (templateDot) JawsGetTag() any { return nil }
 
 type roomTemplateDot struct {

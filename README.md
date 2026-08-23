@@ -104,10 +104,10 @@ Immediate-mode reconciliation answers two different questions:
 2. Which retained elements depend on a piece of state that changed?
 
 Comparable UI definitions answer the first question. Stable dependency tags
-answer the second. Dirtying a Container does not rerender an equal retained child,
-so those children register the state they read. Card Templates instead belong
-to the player/room-tagged game Template, whose update recreates them; their
-definition dots therefore return no dependency tag.
+answer the second. Dirtying a Container does not rerender an equal retained
+child, so those children register the state they read. Card Templates instead
+belong to the player/room-tagged game Template, whose update recreates them;
+their definition dots therefore return no dependency tag.
 
 | Dependency tag | Typical dependents |
 | --- | --- |
@@ -186,8 +186,7 @@ so concurrent page requests cannot create different players for one session.
 the page's WebSocket. The handler shares one captured room identity with both
 room sections and reloads if that identity changes before connection. A
 successful join dirties the `Manager`, `Room`, and `Player`; the retained
-containers then reconcile into the seated UI. Plain crawlers and link unfurlers
-cannot fill a room by fetching its URL.
+containers then reconcile into the seated UI. A GET alone cannot fill a room.
 
 The lobby binds a `Span` directly to `Jaws.ActiveSessionCount` using
 `ActiveSessionCountTag`. JaWS dirties the tag as request and session activity
