@@ -29,6 +29,8 @@ func TestCreateRoomLimiterEnforcesHourlyRate(t *testing.T) {
 	limiter := newCreateRoomLimiter()
 	limiter.now = func() time.Time { return now }
 
+	// Twelve seconds restores one minute token but only 1/6 of an hour
+	// token, so attempt 60 is the first rejected by the hour bucket.
 	for attempt := 1; attempt <= 60; attempt++ {
 		allowed := limiter.Allow("192.0.2.1")
 		if attempt < 60 && !allowed {
