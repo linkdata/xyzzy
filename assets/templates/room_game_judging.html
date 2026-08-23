@@ -15,7 +15,7 @@
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
   {{range $dot.SubmissionViews}}
   <div class="col">
-    {{$.Template "div" "submission_clickable.html" . `data-jawstemplate` `role="button"` `tabindex="0"`}}
+    {{$.Template "button" "submission_clickable.html" . `type="button"`}}
   </div>
   {{end}}
 </div>

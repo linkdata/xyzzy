@@ -6,13 +6,13 @@
       {{template "white_card_body.html" .}}
     {{end}}
   {{else}}
-  <div class="submission-stack">
+  <span class="submission-stack">
     {{range $cards}}
-    <div class="submission-card">
+    <span class="submission-card">
       {{template "white_card_body.html" .}}
-    </div>
+    </span>
     {{end}}
-  </div>
+  </span>
   {{end}}
 {{end}}
 {{end}}

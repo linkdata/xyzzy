@@ -119,6 +119,8 @@ func (d roomPageDot) RoomMain() (result jaws.Container) {
 func (d templateDot) SaveNicknameButton() (result jui.Object) {
 	result = jui.New("Save Nickname").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) {
 		d.App.Manager.SetNickname(d.Player, d.Player.NicknameInputValue())
+		// Reloading the current page closes the Bootstrap modal without adding
+		// application JavaScript; nickname dirtying updates sibling Requests.
 		redirectURL := elem.Request.Initial().URL.RequestURI()
 		if redirectURL == "" {
 			redirectURL = "/"

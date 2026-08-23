@@ -14,6 +14,9 @@ type whiteCardView struct {
 	Card   *deck.WhiteCard
 }
 
+// JawsGetTag leaves refresh ownership to the enclosing game Template.
+func (whiteCardView) JawsGetTag() any { return nil }
+
 func (v whiteCardView) SelectionOrder() (result int) {
 	result = v.Room.SelectionOrderFor(v.Player, v.Card)
 	return
@@ -46,6 +49,8 @@ func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTML
 
 func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
 	if d.Room.ToggleCardSelection(d.Player, d.Card) {
+		// Wrapper attributes are initial-only, so reconstruct the cards through
+		// their player-tagged parent after selection changes.
 		elem.Dirty(d.Player)
 	}
 	return
