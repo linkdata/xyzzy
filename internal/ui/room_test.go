@@ -444,17 +444,21 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(jui.NewTemplate("div", "hand_card_clickable.html", view))
+	elem := req.NewElement(jui.NewTemplate("button", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`type="button"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
-	if !strings.Contains(html, `<div id="Jid.`) || !strings.Contains(html, `role="button"`) {
-		t.Fatalf("expected clickable template wrapper div, got %s", html)
+	if !strings.Contains(html, `<button id="Jid.`) || !strings.Contains(html, `type="button"`) {
+		t.Fatalf("expected native card button, got %s", html)
 	}
-	if strings.Contains(html, "<button") {
-		t.Fatalf("expected non-button hand card template rendering, got %s", html)
+	if strings.Contains(html, "<div") || strings.Contains(html, "role=") || strings.Contains(html, "tabindex=") ||
+		strings.Contains(html, "data-jawstemplate") {
+		t.Fatalf("hand card button contains non-phrasing or redundant button markup: %s", html)
+	}
+	if tags := req.TagsOf(elem); len(tags) != 0 {
+		t.Fatalf("hand card Template tags = %#v, want parent-owned dependencies", tags)
 	}
 
 	clickData := jaws.Click{Name: "ignored"}.String()
@@ -565,17 +569,21 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		SubmissionViews()[0]
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(jui.NewTemplate("div", "submission_clickable.html", view))
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
 	var rendered bytes.Buffer
-	if err := elem.JawsRender(&rendered, []any{`data-jawstemplate`, `role="button"`, `tabindex="0"`}); err != nil {
+	if err := elem.JawsRender(&rendered, []any{`type="button"`}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
 	}
 	html := rendered.String()
-	if !strings.Contains(html, `<div id="Jid.`) || !strings.Contains(html, `role="button"`) {
-		t.Fatalf("expected clickable template wrapper div, got %s", html)
+	if !strings.Contains(html, `<button id="Jid.`) || !strings.Contains(html, `type="button"`) {
+		t.Fatalf("expected native submission button, got %s", html)
 	}
-	if strings.Contains(html, "<button") {
-		t.Fatalf("expected non-button submission template rendering, got %s", html)
+	if strings.Contains(html, "<div") || strings.Contains(html, "role=") || strings.Contains(html, "tabindex=") ||
+		strings.Contains(html, "data-jawstemplate") {
+		t.Fatalf("submission button contains non-phrasing or redundant button markup: %s", html)
+	}
+	if tags := req.TagsOf(elem); len(tags) != 0 {
+		t.Fatalf("submission Template tags = %#v, want parent-owned dependencies", tags)
 	}
 
 	clickData := jaws.Click{Name: "ignored"}.String()
@@ -591,6 +599,34 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 	if host.SelectedSubmission != nil {
 		t.Fatalf("SelectedSubmission after second click = %#v, want nil", host.SelectedSubmission)
+	}
+}
+
+func TestSubmissionTemplateUsesPhrasingStackMarkup(t *testing.T) {
+	app, _ := testApp(t)
+	host := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}
+	room, err := app.Manager.CreateRoom(host, app.Catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	view := submissionView{
+		Room: room,
+		Submission: &game.Submission{Cards: []*deck.WhiteCard{
+			app.Catalog.WhiteCards["w1"],
+			app.Catalog.WhiteCards["w2"],
+		}},
+	}
+
+	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
+	var rendered bytes.Buffer
+	if err = elem.JawsRender(&rendered, []any{`type="button"`}); err != nil {
+		t.Fatalf("JawsRender() error = %v", err)
+	}
+	html := rendered.String()
+	if !strings.Contains(html, `<span class="submission-stack">`) ||
+		strings.Count(html, `<span class="submission-card">`) != 2 || strings.Contains(html, "<div") {
+		t.Fatalf("stacked submission is not valid button content: %s", html)
 	}
 }
 
@@ -623,7 +659,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	view := dot.SubmissionViews()[0]
 	attr := string(view.JawsInitialHTMLAttr(new(jaws.Element)))
 	if !strings.Contains(attr, `class="card-face card-face-white w-100 text-start"`) ||
-		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "disabled") {
+		strings.Contains(attr, "is-selected") || strings.Contains(attr, "is-winning") || strings.Contains(attr, "aria-disabled") {
 		t.Fatalf("initial attributes = %q, want enabled unselected submission", attr)
 	}
 
@@ -631,7 +667,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatal("ToggleSubmissionSelection() did not select submission")
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
-	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "disabled") {
+	if !strings.Contains(attr, "is-selected") || strings.Contains(attr, "aria-disabled") {
 		t.Fatalf("selected attributes = %q, want enabled selected submission", attr)
 	}
 
@@ -639,8 +675,28 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 		t.Fatalf("Judge() error = %v", err)
 	}
 	attr = string(view.JawsInitialHTMLAttr(new(jaws.Element)))
-	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") || !strings.Contains(attr, "disabled") {
-		t.Fatalf("review attributes = %q, want selected disabled winning submission", attr)
+	if !strings.Contains(attr, "is-selected") || !strings.Contains(attr, "is-winning") ||
+		!strings.Contains(attr, `aria-disabled="true"`) {
+		t.Fatalf("review attributes = %q, want selected aria-disabled winning submission", attr)
+	}
+
+	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
+	var rendered bytes.Buffer
+	if err := elem.JawsRender(&rendered, []any{`type="button"`}); err != nil {
+		t.Fatalf("JawsRender() error = %v", err)
+	}
+	button, _, _ := strings.Cut(rendered.String(), ">")
+	if !strings.Contains(button, "<button ") || !strings.Contains(button, `aria-disabled="true"`) ||
+		strings.Contains(button, " disabled") {
+		t.Fatalf("review submission wrapper = %q, want focusable aria-disabled button", button)
+	}
+	clickData := jaws.Click{Name: "ignored"}.String()
+	if err := jaws.CallEventHandlers(elem.UI(), elem, what.Click, clickData); err != nil {
+		t.Fatalf("CallEventHandlers(review click) error = %v", err)
+	}
+	if host.SelectedSubmission != submission {
+		t.Fatalf("SelectedSubmission after review click = %#v, want %#v", host.SelectedSubmission, submission)
 	}
 }
 

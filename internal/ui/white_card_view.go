@@ -14,6 +14,9 @@ type whiteCardView struct {
 	Card   *deck.WhiteCard
 }
 
+// JawsGetTag returns no dependency tag.
+func (whiteCardView) JawsGetTag() any { return nil }
+
 func (v whiteCardView) SelectionOrder() (result int) {
 	result = v.Room.SelectionOrderFor(v.Player, v.Card)
 	return
@@ -29,7 +32,7 @@ func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLA
 	return
 }
 
-func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTMLAttr) {
+func cardInitialHTMLAttr(selected, winning, ariaDisabled bool) (result template.HTMLAttr) {
 	class := `class="card-face card-face-white w-100 text-start`
 	if winning {
 		class += ` is-winning`
@@ -38,14 +41,16 @@ func cardInitialHTMLAttr(selected, winning, disabled bool) (result template.HTML
 		class += ` is-selected`
 	}
 	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-	if disabled {
-		result += ` disabled`
+	if ariaDisabled {
+		result += ` aria-disabled="true"`
 	}
 	return
 }
 
 func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
 	if d.Room.ToggleCardSelection(d.Player, d.Card) {
+		// Wrapper attributes are initial-only, so reconstruct the cards through
+		// their player-tagged parent after selection changes.
 		elem.Dirty(d.Player)
 	}
 	return

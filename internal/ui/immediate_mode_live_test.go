@@ -29,6 +29,7 @@ const immediateModeTestTimeout = 5 * time.Second
 var (
 	immediateModeAttrRE                 = regexp.MustCompile(`(?i)\b([a-z][a-z0-9:_-]*)\s*=\s*"([^"]*)"`)
 	immediateModeFirstTagRE             = regexp.MustCompile(`(?is)^\s*<[a-z][a-z0-9:_-]*\b[^>]*>`)
+	immediateModeButtonRE               = regexp.MustCompile(`(?is)<button\b[^>]*>`)
 	immediateModeInputRE                = regexp.MustCompile(`(?is)<input\b[^>]*>`)
 	immediateModeNicknameModalTriggerRE = regexp.MustCompile(`(?is)<button\b[^>]*\bdata-bs-toggle="modal"[^>]*>.*?</button>`)
 	immediateModeSpanRE                 = regexp.MustCompile(`(?is)<span\b[^>]*>`)
@@ -845,6 +846,77 @@ func TestTargetScoreRangeInputUpdatesOnlyBoundControls(t *testing.T) {
 	}
 	if sawPanelInner {
 		t.Fatalf("target-score input sent Inner to room panel %v", panelJID)
+	}
+}
+
+func TestHandCardClickRecreatesParentOwnedControls(t *testing.T) {
+	h := newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{MinPlayers: 2})
+
+	h.get(t, "/")
+	hostSession := h.session(t)
+	host := h.app.player(hostSession, nil)
+	h.app.Manager.SetNickname(host, "Alice")
+	room, err := h.app.createRoom(host)
+	if err != nil {
+		t.Fatalf("createRoom() error = %v", err)
+	}
+
+	guestClient := h.newClient(t)
+	h.getWithClient(t, guestClient, "/")
+	guestSession := h.sessionForClient(t, guestClient)
+	guest := h.app.player(guestSession, nil)
+	h.app.Manager.SetNickname(guest, "Bob")
+	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
+		t.Fatalf("joinRoom() error = %v", err)
+	}
+	if err = room.Start(host); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	pageHTML := h.getWithClient(t, guestClient, h.app.RoomURL(room.Code()))
+	rq := immediateModeRequestForHTML(t, guestSession, pageHTML)
+	gameJID := immediateModeTemplateJID(t, rq, pageHTML, "room_game_playing.html")
+	cardJID := immediateModeElementJID(t, pageHTML, immediateModeButtonRE, func(attrs map[string]string) bool {
+		return immediateModeHasClasses(attrs, "card-face", "card-face-white")
+	})
+	cardElem := rq.GetElementByJid(cardJID)
+	if cardElem == nil {
+		t.Fatalf("card element %q not found", cardJID)
+	}
+	cardTemplate, ok := cardElem.UI().(jui.Template)
+	if !ok || cardTemplate.Name != "hand_card_clickable.html" {
+		t.Fatalf("card element = %#v, want hand card Template", cardElem)
+	}
+	cardView, ok := cardTemplate.Dot.(whiteCardView)
+	if !ok {
+		t.Fatalf("card Template dot = %T, want whiteCardView", cardTemplate.Dot)
+	}
+	if tags := rq.TagsOf(cardElem); len(tags) != 0 {
+		t.Fatalf("card Template tags = %#v, want parent-owned dependencies", tags)
+	}
+
+	conn, cancel := h.connectWithClient(t, guestClient, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "connected")
+
+	writeCtx, writeDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer writeDone()
+	click := wire.WsMsg{Jid: cardJID, What: what.Click, Data: (jaws.Click{Name: "select"}).String()}
+	if err = conn.Write(writeCtx, websocket.MessageText, []byte(click.Format())); err != nil {
+		t.Fatalf("card Click write error = %v", err)
+	}
+
+	updateCtx, updateDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer updateDone()
+	if err = reader.readUntil(updateCtx, func(msg wire.WsMsg) bool {
+		return msg.Jid == gameJID && msg.What == what.Inner &&
+			strings.Contains(msg.Data, "is-selected") && strings.Contains(msg.Data, "#1")
+	}); err != nil {
+		t.Fatalf("waiting for parent-owned card update: %v", err)
+	}
+	if order := room.SelectionOrderFor(guest, cardView.Card); order != 1 {
+		t.Fatalf("SelectionOrderFor() = %d, want 1", order)
 	}
 }
 

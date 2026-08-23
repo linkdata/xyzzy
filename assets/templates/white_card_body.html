@@ -1,10 +1,10 @@
 {{if .Card}}
-<div class="card-copy">{{.Card.HTML}}</div>
-<div class="card-footer-row card-footer-row-white">
+<span class="card-copy">{{.Card.HTML}}</span>
+<span class="card-footer-row card-footer-row-white">
   {{$order := .SelectionOrder}}
   {{if $order}}
-  <div class="card-selection-order">#{{$order}}</div>
+  <span class="card-selection-order">#{{$order}}</span>
   {{end}}
-  <div class="card-footnote">{{.WhiteFootnote}}</div>
-</div>
+  <span class="card-footnote">{{.WhiteFootnote}}</span>
+</span>
 {{end}}

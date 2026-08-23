@@ -100,9 +100,10 @@ Immediate-mode reconciliation answers two different questions:
 2. Which retained elements depend on a piece of state that changed?
 
 Comparable UI definitions answer the first question. Stable dependency tags
-answer the second. A parent becoming dirty does not imply that every equal
-retained child will rerender, so live children register the state they actually
-read.
+answer the second. Dirtying a Container does not rerender an equal retained child,
+so those children register the state they read. Card Templates instead belong
+to the player/room-tagged game Template, whose update recreates them; their
+definition dots therefore return no dependency tag.
 
 | Dependency tag | Typical dependents |
 | --- | --- |
