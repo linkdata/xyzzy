@@ -74,6 +74,9 @@ var (
 )
 
 // NewManager creates a manager with default options.
+//
+// Dependency-tag publication is disabled. Use [NewManagerWithOptions] with
+// [Options.Dirty] when changes must be published.
 func NewManager(catalog *deck.Catalog) (result *Manager) {
 	result = NewManagerWithOptions(catalog, Options{})
 	return

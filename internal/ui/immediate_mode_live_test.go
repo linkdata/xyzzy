@@ -648,6 +648,81 @@ func TestCreateRoomDirtiesPlayerMembershipAcrossLiveRequests(t *testing.T) {
 	}
 }
 
+func TestCreateRoomButtonCreatesRoom(t *testing.T) {
+	h := newLiveHarness(t)
+
+	pageHTML := h.get(t, "/")
+	sess := h.session(t)
+	player := h.app.player(sess, nil)
+	rq := immediateModeRequestForHTML(t, sess, pageHTML)
+	buttonJID := immediateModeButtonJID(t, rq, pageHTML, "Create Room")
+
+	conn, cancel := h.connect(t, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "create-room-connected")
+
+	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer done()
+	click := wire.WsMsg{Jid: buttonJID, What: what.Click, Data: (jaws.Click{Name: "create"}).String()}
+	if err := conn.Write(ctx, websocket.MessageText, []byte(click.Format())); err != nil {
+		t.Fatalf("create-room Click write error = %v", err)
+	}
+	var redirect string
+	if err := reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		if msg.What == what.Redirect {
+			redirect = msg.Data
+			return true
+		}
+		return false
+	}); err != nil {
+		t.Fatalf("waiting for create-room redirect: %v", err)
+	}
+	room := player.Room()
+	if room == nil {
+		t.Fatal("Create Room click did not seat player")
+	}
+	if want := h.app.RoomURL(room.Code()); redirect != want {
+		t.Fatalf("Create Room redirect = %q, want %q", redirect, want)
+	}
+}
+
+func TestCreateRoomButtonWarnsWhenRateLimited(t *testing.T) {
+	h := newLiveHarness(t)
+
+	pageHTML := h.get(t, "/")
+	sess := h.session(t)
+	player := h.app.player(sess, nil)
+	rq := immediateModeRequestForHTML(t, sess, pageHTML)
+	buttonJID := immediateModeButtonJID(t, rq, pageHTML, "Create Room")
+	ip := clientIP(rq.Initial())
+	for attempt := range createRoomMinuteBurst {
+		if !h.app.createRoomLimiter.Allow(ip) {
+			t.Fatalf("limiter setup attempt %d rejected", attempt+1)
+		}
+	}
+
+	conn, cancel := h.connect(t, pageHTML)
+	defer cancel()
+	reader := newImmediateModeWireReader(t, conn)
+	syncImmediateModeRequest(t, conn, rq, reader, "limited-create-room-connected")
+
+	ctx, done := context.WithTimeout(t.Context(), immediateModeTestTimeout)
+	defer done()
+	click := wire.WsMsg{Jid: buttonJID, What: what.Click, Data: (jaws.Click{Name: "create"}).String()}
+	if err := conn.Write(ctx, websocket.MessageText, []byte(click.Format())); err != nil {
+		t.Fatalf("create-room Click write error = %v", err)
+	}
+	if err := reader.readUntil(ctx, func(msg wire.WsMsg) bool {
+		return msg.What == what.Alert && strings.Contains(msg.Data, "Please wait before creating another room.")
+	}); err != nil {
+		t.Fatalf("waiting for rate-limit warning: %v", err)
+	}
+	if room := player.Room(); room != nil {
+		t.Fatalf("rate-limited Create Room seated player in %s", room.Code())
+	}
+}
+
 func TestRequestedRoomRemovalReplacesMainChild(t *testing.T) {
 	h := newLiveHarness(t)
 	room, players := immediateModeFullRoom(t, h)
