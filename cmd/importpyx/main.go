@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -37,9 +38,10 @@ func main() {
 
 func parseSQL(path string) (data *sqlData, err error) {
 	var f *os.File
+	// #nosec G304 -- the input path is explicitly supplied by the operator.
 	if f, err = os.Open(path); err == nil {
-		defer f.Close()
-		tmp_data := &sqlData{
+		defer func() { err = errors.Join(err, f.Close()) }()
+		parsed := &sqlData{
 			blackCards:     make(map[int]deck.BlackCard),
 			whiteCards:     make(map[int]deck.WhiteCard),
 			decks:          make(map[int]deckRecord),
@@ -90,7 +92,7 @@ func parseSQL(path string) (data *sqlData, err error) {
 				if pick, err = parseNonNegativeInt(parts[2], "black card pick"); err != nil {
 					return
 				}
-				tmp_data.blackCards[id] = deck.BlackCard{
+				parsed.blackCards[id] = deck.BlackCard{
 					ID:        fmt.Sprintf("pyx-b-%d", id),
 					Text:      parts[3],
 					Pick:      pick,
@@ -106,7 +108,7 @@ func parseSQL(path string) (data *sqlData, err error) {
 				if id, err = parseNonNegativeInt(parts[0], "white card id"); err != nil {
 					return
 				}
-				tmp_data.whiteCards[id] = deck.WhiteCard{
+				parsed.whiteCards[id] = deck.WhiteCard{
 					ID:        fmt.Sprintf("pyx-w-%d", id),
 					Text:      parts[1],
 					Watermark: parts[2],
@@ -128,11 +130,11 @@ func parseSQL(path string) (data *sqlData, err error) {
 				if deckID == "" {
 					deckID = fmt.Sprintf("deck-%d", id)
 				}
-				if _, exists := tmp_data.decks[id]; exists {
+				if _, exists := parsed.decks[id]; exists {
 					err = fmt.Errorf("duplicate deck row id %d", id)
 					return
 				}
-				tmp_data.decks[id] = deckRecord{
+				parsed.decks[id] = deckRecord{
 					active: parts[1] == "t",
 					meta: deck.DeckMetadata{
 						ID:               deckID,
@@ -155,7 +157,7 @@ func parseSQL(path string) (data *sqlData, err error) {
 				if cardID, err = parseNonNegativeInt(parts[1], "deck black card id"); err != nil {
 					return
 				}
-				tmp_data.deckBlackLinks[deckID] = append(tmp_data.deckBlackLinks[deckID], cardID)
+				parsed.deckBlackLinks[deckID] = append(parsed.deckBlackLinks[deckID], cardID)
 			case "deck_white":
 				if len(parts) < 2 {
 					err = fmt.Errorf("invalid deck white row: %q", line)
@@ -168,12 +170,12 @@ func parseSQL(path string) (data *sqlData, err error) {
 				if cardID, err = parseNonNegativeInt(parts[1], "deck white card id"); err != nil {
 					return
 				}
-				tmp_data.deckWhiteLinks[deckID] = append(tmp_data.deckWhiteLinks[deckID], cardID)
+				parsed.deckWhiteLinks[deckID] = append(parsed.deckWhiteLinks[deckID], cardID)
 			}
 		}
 		if err == nil {
 			if err = scanner.Err(); err == nil {
-				data = tmp_data
+				data = parsed
 			}
 		}
 	}
@@ -240,6 +242,7 @@ func writeAssets(outDir string, data *sqlData) (err error) {
 			filepath.Join(outDir, "cards", "white"),
 			filepath.Join(outDir, "decks"),
 		} {
+			// #nosec G301 -- generated asset directories are intentionally public-readable.
 			if err = os.MkdirAll(dir, 0o755); err != nil {
 				return
 			}
@@ -257,6 +260,7 @@ func writeAssets(outDir string, data *sqlData) (err error) {
 			}
 		}
 		for _, d := range decks {
+			// #nosec G301 -- generated asset directories are intentionally public-readable.
 			if err = os.MkdirAll(d.dir, 0o755); err != nil {
 				return
 			}
@@ -278,6 +282,7 @@ func writeJSON(path string, value any) (err error) {
 	var data []byte
 	if data, err = json.MarshalIndent(value, "", "  "); err == nil {
 		data = append(data, '\n')
+		// #nosec G306 -- generated assets are intentionally public-readable.
 		err = os.WriteFile(path, data, 0o644)
 	}
 	return

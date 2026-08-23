@@ -79,8 +79,6 @@ func main() {
 		slog.Error("listen", "err", err)
 		os.Exit(1)
 	}
-	defer l.Close()
-
 	go jw.Serve()
 	if err := cfg.Serve(context.Background(), l, app.Middleware(mux)); err != nil {
 		slog.Error("serve", "err", err)

@@ -2,7 +2,7 @@ package game
 
 import (
 	"fmt"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"slices"
 	"strings"
 	"sync"
@@ -851,7 +851,7 @@ func (r *Room) dealJoinedPlayerLocked(player *Player) {
 	if black == nil {
 		return
 	}
-	for i := 0; i < black.Draw; i++ {
+	for range black.Draw {
 		card := r.drawWhiteLocked()
 		if card == nil {
 			break

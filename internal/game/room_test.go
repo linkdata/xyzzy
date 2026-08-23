@@ -836,7 +836,7 @@ func TestSetDeckEnabledRejectsUnknownDeckPointer(t *testing.T) {
 }
 
 func TestDrawLockedReturnsNilWhenPilesEmpty(t *testing.T) {
-	room := &Room{rand: newCryptoRand()}
+	room := &Room{rand: newRoomRand()}
 	if card := room.drawWhiteLocked(); card != nil {
 		t.Fatalf("drawWhiteLocked() = %#v, want nil", card)
 	}

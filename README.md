@@ -1,3 +1,7 @@
+[![build](https://github.com/linkdata/xyzzy/actions/workflows/build.yml/badge.svg)](https://github.com/linkdata/xyzzy/actions/workflows/build.yml)
+[![coverage](https://github.com/linkdata/xyzzy/blob/gitcoverage/main/badge.svg)](https://html-preview.github.io/?url=https://github.com/linkdata/xyzzy/blob/gitcoverage/main/report.html)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/linkdata/xyzzy/badge)](https://scorecard.dev/viewer/?uri=github.com/linkdata/xyzzy)
+
 # Pretend You're Xyzzy
 
 Pretend You're Xyzzy is a multiplayer fill-in-the-blank party card game and a
@@ -14,7 +18,7 @@ remain in Go.
 
 ## Run it
 
-The module requires Go 1.26.1 or later. To start a local two-player game:
+The module requires Go 1.25.0 or later. To start a local two-player game:
 
 ```sh
 go run ./cmd/xyzzy -debug -address 127.0.0.1:8080
@@ -244,11 +248,17 @@ race-free and the relevant dirty notification converges the display.
 
 ## Verify it
 
-Run both test modes from the module root:
+Run the CI checks from the module root:
 
 ```sh
+test -z "$(gofmt -l .)"
+go vet ./...
+staticcheck ./...
+golangci-lint run
+gosec ./...
 go test -race ./...
 go test ./...
+go build ./...
 ```
 
 The race-enabled run checks concurrent state and multi-client updates. The

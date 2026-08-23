@@ -26,9 +26,10 @@ func (m *Manager) notify(tags ...any) {
 	}
 }
 
-// CreateRoom creates and hosts a room for player.
+// CreateRoom creates a room and seats player as its host.
 //
-// An empty defaultDecks slice selects the catalog defaults.
+// An empty defaultDecks slice uses the catalog defaults. It returns
+// [ErrAlreadyInRoom] when player is nil or already seated.
 func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
 	err = ErrAlreadyInRoom
 	if player != nil {
@@ -41,7 +42,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
 					manager:       m,
 					code:          code,
 					catalog:       m.catalog,
-					rand:          newCryptoRand(),
+					rand:          newRoomRand(),
 					minPlayers:    m.opts.MinPlayers,
 					debug:         m.opts.Debug,
 					reviewDelay:   ReviewDelay,
@@ -186,7 +187,7 @@ func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 }
 
 func (m *Manager) newRoomCodeLocked() (roomCode string, err error) {
-	for i := 0; i < 1024; i++ {
+	for range 1024 {
 		s := randomCode()
 		if _, exists := m.rooms[s]; !exists {
 			roomCode = s

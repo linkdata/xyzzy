@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"slices"
 	"strings"
 	"time"
@@ -189,8 +189,12 @@ func randomCode() (result string) {
 	return b.String()
 }
 
-func newCryptoRand() *mathrand.Rand {
-	var seed [8]byte
+func newRoomRand() *mathrand.Rand {
+	var seed [16]byte
 	_, _ = rand.Read(seed[:])
-	return mathrand.New(mathrand.NewSource(int64(binary.LittleEndian.Uint64(seed[:]))))
+	// #nosec G404 -- card shuffling is not a security boundary.
+	return mathrand.New(mathrand.NewPCG(
+		binary.LittleEndian.Uint64(seed[:8]),
+		binary.LittleEndian.Uint64(seed[8:]),
+	))
 }
