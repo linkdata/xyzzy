@@ -11,15 +11,24 @@ import (
 	"github.com/linkdata/xyzzy/internal/deck"
 )
 
+// RoomState identifies a room's current phase.
 type RoomState string
 
 const (
-	StateLobby   RoomState = "lobby"
+	// StateLobby accepts players and lobby-setting changes.
+	StateLobby RoomState = "lobby"
+	// StatePlaying accepts card submissions from players other than the judge.
 	StatePlaying RoomState = "playing"
+	// StateJudging accepts the judge's winning submission.
 	StateJudging RoomState = "judging"
-	StateReview  RoomState = "results"
+	// StateReview displays the round result before the next state begins.
+	StateReview RoomState = "results"
 )
 
+// Room coordinates one synchronized game and its seated players.
+//
+// Its methods may be called concurrently. Rooms are created by [Manager]; the
+// zero value is not ready for use.
 type Room struct {
 	manager          *Manager
 	code             string
@@ -54,8 +63,10 @@ type Room struct {
 	reviewToken      uint64
 }
 
+// Code returns the room's immutable join code.
 func (r *Room) Code() string { return r.code }
 
+// State returns the room's current phase.
 func (r *Room) State() (result RoomState) {
 	r.mu.RLock()
 	result = r.state
@@ -63,6 +74,7 @@ func (r *Room) State() (result RoomState) {
 	return
 }
 
+// Host returns the current host, or nil when the room is empty.
 func (r *Room) Host() (result *Player) {
 	r.mu.RLock()
 	result = r.host
@@ -70,6 +82,9 @@ func (r *Room) Host() (result *Player) {
 	return
 }
 
+// HostName returns the current host's nickname.
+//
+// It returns an empty string when the room has no host.
 func (r *Room) HostName() (result string) {
 	r.mu.RLock()
 	if r.host != nil {
@@ -79,6 +94,7 @@ func (r *Room) HostName() (result string) {
 	return
 }
 
+// Players returns a shallow copy of the seated-player list.
 func (r *Room) Players() (result []*Player) {
 	r.mu.RLock()
 	result = append([]*Player(nil), r.players...)
@@ -86,6 +102,7 @@ func (r *Room) Players() (result []*Player) {
 	return
 }
 
+// PlayerCount returns the number of seated players.
 func (r *Room) PlayerCount() (result int) {
 	r.mu.RLock()
 	result = len(r.players)
@@ -93,6 +110,9 @@ func (r *Room) PlayerCount() (result int) {
 	return
 }
 
+// ScoreFor returns a seated player's current score.
+//
+// It returns zero when player is nil or not seated in the room.
 func (r *Room) ScoreFor(player *Player) (result int) {
 	r.mu.RLock()
 	if current := r.playerLocked(player); current != nil {
@@ -102,6 +122,7 @@ func (r *Room) ScoreFor(player *Player) (result int) {
 	return
 }
 
+// SubmittedBy reports whether a seated player has submitted this round.
 func (r *Room) SubmittedBy(player *Player) (result bool) {
 	r.mu.RLock()
 	if current := r.playerLocked(player); current != nil {
@@ -111,6 +132,7 @@ func (r *Room) SubmittedBy(player *Player) (result bool) {
 	return
 }
 
+// HasPlayer reports whether player is seated in the room.
 func (r *Room) HasPlayer(player *Player) (result bool) {
 	r.mu.RLock()
 	result = r.playerLocked(player) != nil
@@ -118,6 +140,7 @@ func (r *Room) HasPlayer(player *Player) (result bool) {
 	return
 }
 
+// IsHost reports whether player is the current host.
 func (r *Room) IsHost(player *Player) (result bool) {
 	r.mu.RLock()
 	result = player != nil && r.host == player
@@ -125,6 +148,7 @@ func (r *Room) IsHost(player *Player) (result bool) {
 	return
 }
 
+// IsJudge reports whether player is the current judge in an active game.
 func (r *Room) IsJudge(player *Player) (result bool) {
 	r.mu.RLock()
 	result = player != nil && r.state != StateLobby && r.judgeLocked() == player
@@ -132,6 +156,7 @@ func (r *Room) IsJudge(player *Player) (result bool) {
 	return
 }
 
+// CanJoin reports whether player can currently join the room.
 func (r *Room) CanJoin(player *Player) (result bool) {
 	r.mu.RLock()
 	result = r.canJoinLocked(player) == nil
@@ -139,6 +164,7 @@ func (r *Room) CanJoin(player *Player) (result bool) {
 	return
 }
 
+// CanSubmit reports whether player can currently submit cards.
 func (r *Room) CanSubmit(player *Player) (result bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -147,6 +173,7 @@ func (r *Room) CanSubmit(player *Player) (result bool) {
 	return
 }
 
+// CanJudge reports whether player can currently choose the winning submission.
 func (r *Room) CanJudge(player *Player) (result bool) {
 	r.mu.RLock()
 	result = player != nil && r.state == StateJudging && r.judgeLocked() == player
@@ -154,14 +181,7 @@ func (r *Room) CanJudge(player *Player) (result bool) {
 	return
 }
 
-func (r *Room) SelectedDecks() (result []*deck.Deck) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result = make([]*deck.Deck, 0, len(r.selectedDecks))
-	result = append(result, r.selectedDecks...)
-	return
-}
-
+// DeckEnabled reports whether d is selected for the room.
 func (r *Room) DeckEnabled(d *deck.Deck) (result bool) {
 	if d != nil {
 		r.mu.RLock()
@@ -195,6 +215,7 @@ func (r *Room) RequiredWhite() (result int) {
 	return
 }
 
+// TargetScore returns the number of points required to win the game.
 func (r *Room) TargetScore() (result int) {
 	r.mu.RLock()
 	result = r.targetScore
@@ -202,6 +223,7 @@ func (r *Room) TargetScore() (result int) {
 	return
 }
 
+// IsPrivate reports whether the room is omitted from the public room list.
 func (r *Room) IsPrivate() (result bool) {
 	r.mu.RLock()
 	result = r.private
@@ -209,6 +231,7 @@ func (r *Room) IsPrivate() (result bool) {
 	return
 }
 
+// MinTargetScore returns the smallest accepted target score.
 func (r *Room) MinTargetScore() (result int) {
 	r.mu.RLock()
 	result = r.minTargetScoreLocked()
@@ -216,6 +239,7 @@ func (r *Room) MinTargetScore() (result int) {
 	return
 }
 
+// CurrentBlack returns the current black card, or nil outside an active round.
 func (r *Room) CurrentBlack() (result *deck.BlackCard) {
 	r.mu.RLock()
 	result = r.currentBlackLocked()
@@ -223,6 +247,9 @@ func (r *Room) CurrentBlack() (result *deck.BlackCard) {
 	return
 }
 
+// NeedPick returns the number of white cards required by the current prompt.
+//
+// It returns zero outside an active round.
 func (r *Room) NeedPick() (result int) {
 	r.mu.RLock()
 	if black := r.currentBlackLocked(); black != nil {
@@ -232,6 +259,9 @@ func (r *Room) NeedPick() (result int) {
 	return
 }
 
+// HandFor returns a shallow copy of a seated player's hand.
+//
+// It returns nil when player is nil or not seated in the room.
 func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -241,7 +271,9 @@ func (r *Room) HandFor(player *Player) (cards []*deck.WhiteCard) {
 	return
 }
 
-// NicknameFor returns the player's room-visible nickname.
+// NicknameFor returns a seated player's room-visible nickname.
+//
+// It returns an empty string when player is nil or not seated in the room.
 func (r *Room) NicknameFor(player *Player) (result string) {
 	r.mu.RLock()
 	if current := r.playerLocked(player); current != nil {
@@ -251,7 +283,9 @@ func (r *Room) NicknameFor(player *Player) (result string) {
 	return
 }
 
-// SelectionOrderFor returns the one-based selection order for card, or zero.
+// SelectionOrderFor returns card's one-based selection order for player.
+//
+// It returns zero when the player, card, or selection is absent.
 func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result int) {
 	r.mu.RLock()
 	if current := r.playerLocked(player); current != nil {
@@ -261,7 +295,10 @@ func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result i
 	return
 }
 
-// ToggleCardSelection toggles card in player's current room selection.
+// ToggleCardSelection toggles card in player's current submission selection.
+//
+// It reports whether the selection changed. Invalid cards and players that
+// cannot currently submit leave the selection unchanged.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -299,6 +336,9 @@ func (r *Room) SubmissionSelected(player *Player, submission *Submission) (resul
 }
 
 // ToggleSubmissionSelection toggles submission in the judge's current selection.
+//
+// It reports whether the selection changed. Unknown submissions and players
+// that cannot currently judge leave the selection unchanged.
 func (r *Room) ToggleSubmissionSelection(player *Player, submission *Submission) (changed bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -315,6 +355,7 @@ func (r *Room) ToggleSubmissionSelection(player *Player, submission *Submission)
 	return
 }
 
+// Submissions returns a shallow copy of the current round's submissions.
 func (r *Room) Submissions() (submissions []*Submission) {
 	r.mu.RLock()
 	submissions = append(submissions, r.submissions...)
@@ -322,6 +363,9 @@ func (r *Room) Submissions() (submissions []*Submission) {
 	return
 }
 
+// SubmissionCards returns a copy of submission's card slice.
+//
+// It returns nil for a nil submission.
 func (r *Room) SubmissionCards(submission *Submission) (cards []*deck.WhiteCard) {
 	if submission != nil {
 		r.mu.RLock()
@@ -331,6 +375,7 @@ func (r *Room) SubmissionCards(submission *Submission) (cards []*deck.WhiteCard)
 	return
 }
 
+// JudgePlayer returns the current judge, or nil when no judge is assigned.
 func (r *Room) JudgePlayer() (result *Player) {
 	r.mu.RLock()
 	result = r.judgeLocked()
@@ -350,6 +395,9 @@ func (r *Room) JudgeName() (result string) {
 	return
 }
 
+// LastGameWinner returns the captured nickname of the most recent game winner.
+//
+// It returns an empty string until a game has completed or after a new game starts.
 func (r *Room) LastGameWinner() (result string) {
 	r.mu.RLock()
 	result = r.lastGameWinner
@@ -357,6 +405,7 @@ func (r *Room) LastGameWinner() (result string) {
 	return
 }
 
+// LastGameScores returns a copy of the most recently completed game's scores.
 func (r *Room) LastGameScores() (result []FinalScore) {
 	r.mu.RLock()
 	result = append([]FinalScore(nil), r.lastGameScores...)
@@ -364,6 +413,7 @@ func (r *Room) LastGameScores() (result []FinalScore) {
 	return
 }
 
+// IsRoundWinner reports whether player won the round currently under review.
 func (r *Room) IsRoundWinner(player *Player) (result bool) {
 	r.mu.RLock()
 	result = r.state == StateReview && player != nil && r.reviewWinner == player
@@ -371,6 +421,7 @@ func (r *Room) IsRoundWinner(player *Player) (result bool) {
 	return
 }
 
+// IsWinningSubmission reports whether submission won the round under review.
 func (r *Room) IsWinningSubmission(submission *Submission) (result bool) {
 	r.mu.RLock()
 	result = r.state == StateReview && submission != nil && r.reviewSubmission == submission
@@ -378,6 +429,9 @@ func (r *Room) IsWinningSubmission(submission *Submission) (result bool) {
 	return
 }
 
+// SetPrivate changes whether the room appears in the public room list.
+//
+// Only the host may change this setting while the room is in [StateLobby].
 func (r *Room) SetPrivate(player *Player, private bool) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -396,6 +450,10 @@ func (r *Room) setNickname(player *Player, nickname string) (changed bool) {
 	return
 }
 
+// SetTargetScore changes the number of points required to win.
+//
+// Only the host may change this setting while the room is in [StateLobby]. The
+// value is clamped to [Room.MinTargetScore] through 10.
 func (r *Room) SetTargetScore(player *Player, score int) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -405,8 +463,8 @@ func (r *Room) SetTargetScore(player *Player, score int) (err error) {
 
 // SetDeckEnabled updates the room's deck selection.
 //
-// It reports whether the selection changed. Only the host can change a
-// canonical deck while the room is in the lobby.
+// It reports whether the selection changed. Only the host can change a deck
+// from the room's catalog while the room is in [StateLobby].
 func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled bool) (changed bool, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -439,6 +497,10 @@ func (r *Room) SetDeckEnabled(player *Player, selectedDeck *deck.Deck, enabled b
 	return
 }
 
+// Start begins a game and deals its opening round.
+//
+// The caller must be the host of a lobby with enough players and enough cards
+// in its selected decks.
 func (r *Room) Start(player *Player) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -490,6 +552,10 @@ func (r *Room) Start(player *Player) (err error) {
 	return
 }
 
+// PlayCards submits cards from player's hand for the current prompt.
+//
+// The card slice is copied on success. The submission must contain exactly the
+// required number of unique cards, and the judge cannot submit.
 func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -498,7 +564,9 @@ func (r *Room) PlayCards(player *Player, cards []*deck.WhiteCard) (err error) {
 	return
 }
 
-// PlaySelectedCards submits the player's current selected cards.
+// PlaySelectedCards submits and clears the player's current card selection.
+//
+// The selection is cleared only after a successful submission.
 func (r *Room) PlaySelectedCards(player *Player) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -574,6 +642,9 @@ func (r *Room) playCardsLocked(current *Player, cards []*deck.WhiteCard) (err er
 	return
 }
 
+// Judge records submission as the winner of the current round.
+//
+// The caller must be the current judge and submission must belong to the round.
 func (r *Room) Judge(player *Player, submission *Submission) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -581,7 +652,9 @@ func (r *Room) Judge(player *Player, submission *Submission) (err error) {
 	return
 }
 
-// JudgeSelectedSubmission picks the judge's currently selected submission.
+// JudgeSelectedSubmission records and clears the judge's selected submission.
+//
+// The selection is cleared only after a successful result.
 func (r *Room) JudgeSelectedSubmission(player *Player) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -626,6 +699,10 @@ func (r *Room) judgeSubmissionLocked(player *Player, submission *Submission) (er
 	return
 }
 
+// ProceedReview advances a completed round immediately.
+//
+// The caller must be the current judge while the room is in [StateReview]. It
+// starts the next round or returns a completed game to the lobby.
 func (r *Room) ProceedReview(player *Player) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1066,24 +1143,10 @@ func selectionOrderLocked(player *Player, card *deck.WhiteCard) (result int) {
 	return
 }
 
-func (r *Room) SelectedDecksForWhiteCard(card *deck.WhiteCard) (result []*deck.Deck) {
-	if r != nil && card != nil {
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		result = r.selectedDecksForWhiteCardLocked(card)
-	}
-	return
-}
-
-func (r *Room) SelectedDecksForBlackCard(card *deck.BlackCard) (result []*deck.Deck) {
-	if r != nil && card != nil {
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		result = r.selectedDecksForBlackCardLocked(card)
-	}
-	return
-}
-
+// FirstSelectedDeckNameForWhiteCard returns the first selected deck containing card.
+//
+// It returns an empty string for a nil room, a nil card, or a card absent from
+// the selected decks.
 func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result string) {
 	if r != nil && card != nil {
 		r.mu.RLock()
@@ -1093,31 +1156,15 @@ func (r *Room) FirstSelectedDeckNameForWhiteCard(card *deck.WhiteCard) (result s
 	return
 }
 
+// FirstSelectedDeckNameForBlackCard returns the first selected deck containing card.
+//
+// It returns an empty string for a nil room, a nil card, or a card absent from
+// the selected decks.
 func (r *Room) FirstSelectedDeckNameForBlackCard(card *deck.BlackCard) (result string) {
 	if r != nil && card != nil {
 		r.mu.RLock()
 		defer r.mu.RUnlock()
 		result = r.firstSelectedDeckNameForBlackCardLocked(card)
-	}
-	return
-}
-
-func (r *Room) selectedDecksForWhiteCardLocked(card *deck.WhiteCard) (result []*deck.Deck) {
-	result = make([]*deck.Deck, 0, len(r.selectedDecks))
-	for _, d := range r.selectedDecks {
-		if slices.Contains(d.WhiteCards, card) {
-			result = append(result, d)
-		}
-	}
-	return
-}
-
-func (r *Room) selectedDecksForBlackCardLocked(card *deck.BlackCard) (result []*deck.Deck) {
-	result = make([]*deck.Deck, 0, len(r.selectedDecks))
-	for _, d := range r.selectedDecks {
-		if slices.Contains(d.BlackCards, card) {
-			result = append(result, d)
-		}
 	}
 	return
 }

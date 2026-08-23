@@ -52,7 +52,7 @@ func testApp(t *testing.T) (result1 *App, result2 *http.ServeMux) {
 	t.Cleanup(jw.Close)
 	go jw.Serve()
 	catalog := testCatalog(t)
-	app := New(jw, catalog, game.NewManager(catalog))
+	app := New(jw, catalog, game.NewManagerWithOptions(catalog, game.Options{Dirty: jw.Dirty}))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {
 		t.Fatalf("SetupRoutes() error = %v", err)
@@ -88,6 +88,7 @@ func newHarnessWithCatalog(t *testing.T, catalog *deck.Catalog, opts game.Option
 	if err != nil {
 		t.Fatalf("jaws.New() error = %v", err)
 	}
+	opts.Dirty = jw.Dirty
 	app := New(jw, catalog, game.NewManagerWithOptions(catalog, opts))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {

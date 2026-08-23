@@ -31,7 +31,6 @@ func envOrDefault(envvar, fallback string) (result string) {
 	}
 	result = fallback
 	return
-
 }
 
 func main() {
@@ -52,7 +51,7 @@ func main() {
 	jw.CookieName = "xyzzy"
 	jw.Debug = *flagDebug
 
-	managerOpts := game.Options{}
+	managerOpts := game.Options{Dirty: jw.Dirty}
 	if *flagDebug {
 		managerOpts.MinPlayers = 2
 		managerOpts.Debug = true

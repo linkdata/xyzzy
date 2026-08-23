@@ -13,6 +13,7 @@ import (
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/jawsboot"
 	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/secureheaders"
 	"github.com/linkdata/staticserve"
 	"github.com/linkdata/xyzzy"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -29,33 +30,22 @@ type App struct {
 	Jaws              *jaws.Jaws
 	Catalog           *deck.Catalog
 	Manager           *game.Manager
-	csrfSecret        [32]byte
 	createRoomLimiter *createRoomLimiter
 	playerMu          sync.Mutex
 }
 
 // New returns an App using the supplied JaWS server, catalog, and manager.
 //
-// It enables [jaws.StatusMetricActiveSessions] and connects manager changes to
-// JaWS updates. New panics if the operating system cannot provide cryptographic
-// randomness for CSRF protection.
+// It enables [jaws.StatusMetricActiveSessions]. To publish game changes to live
+// pages, manager must be constructed with [game.Options.Dirty] set to jw.Dirty.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
-	if jw != nil {
-		jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
-	}
-	if manager != nil && jw != nil {
-		manager.SetDirty(jw.Dirty)
-	}
-	result := &App{
+	jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
+	return &App{
 		Jaws:              jw,
 		Catalog:           catalog,
 		Manager:           manager,
 		createRoomLimiter: newCreateRoomLimiter(),
 	}
-	if _, err := rand.Read(result.csrfSecret[:]); err != nil {
-		panic(err)
-	}
-	return result
 }
 
 // SetupRoutes registers the App's HTTP routes and templates on mux.
@@ -72,8 +62,6 @@ func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
 				mux.Handle("GET /robots.txt", http.HandlerFunc(a.serveRobots))
 				mux.Handle("GET /.well-known/security.txt", http.HandlerFunc(a.serveSecurityTxt))
 				mux.Handle("GET /{$}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveLobby)))
-				mux.Handle("GET /create-room", http.HandlerFunc(a.serveCreateRoom))
-				mux.Handle("POST /create-room", http.HandlerFunc(a.serveCreateRoom))
 				mux.Handle("GET /room/{code}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveRoom)))
 				mux.Handle("GET /{path...}", http.HandlerFunc(a.serveNotFound))
 			}
@@ -124,48 +112,9 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 	}).ServeHTTP(w, r)
 }
 
-func (a *App) serveCreateRoom(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-		return
-	}
-	if !a.validRequestOrigin(r) || !a.validCSRF(r) {
-		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-		return
-	}
-	if retryAfter, ok := a.createRoomLimiter.Allow(clientIP(r)); !ok {
-		w.Header().Set("Retry-After", fmt.Sprintf("%.0f", retryAfter.Seconds()))
-		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
-		return
-	}
-	sess := a.Jaws.GetSession(r)
-	if sess == nil {
-		http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
-		return
-	}
-	player := a.player(sess, r)
-	a.cleanupExpired()
-	if current := player.Room(); current != nil {
-		http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
-		return
-	}
-	room, err := a.createRoom(player)
-	if err != nil {
-		http.Error(w, a.Jaws.Log(err).Error(), http.StatusInternalServerError)
-		return
-	}
-	a.syncNicknameCookie(w, r, player)
-	http.Redirect(w, r, a.RoomURL(room.Code()), http.StatusSeeOther)
-}
-
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
 	a.playerMu.Lock()
-	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result != nil {
-		if result.Session == nil {
-			result.Session = sess
-		}
-	} else {
+	if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result == nil {
 		nickname := a.nicknameFromCookie(r)
 		if nickname == "" {
 			nickname = generateNickname()
@@ -203,7 +152,11 @@ func (a *App) cleanupExpired() {
 }
 
 func (a *App) nicknameCookieName() (result string) {
-	result = a.sessionCookieName() + "_nickname"
+	result = strings.TrimSpace(a.Jaws.CookieName)
+	if result == "" {
+		result = "jaws"
+	}
+	result += "_nickname"
 	return
 }
 
@@ -225,14 +178,14 @@ func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname
 	if nickname != "" {
 		value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
 	}
-	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the request scheme; HttpOnly and SameSite are set below.
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows JaWS proxy trust; HttpOnly and SameSite are set below.
 		Name:     a.nicknameCookieName(),
 		Value:    value,
 		Path:     "/",
 		MaxAge:   nicknameCookieTTL,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   requestIsSecure(r),
+		Secure:   secureheaders.RequestIsSecure(r, a.Jaws.TrustForwardedHeaders),
 	})
 }
 
@@ -295,13 +248,5 @@ func (a *App) RoomURL(code string) (result string) {
 		return
 	}
 	result = path.Join("/room", code)
-	return
-}
-
-func requestIsSecure(r *http.Request) (result bool) {
-	if r != nil {
-		result = r.TLS != nil
-		result = result || strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]) == "https"
-	}
 	return
 }

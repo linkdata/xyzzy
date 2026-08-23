@@ -137,7 +137,7 @@ func (d templateDot) CreateRoomButton() (result jui.Object) {
 			elem.Request.Redirect(d.App.RoomURL(current.Code()))
 			return
 		}
-		if _, ok := d.App.createRoomLimiter.Allow(clientIP(elem.Request.Initial())); !ok {
+		if !d.App.createRoomLimiter.Allow(clientIP(elem.Request.Initial())) {
 			elem.Request.Alert("warning", "Please wait before creating another room.")
 			return
 		}

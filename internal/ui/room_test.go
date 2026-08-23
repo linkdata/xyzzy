@@ -242,6 +242,7 @@ func testPlayableAppWithOptions(t *testing.T, opts game.Options) (result1 *App, 
 	go jw.Serve()
 
 	catalog := testPlayableCatalog(t)
+	opts.Dirty = jw.Dirty
 	app := New(jw, catalog, game.NewManagerWithOptions(catalog, opts))
 	mux := http.NewServeMux()
 	if err := app.SetupRoutes(mux); err != nil {

@@ -7,38 +7,41 @@ import (
 
 func TestManagerSetNicknamePublishesAfterUnlock(t *testing.T) {
 	catalog := testCatalog(t)
-	manager := NewManager(catalog)
 	host := testPlayer("Alice")
-	room, err := manager.CreateRoom(host, catalog.DefaultDecks())
-	if err != nil {
-		t.Fatalf("CreateRoom() error = %v", err)
-	}
 	player := testPlayer("Bob")
-	if joined, joinErr := manager.JoinRoom(room.Code(), player); joinErr != nil || joined != room {
-		t.Fatalf("JoinRoom() = (%v, %v), want (%v, nil)", joined, joinErr, room)
-	}
-
 	var calls int
 	var got []any
 	var managerUnlocked bool
 	var roomUnlocked bool
 	var playerUnlocked bool
-	manager.SetDirty(func(tags ...any) {
-		calls++
-		got = append(got, tags...)
-		managerUnlocked = manager.mu.TryLock()
-		if managerUnlocked {
-			manager.mu.Unlock()
-		}
-		roomUnlocked = room.mu.TryLock()
-		if roomUnlocked {
-			room.mu.Unlock()
-		}
-		playerUnlocked = player.uiMu.TryLock()
-		if playerUnlocked {
-			player.uiMu.Unlock()
-		}
+	var manager *Manager
+	var room *Room
+	manager = NewManagerWithOptions(catalog, Options{
+		Dirty: func(tags ...any) {
+			calls++
+			got = append(got, tags...)
+			managerUnlocked = manager.mu.TryLock()
+			if managerUnlocked {
+				manager.mu.Unlock()
+			}
+			roomUnlocked = room.mu.TryLock()
+			if roomUnlocked {
+				room.mu.Unlock()
+			}
+			playerUnlocked = player.uiMu.TryLock()
+			if playerUnlocked {
+				player.uiMu.Unlock()
+			}
+		},
 	})
+	var err error
+	room, err = manager.CreateRoom(host, catalog.DefaultDecks())
+	if err != nil {
+		t.Fatalf("CreateRoom() error = %v", err)
+	}
+	if joined, joinErr := manager.JoinRoom(room.Code(), player); joinErr != nil || joined != room {
+		t.Fatalf("JoinRoom() = (%v, %v), want (%v, nil)", joined, joinErr, room)
+	}
 
 	manager.SetNickname(player, " A l i c e !!! ")
 
