@@ -18,7 +18,7 @@ remain in Go.
 
 ## Run it
 
-The module requires Go 1.25.0 or later. To start a local two-player game:
+The module requires Go 1.27 or later. To start a local two-player game:
 
 ```sh
 go run ./cmd/xyzzy -debug -address 127.0.0.1:8080
