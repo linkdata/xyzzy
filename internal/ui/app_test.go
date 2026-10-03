@@ -738,6 +738,32 @@ func TestLobbyRestoresNicknameFromCookie(t *testing.T) {
 	}
 }
 
+func TestLobbyCapsNicknameFromCookie(t *testing.T) {
+	app, mux := testApp(t)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  app.nicknameCookieName(),
+		Value: base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("B", 100))),
+	})
+	rec := httptest.NewRecorder()
+	app.Middleware(mux).ServeHTTP(rec, req)
+	sess := app.Jaws.GetSession(req)
+	player, _ := sess.Get(sessionKeyPlayer).(*game.Player)
+	if got, want := player.NicknameValue(), strings.Repeat("B", 32); got != want {
+		t.Fatalf("restored nickname = %q, want %q", got, want)
+	}
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == app.nicknameCookieName() {
+			raw, err := base64.RawURLEncoding.DecodeString(cookie.Value)
+			if err != nil || string(raw) != strings.Repeat("B", 32) {
+				t.Fatalf("updated nickname cookie = %q, error = %v", raw, err)
+			}
+			return
+		}
+	}
+	t.Fatal("oversized nickname cookie was not replaced")
+}
+
 func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)

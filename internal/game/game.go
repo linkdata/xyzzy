@@ -30,6 +30,7 @@ const (
 	MinWhiteCardsPerPlayer = 20
 	roomCodeLength         = 6
 	roomCodeAlphabet       = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	maxNicknameLength      = 32
 )
 
 var (
@@ -98,7 +99,7 @@ func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager
 	return
 }
 
-// NormalizeNickname removes characters other than ASCII letters and digits.
+// NormalizeNickname keeps at most 32 ASCII letters and digits.
 //
 // It returns "Player" when no accepted characters remain.
 func NormalizeNickname(raw string) (result string) {
@@ -111,6 +112,9 @@ func NormalizeNickname(raw string) (result string) {
 			b.WriteRune(r)
 		case r >= 'a' && r <= 'z':
 			b.WriteRune(r)
+		}
+		if b.Len() == maxNicknameLength {
+			break
 		}
 	}
 	if b.Len() == 0 {
