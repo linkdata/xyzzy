@@ -956,7 +956,7 @@ func TestHandCardClickRetainsCardControls(t *testing.T) {
 	if cardElem == nil {
 		t.Fatalf("card element %q not found", cardJID)
 	}
-	cardTemplate, ok := cardElem.UI().(handCardButton)
+	cardTemplate, ok := cardElem.UI().(jui.Template)
 	if !ok || cardTemplate.Name != "hand_card_clickable.html" {
 		t.Fatalf("card element = %#v, want hand card Template", cardElem)
 	}

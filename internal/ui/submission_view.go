@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/linkdata/jaws"
-	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
@@ -17,15 +16,13 @@ type submissionView struct {
 
 func (v submissionView) JawsGetTag() any { return v.Room.SubmissionTag(v.Player, v.Submission) }
 
-func (v submissionView) Button() submissionButton {
-	return submissionButton{jui.NewTemplate("button", "submission_clickable.html", v)}
-}
-
-type submissionButton struct{ jui.Template }
-
-func (b submissionButton) JawsUpdate(elem *jaws.Element) {
-	v := b.Dot.(submissionView)
+// UpdateAttrs applies selection state when the card template runs.
+func (v submissionView) UpdateAttrs(elem *jaws.Element) string {
+	if !v.Room.CanJudge(v.Player) {
+		return ""
+	}
 	elem.SetAttr("aria-pressed", strconv.FormatBool(v.Room.SubmissionSelected(v.Player, v.Submission)))
+	return ""
 }
 
 func (v submissionView) Cards() (result []whiteCardView) {

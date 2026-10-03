@@ -445,7 +445,7 @@ func TestHandCardTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(view.Button())
+	elem := req.NewElement(jui.NewTemplate("button", "hand_card_clickable.html", view))
 	var rendered bytes.Buffer
 	if err := elem.JawsRender(&rendered, []any{`type="button" class="card-face card-face-white w-100 text-start"`, view.InitialAttrs()}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
@@ -569,7 +569,7 @@ func TestSubmissionTemplateDispatchesClickToSelectionHandler(t *testing.T) {
 		SubmissionViews()[0]
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(view.Button())
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
 	var rendered bytes.Buffer
 	if err := elem.JawsRender(&rendered, []any{`type="button" class="card-face card-face-white w-100 text-start"`, view.InitialAttrs()}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
@@ -618,7 +618,7 @@ func TestSubmissionTemplateUsesPhrasingStackMarkup(t *testing.T) {
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(view.Button())
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
 	var rendered bytes.Buffer
 	if err = elem.JawsRender(&rendered, []any{`type="button" class="card-face card-face-white w-100 text-start"`, view.InitialAttrs()}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)
@@ -680,7 +680,7 @@ func TestSubmissionViewInitialHTMLAttr(t *testing.T) {
 	}
 
 	req := app.Jaws.NewRequest(httptest.NewRecorder(), nil)
-	elem := req.NewElement(view.Button())
+	elem := req.NewElement(jui.NewTemplate("button", "submission_clickable.html", view))
 	var rendered bytes.Buffer
 	if err := elem.JawsRender(&rendered, []any{`type="button" class="card-face card-face-white w-100 text-start"`, view.InitialAttrs()}); err != nil {
 		t.Fatalf("JawsRender() error = %v", err)

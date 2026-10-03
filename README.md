@@ -117,8 +117,8 @@ Comparable UI definitions answer the first question. Stable dependency tags
 answer the second. Dirtying a Container does not rerender an equal retained
 child, so those children register the state they read. Card widgets register
 per-player, per-card selection tags. Selection updates retain their button nodes;
-hand cards refresh their ordinal and pressed state, while submissions update only
-pressed state. Action buttons have separate readiness tags.
+standard card Templates refresh their content and pressed state. Action Buttons
+use getters to update readiness attributes and have separate readiness tags.
 
 | Dependency tag | Typical dependents |
 | --- | --- |

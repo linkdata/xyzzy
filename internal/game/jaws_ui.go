@@ -100,7 +100,17 @@ func (r *Room) StartGameButton(player *Player) (result ui.Object) {
 // The action is disabled until player has a complete valid selection. A
 // successful click submits that selection.
 func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
-	result = ui.New("Play Selected Cards").
+	result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML {
+		r.mu.RLock()
+		enabled := r.submitReadyLocked(r.playerLocked(player))
+		r.mu.RUnlock()
+		if enabled {
+			elem.RemoveAttr("disabled")
+		} else {
+			elem.SetAttr("disabled", "")
+		}
+		return "Play Selected Cards"
+	})).
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 			if err = r.PlaySelectedCards(player); err == nil {
 				elem.Dirty(r)
@@ -124,7 +134,17 @@ func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
 // The action is disabled unless player is the current judge with a selected
 // submission. A successful click records the winner.
 func (r *Room) JudgeButton(player *Player) (result ui.Object) {
-	result = ui.New("Pick Winner").
+	result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML {
+		r.mu.RLock()
+		enabled := r.judgeReadyLocked(r.playerLocked(player))
+		r.mu.RUnlock()
+		if enabled {
+			elem.RemoveAttr("disabled")
+		} else {
+			elem.SetAttr("disabled", "")
+		}
+		return "Pick Winner"
+	})).
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 			if err = r.JudgeSelectedSubmission(player); err == nil {
 				elem.Dirty(r)

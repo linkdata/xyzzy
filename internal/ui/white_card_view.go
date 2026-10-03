@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/linkdata/jaws"
-	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/deck"
 	"github.com/linkdata/xyzzy/internal/game"
 )
@@ -18,16 +17,10 @@ type whiteCardView struct {
 
 func (v whiteCardView) JawsGetTag() any { return v.Room.HandCardTag(v.Player, v.Card) }
 
-func (v whiteCardView) Button() handCardButton {
-	return handCardButton{jui.NewTemplate("button", "hand_card_clickable.html", v)}
-}
-
-type handCardButton struct{ jui.Template }
-
-func (b handCardButton) JawsUpdate(elem *jaws.Element) {
-	b.Template.JawsUpdate(elem)
-	v := b.Dot.(whiteCardView)
+// UpdateAttrs applies selection state when the card template runs.
+func (v whiteCardView) UpdateAttrs(elem *jaws.Element) string {
 	elem.SetAttr("aria-pressed", strconv.FormatBool(v.SelectionOrder() > 0))
+	return ""
 }
 
 func (v whiteCardView) SelectionOrder() (result int) {

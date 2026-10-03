@@ -39,6 +39,7 @@ func newSelectionPage(t *testing.T, app *App, room *game.Room, player *game.Play
 	if err := rw.Template("section", name, gameTemplateDot{templateDot: templateDot{App: app, Player: player}, Room: room}); err != nil {
 		t.Fatal(err)
 	}
+	p.tr.BcastCh <- wire.Message{What: what.Update}
 	return p
 }
 
@@ -102,9 +103,23 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 					steps = []step{{0, map[int]int{0: 1}, 0}, {1, map[int]int{1: 2}, 0}, {2, map[int]int{2: 3}, 1}, {3, nil, 0}, {0, map[int]int{0: 0, 1: 1, 2: 2}, -1}, {1, map[int]int{1: 0, 2: 1}, 0}}
 				}
 				settleSelection()
-				for _, p := range pages {
-					if len(p.records) != 0 {
+				for i, p := range pages {
+					viewer := player
+					if i == 2 {
+						viewer = other
+					}
+					expected := map[jid.Jid]string{p.element(t, viewer.HandReadinessTag()).Jid(): "disabled\n"}
+					for _, card := range room.HandFor(viewer) {
+						expected[p.element(t, room.HandCardTag(viewer, card)).Jid()] = "aria-pressed\nfalse"
+					}
+					if len(p.records) != len(expected) {
 						t.Fatalf("initial commands: %+v", p.records)
+					}
+					for _, msg := range p.records {
+						if want, ok := expected[msg.Jid]; !ok || msg.What != what.SAttr || msg.Data != want {
+							t.Fatalf("initial command: %+v", msg)
+						}
+						delete(expected, msg.Jid)
 					}
 				}
 				for _, s := range steps {
@@ -134,7 +149,7 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 						action := p.element(t, player.HandReadinessTag()).Jid()
 						count := 2 * len(expected)
 						if s.readiness != 0 {
-							count++
+							count += 2
 						}
 						if len(p.records) != count {
 							t.Fatalf("pick %d step %+v: updates=%+v, want %d", pick, s, p.records, count)
@@ -175,6 +190,9 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 								if s.readiness > 0 {
 									wantWhat, wantData = what.RAttr, "disabled"
 								}
+								if msg.What == what.Inner {
+									wantWhat, wantData = what.Inner, "Play Selected Cards"
+								}
 								if msg.What != wantWhat || msg.Data != wantData {
 									t.Fatalf("readiness: %+v", msg)
 								}
@@ -182,7 +200,7 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 								t.Fatalf("unrelated update: %+v", msg)
 							}
 						}
-						if bytes > 300*len(expected)+40 {
+						if bytes > 300*len(expected)+90 {
 							t.Fatalf("selection sent %d bytes", bytes)
 						}
 						for id, e := range retained[i] {
@@ -198,7 +216,7 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 	}
 }
 
-func TestJudgingSelectionUpdatesOnlyAttributes(t *testing.T) {
+func TestJudgingSelectionUpdatesOnlyAffectedControls(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		app, _ := testPlayableApp(t)
 		host, a, b := &game.Player{Nickname: "Host"}, &game.Player{Nickname: "A"}, &game.Player{Nickname: "B"}
@@ -222,9 +240,22 @@ func TestJudgingSelectionUpdatesOnlyAttributes(t *testing.T) {
 		pages := []*selectionPage{newSelectionPage(t, app, room, host, "room_game_judging.html"), newSelectionPage(t, app, room, host, "room_game_judging.html"), newSelectionPage(t, app, room, a, "room_game_judging.html")}
 		submissions := room.Submissions()
 		settleSelection()
-		for _, p := range pages {
-			if len(p.records) != 0 {
+		for i, p := range pages {
+			expected := make(map[jid.Jid]string)
+			if i < 2 {
+				expected[p.element(t, host.JudgeReadinessTag()).Jid()] = "disabled\n"
+				for _, submission := range submissions {
+					expected[p.element(t, room.SubmissionTag(host, submission)).Jid()] = "aria-pressed\nfalse"
+				}
+			}
+			if len(p.records) != len(expected) {
 				t.Fatalf("initial commands: %+v", p.records)
+			}
+			for _, msg := range p.records {
+				if want, ok := expected[msg.Jid]; !ok || msg.What != what.SAttr || msg.Data != want {
+					t.Fatalf("initial command: %+v", msg)
+				}
+				delete(expected, msg.Jid)
 			}
 		}
 		for step, index := range []int{0, 1, 1} {
@@ -241,10 +272,16 @@ func TestJudgingSelectionUpdatesOnlyAttributes(t *testing.T) {
 					}
 					continue
 				}
-				expected := map[jid.Jid]wire.WsMsg{}
+				type key struct {
+					id   jid.Jid
+					what what.What
+				}
+				expected := map[key]wire.WsMsg{}
 				add := func(index int, selected bool) {
 					e := p.element(t, room.SubmissionTag(host, submissions[index]))
-					expected[e.Jid()] = wire.WsMsg{Jid: e.Jid(), What: what.SAttr, Data: "aria-pressed\n" + strconv.FormatBool(selected)}
+					expected[key{e.Jid(), what.SAttr}] = wire.WsMsg{Jid: e.Jid(), What: what.SAttr, Data: "aria-pressed\n" + strconv.FormatBool(selected)}
+					// The submission body is unchanged, but the standard Template sends it.
+					expected[key{e.Jid(), what.Inner}] = wire.WsMsg{Jid: e.Jid(), What: what.Inner}
 				}
 				switch step {
 				case 0:
@@ -262,16 +299,25 @@ func TestJudgingSelectionUpdatesOnlyAttributes(t *testing.T) {
 						msg.What = what.RAttr
 						msg.Data = "disabled"
 					}
-					expected[e.Jid()] = msg
+					expected[key{e.Jid(), msg.What}] = msg
+					expected[key{e.Jid(), what.Inner}] = wire.WsMsg{Jid: e.Jid(), What: what.Inner, Data: "Pick Winner"}
 				}
 				if len(p.records) != len(expected) {
 					t.Fatalf("updates=%+v, want %+v", p.records, expected)
 				}
 				for _, msg := range p.records {
-					if want, ok := expected[msg.Jid]; !ok || msg != want {
+					k := key{msg.Jid, msg.What}
+					want, ok := expected[k]
+					if ok && want.What == what.Inner && want.Data == "" {
+						if !strings.Contains(msg.Data, "card-copy") {
+							t.Fatalf("missing submission content: %+v", msg)
+						}
+						want.Data = msg.Data
+					}
+					if !ok || msg != want {
 						t.Fatalf("unexpected update: %+v", msg)
 					}
-					delete(expected, msg.Jid)
+					delete(expected, k)
 				}
 			}
 			if pages[0].tr.GetElementByJid(clicked.Jid()) != clicked {

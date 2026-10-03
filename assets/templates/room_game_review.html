@@ -13,7 +13,7 @@
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
   {{range $dot.SubmissionViews}}
   <div class="col">
-    {{$.NewUI .Button `type="button" class="card-face card-face-white w-100 text-start"` .InitialAttrs}}
+    {{$.Template "button" "submission_clickable.html" . `type="button" class="card-face card-face-white w-100 text-start"` .InitialAttrs}}
   </div>
   {{end}}
 </div>
