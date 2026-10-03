@@ -2,6 +2,7 @@ package ui
 
 import (
 	"html/template"
+	"strconv"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/deck"
@@ -14,8 +15,13 @@ type whiteCardView struct {
 	Card   *deck.WhiteCard
 }
 
-// JawsGetTag returns no dependency tag.
-func (whiteCardView) JawsGetTag() any { return nil }
+func (v whiteCardView) JawsGetTag() any { return v.Room.HandCardTag(v.Player, v.Card) }
+
+// UpdateAttrs applies selection state when the card template runs.
+func (v whiteCardView) UpdateAttrs(elem *jaws.Element) string {
+	elem.SetAttr("aria-pressed", strconv.FormatBool(v.SelectionOrder() > 0))
+	return ""
+}
 
 func (v whiteCardView) SelectionOrder() (result int) {
 	result = v.Room.SelectionOrderFor(v.Player, v.Card)
@@ -27,31 +33,14 @@ func (v whiteCardView) WhiteFootnote() (result string) {
 	return
 }
 
-func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	result = cardInitialHTMLAttr(v.SelectionOrder() > 0, false, false)
-	return
+func (v whiteCardView) InitialAttrs() template.HTMLAttr {
+	if v.SelectionOrder() > 0 {
+		return `aria-pressed="true"`
+	}
+	return `aria-pressed="false"`
 }
 
-func cardInitialHTMLAttr(selected, winning, ariaDisabled bool) (result template.HTMLAttr) {
-	class := `class="card-face card-face-white w-100 text-start`
-	if winning {
-		class += ` is-winning`
-	}
-	if selected {
-		class += ` is-selected`
-	}
-	result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-	if ariaDisabled {
-		result += ` aria-disabled="true"`
-	}
-	return
-}
-
-func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
-	if d.Room.ToggleCardSelection(d.Player, d.Card) {
-		// Wrapper attributes are initial-only, so reconstruct the cards through
-		// their player-tagged parent after selection changes.
-		elem.Dirty(d.Player)
-	}
-	return
+func (v whiteCardView) JawsClick(*jaws.Element, jaws.Click) error {
+	v.Room.ToggleCardSelection(v.Player, v.Card)
+	return nil
 }

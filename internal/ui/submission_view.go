@@ -2,6 +2,7 @@ package ui
 
 import (
 	"html/template"
+	"strconv"
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/xyzzy/internal/game"
@@ -13,8 +14,16 @@ type submissionView struct {
 	Submission *game.Submission
 }
 
-// JawsGetTag returns no dependency tag.
-func (submissionView) JawsGetTag() any { return nil }
+func (v submissionView) JawsGetTag() any { return v.Room.SubmissionTag(v.Player, v.Submission) }
+
+// UpdateAttrs applies selection state when the card template runs.
+func (v submissionView) UpdateAttrs(elem *jaws.Element) string {
+	if !v.Room.CanJudge(v.Player) {
+		return ""
+	}
+	elem.SetAttr("aria-pressed", strconv.FormatBool(v.Room.SubmissionSelected(v.Player, v.Submission)))
+	return ""
+}
 
 func (v submissionView) Cards() (result []whiteCardView) {
 	if v.Room != nil && v.Submission != nil {
@@ -23,22 +32,25 @@ func (v submissionView) Cards() (result []whiteCardView) {
 	return
 }
 
-func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-	result = cardInitialHTMLAttr(
-		v.Room.SubmissionSelected(v.Player, v.Submission),
-		v.Room.IsWinningSubmission(v.Submission),
-		!v.Room.CanJudge(v.Player),
-	)
+func (v submissionView) InitialAttrs() (attrs template.HTMLAttr) {
+	if v.Room.CanJudge(v.Player) {
+		if v.Room.SubmissionSelected(v.Player, v.Submission) {
+			attrs = `aria-pressed="true"`
+		} else {
+			attrs = `aria-pressed="false"`
+		}
+	} else {
+		attrs = `aria-disabled="true"`
+	}
+	if v.Room.IsWinningSubmission(v.Submission) {
+		attrs += ` data-winning="true"`
+	}
 	return
 }
 
-func (v submissionView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
-	if v.Room.ToggleSubmissionSelection(v.Player, v.Submission) {
-		// Wrapper attributes are initial-only, so reconstruct the cards through
-		// their player-tagged parent after selection changes.
-		elem.Dirty(v.Player)
-	}
-	return
+func (v submissionView) JawsClick(*jaws.Element, jaws.Click) error {
+	v.Room.ToggleSubmissionSelection(v.Player, v.Submission)
+	return nil
 }
 
 func submissionCardViews(room *game.Room, submission *game.Submission) (result []whiteCardView) {

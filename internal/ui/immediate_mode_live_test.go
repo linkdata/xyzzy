@@ -924,14 +924,13 @@ func TestTargetScoreRangeInputUpdatesOnlyBoundControls(t *testing.T) {
 	}
 }
 
-func TestHandCardClickRecreatesParentOwnedControls(t *testing.T) {
+func TestHandCardClickRetainsCardControls(t *testing.T) {
 	h := newHarnessWithCatalog(t, testPlayableCatalog(t), game.Options{MinPlayers: 2})
 
 	h.get(t, "/")
 	hostSession := h.session(t)
 	host := h.app.player(hostSession, nil)
-	h.app.Manager.SetNickname(host, "Alice")
-	room, err := h.app.createRoom(host)
+	room, err := h.app.Manager.CreateRoom(host, nil)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
@@ -940,8 +939,7 @@ func TestHandCardClickRecreatesParentOwnedControls(t *testing.T) {
 	h.getWithClient(t, guestClient, "/")
 	guestSession := h.sessionForClient(t, guestClient)
 	guest := h.app.player(guestSession, nil)
-	h.app.Manager.SetNickname(guest, "Bob")
-	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
+	if _, err = h.app.Manager.JoinRoom(room.Code(), guest); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
 	if err = room.Start(host); err != nil {
@@ -966,8 +964,8 @@ func TestHandCardClickRecreatesParentOwnedControls(t *testing.T) {
 	if !ok {
 		t.Fatalf("card Template dot = %T, want whiteCardView", cardTemplate.Dot)
 	}
-	if tags := rq.TagsOf(cardElem); len(tags) != 0 {
-		t.Fatalf("card Template tags = %#v, want parent-owned dependencies", tags)
+	if tags := rq.TagsOf(cardElem); len(tags) != 1 || tags[0] != cardView.JawsGetTag() {
+		t.Fatalf("card Template tags = %#v, want card-selection dependency", tags)
 	}
 
 	conn, cancel := h.connectWithClient(t, guestClient, pageHTML)
@@ -985,10 +983,15 @@ func TestHandCardClickRecreatesParentOwnedControls(t *testing.T) {
 	updateCtx, updateDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
 	defer updateDone()
 	if err = reader.readUntil(updateCtx, func(msg wire.WsMsg) bool {
-		return msg.Jid == gameJID && msg.What == what.Inner &&
-			strings.Contains(msg.Data, "is-selected") && strings.Contains(msg.Data, "#1")
+		if msg.Jid == gameJID && msg.What == what.Inner {
+			t.Fatal("selection replaced the game panel")
+		}
+		return msg.Jid == cardJID && msg.What == what.SAttr && msg.Data == "aria-pressed\ntrue"
 	}); err != nil {
-		t.Fatalf("waiting for parent-owned card update: %v", err)
+		t.Fatalf("waiting for card selection update: %v", err)
+	}
+	if rq.GetElementByJid(cardJID) != cardElem {
+		t.Fatal("selection replaced the clicked Element")
 	}
 	if order := room.SelectionOrderFor(guest, cardView.Card); order != 1 {
 		t.Fatalf("SelectionOrderFor() = %d, want 1", order)

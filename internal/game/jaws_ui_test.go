@@ -214,7 +214,7 @@ func TestLobbyControlAndButtonInitialAttrs(t *testing.T) {
 	if got := room.SubmitCardsButton(guest).JawsInitialHTMLAttr(nil); got != "" {
 		t.Fatalf("SubmitCardsButton() attrs with complete selection = %q, want empty", got)
 	}
-	if got := room.SubmitCardsButton(guest).JawsGetHTML(nil); got != "Play Selected Cards" {
+	if got := room.SubmitCardsButton(guest).JawsGetHTML(newJawsTestElement(t)); got != "Play Selected Cards" {
 		t.Fatalf("SubmitCardsButton() content = %q, want Play Selected Cards", got)
 	}
 
@@ -236,7 +236,7 @@ func TestLobbyControlAndButtonInitialAttrs(t *testing.T) {
 	if got := room.JudgeButton(guest).JawsInitialHTMLAttr(nil); got != `disabled` {
 		t.Fatalf("JudgeButton(non-judge) attrs = %q, want disabled", got)
 	}
-	if got := room.JudgeButton(host).JawsGetHTML(nil); got != "Pick Winner" {
+	if got := room.JudgeButton(host).JawsGetHTML(newJawsTestElement(t)); got != "Pick Winner" {
 		t.Fatalf("JudgeButton() content = %q, want Pick Winner", got)
 	}
 }

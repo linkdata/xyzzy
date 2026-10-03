@@ -7,12 +7,12 @@
 {{if $canSubmit}}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h5 class="mb-0">Your Hand — pick {{$room.NeedPick}}</h5>
-  {{$.Button ($room.SubmitCardsButton $player) `class="btn btn-primary"`}}
+  {{$.Button ($room.SubmitCardsButton $player) `class="btn btn-primary"` $player.HandReadinessTag}}
 </div>
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
   {{range $dot.HandCardViews}}
   <div class="col">
-    {{$.Template "button" "hand_card_clickable.html" . `type="button"`}}
+    {{$.Template "button" "hand_card_clickable.html" . `type="button" class="card-face card-face-white w-100 text-start"` .InitialAttrs}}
   </div>
   {{end}}
 </div>
