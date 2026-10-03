@@ -215,6 +215,10 @@ func TestLobbyPageReceivesLiveRoomUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
+	if err := room.SetPrivate(otherPlayer, false); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Jaws.Dirty(h.app.Manager)
 
 	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
 	defer done()
@@ -276,6 +280,10 @@ func TestLobbyPageReceivesLiveRoomRemovalUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
+	if err := room.SetPrivate(otherPlayer, false); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Jaws.Dirty(h.app.Manager)
 
 	ctxCreate, doneCreate := context.WithTimeout(context.Background(), 5*time.Second)
 	defer doneCreate()
@@ -315,11 +323,28 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 
 	ctxCreate, doneCreate := context.WithTimeout(context.Background(), 5*time.Second)
 	defer doneCreate()
-	if _, err := readUntilContains(ctxCreate, conn, room.Code()); err != nil {
+	createMsg, err := readUntilContains(ctxCreate, conn, "No rooms yet")
+	if err != nil {
 		t.Fatalf("readUntilContains(create) error = %v", err)
+	}
+	if strings.Contains(createMsg, room.Code()) || strings.Contains(h.get(t, "/"), room.Code()) {
+		t.Fatal("new private room appeared in lobby")
 	}
 
 	privateToggle := room.PrivateToggle(host)
+	if err := privateToggle.JawsSet(newPrivateToggleElement(h.app, privateToggle), false); err != nil {
+		t.Fatalf("privateToggle.JawsSet(false) error = %v", err)
+	}
+	ctxShow, doneShow := context.WithTimeout(context.Background(), 5*time.Second)
+	defer doneShow()
+	showMsg, err := readUntilContains(ctxShow, conn, room.Code())
+	if err != nil {
+		t.Fatalf("readUntilContains(show) error = %v", err)
+	}
+	if !strings.Contains(showMsg, "Bob") {
+		t.Fatalf("expected published room update to mention host name, got %s", showMsg)
+	}
+
 	if err := privateToggle.JawsSet(newPrivateToggleElement(h.app, privateToggle), true); err != nil {
 		t.Fatalf("privateToggle.JawsSet(true) error = %v", err)
 	}
@@ -338,9 +363,9 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 		t.Fatalf("privateToggle.JawsSet(false) error = %v", err)
 	}
 
-	ctxShow, doneShow := context.WithTimeout(context.Background(), 5*time.Second)
+	ctxShow, doneShow = context.WithTimeout(context.Background(), 5*time.Second)
 	defer doneShow()
-	showMsg, err := readUntilContains(ctxShow, conn, room.Code())
+	showMsg, err = readUntilContains(ctxShow, conn, room.Code())
 	if err != nil {
 		t.Fatalf("readUntilContains(show) error = %v", err)
 	}

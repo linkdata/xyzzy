@@ -24,9 +24,11 @@ go run ./cmd/xyzzy -debug -address 127.0.0.1:8080
 
 Open <http://127.0.0.1:8080/> once in a regular window and once in a private
 window, or use two separate browser profiles. A single browser profile shares
-one JaWS Session and therefore represents one player. Debug mode enables JaWS
-debugging, lowers the minimum player count from three to two, permits a target
-score of one, and starts with the highest-pick prompt.
+one JaWS Session and therefore represents one player. Share the room URL with
+the second player, or clear **Private game** in the room lobby to list the room
+publicly. Debug mode enables JaWS debugging, lowers the minimum player count
+from three to two, permits a target score of one, and starts with the
+highest-pick prompt.
 
 All templates, styles, and card data are embedded in the binary. There is no
 database, Node.js build, or npm dependency. A production binary can be built
@@ -228,8 +230,10 @@ race-free and the relevant dirty notification converges the display.
 
 - State is process-local and is not shared across server replicas or persisted
   across restarts.
-- A private room is omitted from the public list; possession of its URL is the
-  access mechanism, not an authorization boundary.
+- New rooms are private. The host can publish one while it is in the lobby.
+  Private rooms are omitted from the public list, but their URLs are not an
+  authorization boundary. A code remains valid after a public room is made
+  private again.
 - A room page tries to join once, when its JaWS connection starts. A seat that
   opens before that connection is accepted can be claimed; a seat that opens
   after a failed attempt requires a reload.

@@ -242,8 +242,8 @@ func TestNicknameDependencyScope(t *testing.T) {
 					}
 				}
 			}
-			if scenario == "private host" {
-				if err = room.SetPrivate(host, true); err != nil {
+			if scenario == "public host" {
+				if err = room.SetPrivate(host, false); err != nil {
 					t.Fatal(err)
 				}
 			}

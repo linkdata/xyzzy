@@ -322,8 +322,8 @@ func TestRoomRendersExistingRoom(t *testing.T) {
 	}
 	privateToggle := regexp.MustCompile(`<input[^>]*class="form-check-input private-toggle-checkbox mt-0 me-1"[^>]*>`)
 	match := privateToggle.FindString(body)
-	if match == "" || strings.Contains(match, `checked`) {
-		t.Fatalf("expected private checkbox to render unchecked by default, got %q", match)
+	if match == "" || !strings.Contains(match, `checked`) {
+		t.Fatalf("expected private checkbox to render checked by default, got %q", match)
 	}
 	if !strings.Contains(body, "Target score") || !strings.Contains(body, "Start Game") {
 		t.Fatalf("expected unified lobby controls to include target score and start button: %s", body)

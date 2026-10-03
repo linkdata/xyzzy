@@ -1274,6 +1274,10 @@ func TestPrivateToggleInputUpdatesPeerAndLobby(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
+	if err := room.SetPrivate(host, false); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Jaws.Dirty(h.app.Manager)
 
 	var lobbyWrapperJID jid.Jid
 	createCtx, createDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
@@ -1490,6 +1494,9 @@ func TestSteadyUpdatesRetainTemplateWrappers(t *testing.T) {
 		room, err := h.app.Manager.CreateRoom(host, h.app.Catalog.DefaultDecks())
 		if err != nil {
 			t.Fatalf("CreateRoom() error = %v", err)
+		}
+		if err := room.SetPrivate(host, false); err != nil {
+			t.Fatal(err)
 		}
 		h.app.Jaws.Dirty(h.app.Manager)
 

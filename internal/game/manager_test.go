@@ -104,18 +104,8 @@ func TestRoomPrivacyLifecycleAndPublicRooms(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom() error = %v", err)
 	}
-	if room.IsPrivate() {
-		t.Fatal("new room should be public by default")
-	}
-	if got := mgr.PublicRooms(); len(got) != 1 || got[0] != room {
-		t.Fatalf("PublicRooms() = %#v, want [%p]", got, room)
-	}
-
-	if err := room.SetPrivate(host, true); err != nil {
-		t.Fatalf("SetPrivate(host, true) error = %v", err)
-	}
 	if !room.IsPrivate() {
-		t.Fatal("room should be private after host toggle")
+		t.Fatal("new room should be private by default")
 	}
 	if got := mgr.PublicRooms(); len(got) != 0 {
 		t.Fatalf("PublicRooms() = %#v, want []", got)
@@ -133,6 +123,12 @@ func TestRoomPrivacyLifecycleAndPublicRooms(t *testing.T) {
 	}
 	if got := mgr.PublicRooms(); len(got) != 1 || got[0] != room {
 		t.Fatalf("PublicRooms() = %#v, want [%p]", got, room)
+	}
+	if err := room.SetPrivate(host, true); err != nil {
+		t.Fatalf("SetPrivate(host, true) error = %v", err)
+	}
+	if got := mgr.PublicRooms(); len(got) != 0 {
+		t.Fatalf("PublicRooms() = %#v, want []", got)
 	}
 
 	if err := room.Start(host); err != nil {
