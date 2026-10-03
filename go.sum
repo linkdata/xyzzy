@@ -2,8 +2,8 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/linkdata/deadlock v0.5.5 h1:d6O+rzEqasSfamGDA8u7bjtaq7hOX8Ha4Zn36Wxrkvo=
 github.com/linkdata/deadlock v0.5.5/go.mod h1:tXb28stzAD3trzEEK0UJWC+rZKuobCoPktPYzebb1u0=
-github.com/linkdata/jaws v0.805.0 h1:aeMSBFbqaVVQYPTfD8chW+9cZKFu0Bm3hPhJitDllWM=
-github.com/linkdata/jaws v0.805.0/go.mod h1:WAjBu+Fgwzf8ydzQJDP6x+WL/5/w5O3bYyFrjtvazAc=
+github.com/linkdata/jaws v0.807.0 h1:iUQPdaj5yF+eEy49a2yaG0Lee+GJ5On7atKNNZyPXbc=
+github.com/linkdata/jaws v0.807.0/go.mod h1:WAjBu+Fgwzf8ydzQJDP6x+WL/5/w5O3bYyFrjtvazAc=
 github.com/linkdata/jq v0.6.0 h1:yxAeWsknIWmt7Wbr5CIEkj2i1WwC2DnJDZlOrPxJkr0=
 github.com/linkdata/jq v0.6.0/go.mod h1:b76MMuWybyXrVEKSHJkv+r5IEattnghPf1bNRJ5PNlE=
 github.com/linkdata/secureheaders v1.5.0 h1:4kI290hrVUYqluxF8pQfRYpbZuorSd9+8GlMgrLcrK4=
