@@ -493,6 +493,9 @@ func TestPageHandlersRequireSessionMiddleware(t *testing.T) {
 			if rec.Code != http.StatusServiceUnavailable {
 				t.Fatalf("ServeHTTP() status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 			}
+			if tt.name == "room" && rec.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal("room error response must not be cached")
+			}
 		})
 	}
 }

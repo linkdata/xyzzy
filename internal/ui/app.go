@@ -91,6 +91,7 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	sess := a.Jaws.GetSession(r)
 	if sess == nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)

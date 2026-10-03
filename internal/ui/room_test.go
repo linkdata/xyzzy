@@ -978,4 +978,7 @@ func TestRoomRedirectsToCurrentRoom(t *testing.T) {
 	if got := roomRec.Header().Get("Location"); got != "/room/"+room.Code() {
 		t.Fatalf("Location = %q, want %q", got, "/room/"+room.Code())
 	}
+	if got := roomRec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
 }
