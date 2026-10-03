@@ -961,22 +961,22 @@ func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager
 //
 // It returns "Player" when no accepted characters remain.
 func NormalizeNickname(raw string) (result string) {
-        <span class="cov8" title="3957">var b strings.Builder
+        <span class="cov8" title="3972">var b strings.Builder
         for _, r := range raw </span>{
-                <span class="cov10" title="24000">switch </span>{
+                <span class="cov10" title="24077">switch </span>{
                 case r &gt;= '0' &amp;&amp; r &lt;= '9':
                         <span class="cov0" title="0">b.WriteRune(r)</span>
                 case r &gt;= 'A' &amp;&amp; r &lt;= 'Z':
-                        <span class="cov8" title="3956">b.WriteRune(r)</span>
+                        <span class="cov8" title="3971">b.WriteRune(r)</span>
                 case r &gt;= 'a' &amp;&amp; r &lt;= 'z':
-                        <span class="cov9" title="16024">b.WriteRune(r)</span>
+                        <span class="cov9" title="16086">b.WriteRune(r)</span>
                 }
         }
-        <span class="cov8" title="3957">if b.Len() == 0 </span>{
+        <span class="cov8" title="3972">if b.Len() == 0 </span>{
                 <span class="cov1" title="1">result = "Player"
                 return
 </span>        }
-        <span class="cov8" title="3956">result = b.String()
+        <span class="cov8" title="3971">result = b.String()
         return</span>
 }
 
@@ -1386,7 +1386,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
 
 // Room returns the room matching code, or nil if no room matches.
 func (m *Manager) Room(code string) (result *Room) {
-        <span class="cov7" title="101">m.mu.RLock()
+        <span class="cov7" title="103">m.mu.RLock()
         result = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
         m.mu.RUnlock()
         return
@@ -1431,9 +1431,9 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
                 var changed bool
                 m.mu.RLock()
                 if room = player.Room(); room != nil </span>{
-                        <span class="cov8" title="186">changed = room.setNickname(player, nickname)
+                        <span class="cov8" title="199">changed = room.setNickname(player, nickname)
 </span>                } else {
-                        <span class="cov9" title="416">changed = player.setNickname(nickname)
+                        <span class="cov9" title="403">changed = player.setNickname(nickname)
 </span>                }
                 <span class="cov9" title="602">m.mu.RUnlock()
 </span>
@@ -1441,10 +1441,10 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
                         <span class="cov1" title="2">return
 </span>                }
                 <span class="cov9" title="600">if room != nil </span>{
-                        <span class="cov8" title="185">m.notify(m, player, &amp;player.NicknameInput, room)
+                        <span class="cov8" title="198">m.notify(m, player, &amp;player.NicknameInput, room)
                         return
 </span>                }
-                <span class="cov9" title="415">m.notify(m, player, &amp;player.NicknameInput)</span>
+                <span class="cov9" title="402">m.notify(m, player, &amp;player.NicknameInput)</span>
         }
 }
 
@@ -1459,9 +1459,9 @@ func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) 
                 defer m.mu.Unlock()
                 room = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
                 if room != nil </span>{
-                        <span class="cov9" title="350">err = ErrAlreadyInRoom
+                        <span class="cov9" title="352">err = ErrAlreadyInRoom
                         if player.Room() != room </span>{
-                                <span class="cov9" title="350">err = room.join(player)
+                                <span class="cov9" title="352">err = room.join(player)
 </span>                        }
                 }
         }
@@ -1477,7 +1477,7 @@ func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
                 defer m.mu.Unlock()
                 if room = player.Room(); room != nil </span>{
                         <span class="cov9" title="405">if empty = room.leave(player); empty &amp;&amp; m.rooms[room.code] == room </span>{
-                                <span class="cov7" title="99">delete(m.rooms, room.code)
+                                <span class="cov7" title="97">delete(m.rooms, room.code)
 </span>                        }
                 }
         }
@@ -1575,53 +1575,53 @@ type Player struct {
 //
 // It returns nil for a nil or detached player and is safe to call concurrently.
 func (p *Player) Room() (result *Room) {
-        <span class="cov9" title="2339">if p != nil </span>{
-                <span class="cov9" title="2339">result = p.room.Load()
+        <span class="cov9" title="2343">if p != nil </span>{
+                <span class="cov9" title="2343">result = p.room.Load()
 </span>        }
-        <span class="cov9" title="2339">return</span>
+        <span class="cov9" title="2343">return</span>
 }
 
 // setRoom updates the player's current room. Writes are expected to happen
 // while the manager and room locks are held; the atomic store ensures
 // concurrent readers see a consistent value.
 func (p *Player) setRoom(r *Room) {
-        <span class="cov8" title="986">p.room.Store(r)
+        <span class="cov8" title="988">p.room.Store(r)
 </span>}
 
 // NicknameValue returns the player's room-visible nickname.
 //
 // It returns an empty string for a nil player and is safe to call concurrently.
 func (p *Player) NicknameValue() (result string) {
-        <span class="cov8" title="779">if p != nil </span>{
-                <span class="cov8" title="779">p.uiMu.Lock()
+        <span class="cov8" title="781">if p != nil </span>{
+                <span class="cov8" title="781">p.uiMu.Lock()
                 result = p.Nickname
                 p.uiMu.Unlock()
 </span>        }
-        <span class="cov8" title="779">return</span>
+        <span class="cov8" title="781">return</span>
 }
 
 // NicknameInputValue returns the player's current nickname input.
 //
 // It returns an empty string for a nil player and is safe to call concurrently.
 func (p *Player) NicknameInputValue() (result string) {
-        <span class="cov8" title="981">if p != nil </span>{
-                <span class="cov8" title="981">p.uiMu.Lock()
+        <span class="cov8" title="983">if p != nil </span>{
+                <span class="cov8" title="983">p.uiMu.Lock()
                 result = p.NicknameInput
                 p.uiMu.Unlock()
 </span>        }
-        <span class="cov8" title="981">return</span>
+        <span class="cov8" title="983">return</span>
 }
 
 func (p *Player) setNickname(nickname string) (changed bool) {
-        <span class="cov10" title="3181">if p != nil </span>{
-                <span class="cov10" title="3181">p.uiMu.Lock()
+        <span class="cov10" title="3183">if p != nil </span>{
+                <span class="cov10" title="3183">p.uiMu.Lock()
                 if changed = p.Nickname != nickname || p.NicknameInput != nickname; changed </span>{
                         <span class="cov9" title="2703">p.Nickname = nickname
                         p.NicknameInput = nickname
 </span>                }
-                <span class="cov10" title="3181">p.uiMu.Unlock()</span>
+                <span class="cov10" title="3183">p.uiMu.Unlock()</span>
         }
-        <span class="cov10" title="3181">return</span>
+        <span class="cov10" title="3183">return</span>
 }
 </pre>
 		
@@ -1695,7 +1695,7 @@ func (r *Room) Code() string { <span class="cov7" title="449">return r.code }</s
 
 // State returns the room's current phase.
 func (r *Room) State() (result RoomState) {
-        <span class="cov4" title="29">r.mu.RLock()
+        <span class="cov4" title="30">r.mu.RLock()
         result = r.state
         r.mu.RUnlock()
         return
@@ -2067,14 +2067,14 @@ func (r *Room) SetPrivate(player *Player, private bool) (err error) {
 </span>}
 
 func (r *Room) setNickname(player *Player, nickname string) (changed bool) {
-        <span class="cov8" title="2186">r.mu.Lock()
+        <span class="cov8" title="2199">r.mu.Lock()
         defer r.mu.Unlock()
         current := r.playerLocked(player)
         if current != nil </span>{
-                <span class="cov8" title="2186">nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
+                <span class="cov8" title="2199">nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
                 changed = current.setNickname(nickname)
 </span>        }
-        <span class="cov8" title="2186">return</span>
+        <span class="cov8" title="2199">return</span>
 }
 
 // SetTargetScore changes the number of points required to win.
@@ -2346,19 +2346,19 @@ func (r *Room) ProceedReview(player *Player) (err error) {
 }
 
 func (r *Room) join(player *Player) (err error) {
-        <span class="cov7" title="350">r.mu.Lock()
+        <span class="cov7" title="352">r.mu.Lock()
         defer r.mu.Unlock()
         if r.playerLocked(player) == nil </span>{
-                <span class="cov7" title="350">if err = r.canJoinLocked(player); err == nil </span>{
-                        <span class="cov7" title="349">r.seatLocked(player)
+                <span class="cov7" title="352">if err = r.canJoinLocked(player); err == nil </span>{
+                        <span class="cov7" title="351">r.seatLocked(player)
                         r.players = append(r.players, player)
                         if r.host == nil </span>{
                                 <span class="cov0" title="0">r.host = player
 </span>                        }
-                        <span class="cov7" title="349">r.dealJoinedPlayerLocked(player)</span>
+                        <span class="cov7" title="351">r.dealJoinedPlayerLocked(player)</span>
                 }
         }
-        <span class="cov7" title="350">return</span>
+        <span class="cov7" title="352">return</span>
 }
 
 func (r *Room) leave(player *Player) (empty bool) {
@@ -2384,20 +2384,20 @@ func (r *Room) leave(player *Player) (empty bool) {
                         r.players = append(r.players[:idx], r.players[idx+1:]...)
                         r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) </span>{ <span class="cov2" title="6">result = sub.Player == current; return }</span>)
                         <span class="cov7" title="405">for _, other := range r.players </span>{
-                                <span class="cov6" title="312">if other.SelectedSubmission != nil &amp;&amp; other.SelectedSubmission.Player == current </span>{
+                                <span class="cov6" title="314">if other.SelectedSubmission != nil &amp;&amp; other.SelectedSubmission.Player == current </span>{
                                         <span class="cov1" title="1">other.SelectedSubmission = nil
 </span>                                }
                         }
                         <span class="cov7" title="405">if r.host == current </span>{
                                 <span class="cov6" title="202">if len(r.players) &gt; 0 </span>{
-                                        <span class="cov5" title="103">r.host = r.players[0]
+                                        <span class="cov5" title="105">r.host = r.players[0]
 </span>                                } else {
-                                        <span class="cov5" title="99">r.host = nil
+                                        <span class="cov5" title="97">r.host = nil
 </span>                                }
                         }
                         <span class="cov7" title="405">if len(r.players) == 0 </span>{
-                                <span class="cov5" title="99">r.clearReviewLocked()
-</span>                        } else <span class="cov6" title="306">if r.state != StateLobby </span>{
+                                <span class="cov5" title="97">r.clearReviewLocked()
+</span>                        } else <span class="cov6" title="308">if r.state != StateLobby </span>{
                                 <span class="cov2" title="4">switch </span>{
                                 case len(r.players) &lt; r.minPlayers:
                                         <span class="cov1" title="2">r.resetToLobbyLocked()</span>
@@ -2428,7 +2428,7 @@ func (r *Room) expiredPlayers() (result []*Player) {
 }
 
 func (r *Room) seatLocked(player *Player) {
-        <span class="cov7" title="579">player.setNickname(r.uniqueNicknameLocked(player))
+        <span class="cov7" title="581">player.setNickname(r.uniqueNicknameLocked(player))
         player.setRoom(r)
         player.Score = 0
         player.Hand = nil
@@ -2438,20 +2438,20 @@ func (r *Room) seatLocked(player *Player) {
 </span>}
 
 func (r *Room) canJoinLocked(player *Player) (err error) {
-        <span class="cov7" title="351">if player == nil </span>{
+        <span class="cov7" title="353">if player == nil </span>{
                 <span class="cov0" title="0">err = ErrRoomNotFound
                 return
 </span>        }
-        <span class="cov7" title="351">if player.Room() != nil </span>{
+        <span class="cov7" title="353">if player.Room() != nil </span>{
                 <span class="cov0" title="0">err = ErrAlreadyInRoom
                 return
 </span>        }
-        <span class="cov7" title="351">if len(r.players) &gt;= MaxPlayers </span>{
+        <span class="cov7" title="353">if len(r.players) &gt;= MaxPlayers </span>{
                 <span class="cov0" title="0">err = ErrRoomFull
                 return
 </span>        }
-        <span class="cov7" title="351">if r.state == StateLobby </span>{
-                <span class="cov7" title="347">return
+        <span class="cov7" title="353">if r.state == StateLobby </span>{
+                <span class="cov7" title="349">return
 </span>        }
         <span class="cov2" title="4">_, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
         if whiteCount &lt; MinWhiteCardsPerPlayer*(len(r.players)+1) </span>{
@@ -2461,8 +2461,8 @@ func (r *Room) canJoinLocked(player *Player) (err error) {
 }
 
 func (r *Room) dealJoinedPlayerLocked(player *Player) {
-        <span class="cov7" title="349">if player == nil || r.state == StateLobby </span>{
-                <span class="cov7" title="347">return
+        <span class="cov7" title="351">if player == nil || r.state == StateLobby </span>{
+                <span class="cov7" title="349">return
 </span>        }
         <span class="cov1" title="2">for len(player.Hand) &lt; HandSize </span>{
                 <span class="cov4" title="20">card := r.drawWhiteLocked()
@@ -2488,37 +2488,37 @@ func (r *Room) dealJoinedPlayerLocked(player *Player) {
 }
 
 func (r *Room) uniqueNicknameLocked(player *Player) (result string) {
-        <span class="cov7" title="579">result = NormalizeNickname(player.NicknameInputValue())
+        <span class="cov7" title="581">result = NormalizeNickname(player.NicknameInputValue())
         nickname := player.NicknameValue()
         if result == "Player" &amp;&amp; strings.TrimSpace(nickname) != "" </span>{
                 <span class="cov5" title="99">result = NormalizeNickname(nickname)
 </span>        }
-        <span class="cov7" title="579">result = r.uniqueNicknameForLocked(player, result)
+        <span class="cov7" title="581">result = r.uniqueNicknameForLocked(player, result)
         return</span>
 }
 
 func (r *Room) uniqueNicknameForLocked(player *Player, nickname string) (result string) {
-        <span class="cov9" title="2765">result = nickname
+        <span class="cov9" title="2780">result = nickname
         base := result
         for suffix := 2; ; suffix++ </span>{
-                <span class="cov9" title="2967">if !r.nicknameTakenLocked(result, player) </span>{
-                        <span class="cov9" title="2765">return
+                <span class="cov9" title="2982">if !r.nicknameTakenLocked(result, player) </span>{
+                        <span class="cov9" title="2780">return
 </span>                }
                 <span class="cov6" title="202">result = fmt.Sprintf("%s-%d", base, suffix)</span>
         }
 }
 
 func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bool) {
-        <span class="cov9" title="2967">for _, player := range r.players </span>{
-                <span class="cov9" title="4949">if player == exclude </span>{
-                        <span class="cov8" title="2186">continue</span>
+        <span class="cov9" title="2982">for _, player := range r.players </span>{
+                <span class="cov9" title="4977">if player == exclude </span>{
+                        <span class="cov8" title="2199">continue</span>
                 }
-                <span class="cov9" title="2763">if strings.EqualFold(player.Nickname, candidate) </span>{
+                <span class="cov9" title="2778">if strings.EqualFold(player.Nickname, candidate) </span>{
                         <span class="cov6" title="202">result = true
                         return
 </span>                }
         }
-        <span class="cov9" title="2765">return</span>
+        <span class="cov9" title="2780">return</span>
 }
 
 func (r *Room) resetToLobbyLocked() {
@@ -2686,11 +2686,11 @@ func (r *Room) reviewTimerElapsed(token uint64) {
 }
 
 func (r *Room) clearReviewLocked() {
-        <span class="cov6" title="171">if r.reviewTimer != nil </span>{
+        <span class="cov6" title="169">if r.reviewTimer != nil </span>{
                 <span class="cov3" title="8">r.reviewTimer.Stop()
                 r.reviewTimer = nil
 </span>        }
-        <span class="cov6" title="171">r.reviewToken++
+        <span class="cov6" title="169">r.reviewToken++
         r.reviewDeadline = time.Time{}
         r.reviewWinner = nil
         r.reviewSubmission = nil
@@ -2751,13 +2751,13 @@ func (r *Room) needPickLocked() (result int) {
 }
 
 func (r *Room) playerLocked(player *Player) (result *Player) {
-        <span class="cov9" title="3210">for _, current := range r.players </span>{
-                <span class="cov10" title="5930">if current == player </span>{
-                        <span class="cov9" title="2860">result = current
+        <span class="cov9" title="3225">for _, current := range r.players </span>{
+                <span class="cov10" title="5957">if current == player </span>{
+                        <span class="cov9" title="2873">result = current
                         return
 </span>                }
         }
-        <span class="cov7" title="350">return</span>
+        <span class="cov7" title="352">return</span>
 }
 
 func selectionOrderLocked(player *Player, card *deck.WhiteCard) (result int) {
@@ -2892,7 +2892,7 @@ func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {
                 <span class="cov0" title="0">return
 </span>        }
         <span class="cov1" title="2">for i, card := range r.blackDraw </span>{
-                <span class="cov5" title="65">if card == best </span>{
+                <span class="cov5" title="89">if card == best </span>{
                         <span class="cov1" title="2">last := len(r.blackDraw) - 1
                         r.blackDraw[i], r.blackDraw[last] = r.blackDraw[last], r.blackDraw[i]
                         return
