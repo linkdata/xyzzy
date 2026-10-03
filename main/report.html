@@ -63,31 +63,35 @@
 				
 				<option value="file3">github.com/linkdata/xyzzy/internal/deck/catalog.go (90.4%)</option>
 				
-				<option value="file4">github.com/linkdata/xyzzy/internal/game/game.go (91.4%)</option>
+				<option value="file4">github.com/linkdata/xyzzy/internal/game/deck_ui.go (0.0%)</option>
 				
-				<option value="file5">github.com/linkdata/xyzzy/internal/game/jaws_ui.go (100.0%)</option>
+				<option value="file5">github.com/linkdata/xyzzy/internal/game/game.go (91.4%)</option>
 				
-				<option value="file6">github.com/linkdata/xyzzy/internal/game/manager.go (79.6%)</option>
+				<option value="file6">github.com/linkdata/xyzzy/internal/game/jaws_ui.go (97.9%)</option>
 				
-				<option value="file7">github.com/linkdata/xyzzy/internal/game/player.go (100.0%)</option>
+				<option value="file7">github.com/linkdata/xyzzy/internal/game/manager.go (80.8%)</option>
 				
-				<option value="file8">github.com/linkdata/xyzzy/internal/game/room.go (83.4%)</option>
+				<option value="file8">github.com/linkdata/xyzzy/internal/game/player.go (100.0%)</option>
 				
-				<option value="file9">github.com/linkdata/xyzzy/internal/ui/app.go (94.5%)</option>
+				<option value="file9">github.com/linkdata/xyzzy/internal/game/room.go (83.8%)</option>
 				
-				<option value="file10">github.com/linkdata/xyzzy/internal/ui/rate_limit.go (97.7%)</option>
+				<option value="file10">github.com/linkdata/xyzzy/internal/game/selection_ui.go (100.0%)</option>
 				
-				<option value="file11">github.com/linkdata/xyzzy/internal/ui/room.go (91.3%)</option>
+				<option value="file11">github.com/linkdata/xyzzy/internal/ui/app.go (94.5%)</option>
 				
-				<option value="file12">github.com/linkdata/xyzzy/internal/ui/section.go (100.0%)</option>
+				<option value="file12">github.com/linkdata/xyzzy/internal/ui/rate_limit.go (97.2%)</option>
 				
-				<option value="file13">github.com/linkdata/xyzzy/internal/ui/static_handlers.go (100.0%)</option>
+				<option value="file13">github.com/linkdata/xyzzy/internal/ui/room.go (91.3%)</option>
 				
-				<option value="file14">github.com/linkdata/xyzzy/internal/ui/submission_view.go (100.0%)</option>
+				<option value="file14">github.com/linkdata/xyzzy/internal/ui/section.go (100.0%)</option>
 				
-				<option value="file15">github.com/linkdata/xyzzy/internal/ui/template_dot.go (81.1%)</option>
+				<option value="file15">github.com/linkdata/xyzzy/internal/ui/static_handlers.go (100.0%)</option>
 				
-				<option value="file16">github.com/linkdata/xyzzy/internal/ui/white_card_view.go (100.0%)</option>
+				<option value="file16">github.com/linkdata/xyzzy/internal/ui/submission_view.go (100.0%)</option>
+				
+				<option value="file17">github.com/linkdata/xyzzy/internal/ui/template_dot.go (81.1%)</option>
+				
+				<option value="file18">github.com/linkdata/xyzzy/internal/ui/white_card_view.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -860,6 +864,29 @@ func uniqueSorted(values []string) []string {
 		<pre class="file" id="file4" style="display: none">package game
 
 import (
+        "fmt"
+
+        "github.com/linkdata/jaws"
+        "github.com/linkdata/jaws/lib/bind"
+)
+
+// DeckSelectionTag identifies counts and readiness derived from selected decks.
+func (r *Room) DeckSelectionTag() any { <span class="cov0" title="0">return &amp;r.selectedDecks }</span>
+
+// DeckCounts returns the selected-card counts as escaped text.
+func (r *Room) DeckCounts() bind.Getter[string] {
+        <span class="cov0" title="0">return bind.StringGetterFunc(func(*jaws.Element) string </span>{
+                <span class="cov0" title="0">r.mu.RLock()
+                black, white := r.catalog.UnionCounts(r.selectedDecks)
+                r.mu.RUnlock()
+                return fmt.Sprintf("%d black / %d white selected", black, white)
+</span>        }, r.DeckSelectionTag())
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package game
+
+import (
         "crypto/rand"
         "encoding/binary"
         "errors"
@@ -946,64 +973,64 @@ func NewManager(catalog *deck.Catalog) (result *Manager) {
 // An opts.MinPlayers value below two uses [MinPlayers]. The manager retains
 // catalog, whose contents must remain immutable.
 func NewManagerWithOptions(catalog *deck.Catalog, opts Options) (result *Manager) {
-        <span class="cov5" title="232">if opts.MinPlayers &lt; 2 </span>{
-                <span class="cov5" title="224">opts.MinPlayers = MinPlayers
+        <span class="cov5" title="238">if opts.MinPlayers &lt; 2 </span>{
+                <span class="cov5" title="230">opts.MinPlayers = MinPlayers
 </span>        }
-        <span class="cov5" title="232">result = &amp;Manager{
+        <span class="cov5" title="238">result = &amp;Manager{
                 rooms:   make(map[string]*Room),
                 catalog: catalog,
                 opts:    opts,
 </span>        }
-        <span class="cov5" title="232">return</span>
+        <span class="cov5" title="238">return</span>
 }
 
 // NormalizeNickname removes characters other than ASCII letters and digits.
 //
 // It returns "Player" when no accepted characters remain.
 func NormalizeNickname(raw string) (result string) {
-        <span class="cov8" title="3972">var b strings.Builder
+        <span class="cov8" title="3984">var b strings.Builder
         for _, r := range raw </span>{
-                <span class="cov10" title="24077">switch </span>{
+                <span class="cov10" title="24145">switch </span>{
                 case r &gt;= '0' &amp;&amp; r &lt;= '9':
                         <span class="cov0" title="0">b.WriteRune(r)</span>
                 case r &gt;= 'A' &amp;&amp; r &lt;= 'Z':
-                        <span class="cov8" title="3971">b.WriteRune(r)</span>
+                        <span class="cov8" title="3983">b.WriteRune(r)</span>
                 case r &gt;= 'a' &amp;&amp; r &lt;= 'z':
-                        <span class="cov9" title="16086">b.WriteRune(r)</span>
+                        <span class="cov9" title="16142">b.WriteRune(r)</span>
                 }
         }
-        <span class="cov8" title="3972">if b.Len() == 0 </span>{
+        <span class="cov8" title="3984">if b.Len() == 0 </span>{
                 <span class="cov1" title="1">result = "Player"
                 return
 </span>        }
-        <span class="cov8" title="3971">result = b.String()
+        <span class="cov8" title="3983">result = b.String()
         return</span>
 }
 
 func normalizeDecks(catalog *deck.Catalog, decks []*deck.Deck) (result []*deck.Deck) {
-        <span class="cov5" title="232">if catalog == nil </span>{
+        <span class="cov5" title="238">if catalog == nil </span>{
                 <span class="cov0" title="0">return
 </span>        }
-        <span class="cov5" title="232">if len(decks) == 0 </span>{
-                <span class="cov1" title="1">decks = catalog.DefaultDecks()
+        <span class="cov5" title="238">if len(decks) == 0 </span>{
+                <span class="cov2" title="7">decks = catalog.DefaultDecks()
 </span>        }
-        <span class="cov5" title="232">result = make([]*deck.Deck, 0, len(decks))
+        <span class="cov5" title="238">result = make([]*deck.Deck, 0, len(decks))
         seen := make(map[*deck.Deck]struct{}, len(decks))
         for _, selected := range decks </span>{
-                <span class="cov5" title="252">if selected == nil </span>{
+                <span class="cov5" title="258">if selected == nil </span>{
                         <span class="cov1" title="1">continue</span>
                 }
-                <span class="cov5" title="251">if canonical := catalog.DeckByID(selected.ID); canonical != selected </span>{
+                <span class="cov5" title="257">if canonical := catalog.DeckByID(selected.ID); canonical != selected </span>{
                         <span class="cov1" title="1">continue</span>
                 }
-                <span class="cov5" title="250">if _, ok := seen[selected]; ok </span>{
+                <span class="cov5" title="256">if _, ok := seen[selected]; ok </span>{
                         <span class="cov1" title="1">continue</span>
                 }
-                <span class="cov5" title="249">seen[selected] = struct{}{}
+                <span class="cov5" title="255">seen[selected] = struct{}{}
                 result = append(result, selected)</span>
         }
-        <span class="cov5" title="232">slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) </span>{ <span class="cov3" title="17">cmp = strings.Compare(a.ID, b.ID); return }</span>)
-        <span class="cov5" title="232">return</span>
+        <span class="cov5" title="238">slices.SortFunc(result, func(a, b *deck.Deck) (cmp int) </span>{ <span class="cov3" title="17">cmp = strings.Compare(a.ID, b.ID); return }</span>)
+        <span class="cov5" title="238">return</span>
 }
 
 func normalizeWhiteCards(cards []*deck.WhiteCard) (result []*deck.WhiteCard) {
@@ -1039,27 +1066,27 @@ func submissionID(round, seq int) (result string) {
 </span>}
 
 func randomCode() (result string) {
-        <span class="cov5" title="230">var raw [roomCodeLength]byte
+        <span class="cov5" title="236">var raw [roomCodeLength]byte
         _, _ = rand.Read(raw[:])
         var b strings.Builder
         for _, n := range raw </span>{
-                <span class="cov7" title="1380">b.WriteByte(roomCodeAlphabet[n&amp;31])
+                <span class="cov7" title="1416">b.WriteByte(roomCodeAlphabet[n&amp;31])
 </span>        }
-        <span class="cov5" title="230">return b.String()</span>
+        <span class="cov5" title="236">return b.String()</span>
 }
 
 func newRoomRand() *mathrand.Rand {
-        <span class="cov5" title="231">var seed [16]byte
+        <span class="cov5" title="237">var seed [16]byte
         _, _ = rand.Read(seed[:])
 </span>        // #nosec G404 -- card shuffling is not a security boundary.
-        <span class="cov5" title="231">return mathrand.New(mathrand.NewPCG(
+        <span class="cov5" title="237">return mathrand.New(mathrand.NewPCG(
                 binary.LittleEndian.Uint64(seed[:8]),
                 binary.LittleEndian.Uint64(seed[8:]),
         ))
 </span>}
 </pre>
 		
-		<pre class="file" id="file5" style="display: none">package game
+		<pre class="file" id="file6" style="display: none">package game
 
 import (
         "fmt"
@@ -1076,7 +1103,7 @@ import (
 // The binder serializes access with [Player.NicknameInputValue] and
 // [Manager.SetNickname].
 func (p *Player) NicknameField() bind.Binder[string] {
-        <span class="cov1" title="2">return bind.New(&amp;p.uiMu, &amp;p.NicknameInput)
+        <span class="cov2" title="3">return bind.New(&amp;p.uiMu, &amp;p.NicknameInput)
 </span>}
 
 // TargetScoreBinder binds the room's target score for player.
@@ -1135,8 +1162,18 @@ func (r *Room) LobbyControlAttrs(player *Player) (result template.HTMLAttr) {
 // players and the selected decks provide enough cards. A successful click
 // starts the game.
 func (r *Room) StartGameButton(player *Player) (result ui.Object) {
-        <span class="cov2" title="5">result = ui.New("Start Game").
-                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span>{
+        <span class="cov2" title="5">result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML </span>{
+                <span class="cov1" title="1">r.mu.RLock()
+                enabled := r.canStartLocked(player)
+                r.mu.RUnlock()
+                if enabled </span>{
+                        <span class="cov1" title="1">elem.RemoveAttr("disabled")
+</span>                } else {
+                        <span class="cov0" title="0">elem.SetAttr("disabled", "")
+</span>                }
+                <span class="cov1" title="1">return "Start Game"</span>
+        })).
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
                         <span class="cov1" title="1">if err = r.Start(player); err == nil </span>{
                                 <span class="cov1" title="1">elem.Dirty(r)
 </span>                        }
@@ -1161,8 +1198,18 @@ func (r *Room) StartGameButton(player *Player) (result ui.Object) {
 // The action is disabled until player has a complete valid selection. A
 // successful click submits that selection.
 func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
-        <span class="cov2" title="4">result = ui.New("Play Selected Cards").
-                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span>{
+        <span class="cov2" title="4">result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML </span>{
+                <span class="cov1" title="1">r.mu.RLock()
+                enabled := r.submitReadyLocked(r.playerLocked(player))
+                r.mu.RUnlock()
+                if enabled </span>{
+                        <span class="cov1" title="1">elem.RemoveAttr("disabled")
+</span>                } else {
+                        <span class="cov0" title="0">elem.SetAttr("disabled", "")
+</span>                }
+                <span class="cov1" title="1">return "Play Selected Cards"</span>
+        })).
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
                         <span class="cov1" title="1">if err = r.PlaySelectedCards(player); err == nil </span>{
                                 <span class="cov1" title="1">elem.Dirty(r)
 </span>                        }
@@ -1171,7 +1218,7 @@ func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
                 InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) {
                         <span class="cov1" title="2">r.mu.RLock()
                         current := r.playerLocked(player)
-                        if current == nil || !r.canSubmitLocked(current) || len(current.SelectedCards) != r.needPickLocked() </span>{
+                        if !r.submitReadyLocked(current) </span>{
                                 <span class="cov1" title="1">attrs = `disabled`
 </span>                        }
                         <span class="cov1" title="2">r.mu.RUnlock()
@@ -1185,8 +1232,18 @@ func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
 // The action is disabled unless player is the current judge with a selected
 // submission. A successful click records the winner.
 func (r *Room) JudgeButton(player *Player) (result ui.Object) {
-        <span class="cov2" title="5">result = ui.New("Pick Winner").
-                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) </span>{
+        <span class="cov2" title="5">result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML </span>{
+                <span class="cov1" title="1">r.mu.RLock()
+                enabled := r.judgeReadyLocked(r.playerLocked(player))
+                r.mu.RUnlock()
+                if enabled </span>{
+                        <span class="cov1" title="1">elem.RemoveAttr("disabled")
+</span>                } else {
+                        <span class="cov0" title="0">elem.SetAttr("disabled", "")
+</span>                }
+                <span class="cov1" title="1">return "Pick Winner"</span>
+        })).
+                Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
                         <span class="cov1" title="1">if err = r.JudgeSelectedSubmission(player); err == nil </span>{
                                 <span class="cov1" title="1">elem.Dirty(r)
 </span>                        }
@@ -1195,7 +1252,7 @@ func (r *Room) JudgeButton(player *Player) (result ui.Object) {
                 InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) {
                         <span class="cov2" title="3">r.mu.RLock()
                         current := r.playerLocked(player)
-                        if current == nil || r.state != StateJudging || r.judgeLocked() != current || current.SelectedSubmission == nil </span>{
+                        if !r.judgeReadyLocked(current) </span>{
                                 <span class="cov1" title="2">attrs = `disabled`
 </span>                        }
                         <span class="cov2" title="3">r.mu.RUnlock()
@@ -1321,7 +1378,7 @@ func reviewCountdownText(gameWinner bool, countdown int, actionable bool) (resul
 }
 </pre>
 		
-		<pre class="file" id="file6" style="display: none">package game
+		<pre class="file" id="file7" style="display: none">package game
 
 import (
         "errors"
@@ -1344,8 +1401,8 @@ type Manager struct {
 }
 
 func (m *Manager) notify(tags ...any) {
-        <span class="cov10" title="605">if dirty := m.opts.Dirty; dirty != nil </span>{
-                <span class="cov3" title="5">dirty(tags...)
+        <span class="cov10" title="616">if dirty := m.opts.Dirty; dirty != nil </span>{
+                <span class="cov4" title="10">dirty(tags...)
 </span>        }
 }
 
@@ -1354,14 +1411,14 @@ func (m *Manager) notify(tags ...any) {
 // An empty defaultDecks slice uses the catalog defaults. It returns
 // [ErrAlreadyInRoom] when player is nil or already seated.
 func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
-        <span class="cov8" title="230">err = ErrAlreadyInRoom
+        <span class="cov8" title="236">err = ErrAlreadyInRoom
         if player != nil </span>{
-                <span class="cov8" title="230">m.mu.Lock()
+                <span class="cov8" title="236">m.mu.Lock()
                 defer m.mu.Unlock()
                 if player.Room() == nil </span>{
-                        <span class="cov8" title="230">var code string
+                        <span class="cov8" title="236">var code string
                         if code, err = m.newRoomCodeLocked(); err == nil </span>{
-                                <span class="cov8" title="230">room = &amp;Room{
+                                <span class="cov8" title="236">room = &amp;Room{
                                         manager:       m,
                                         code:          code,
                                         catalog:       m.catalog,
@@ -1374,19 +1431,19 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
                                         czarIndex:     -1,
                                         selectedDecks: normalizeDecks(m.catalog, defaultDecks),
 </span>                                }
-                                <span class="cov8" title="230">room.seatLocked(player)
+                                <span class="cov8" title="236">room.seatLocked(player)
                                 room.host = player
                                 room.players = []*Player{player}
                                 m.rooms[code] = room
 </span>                        }
                 }
         }
-        <span class="cov8" title="230">return</span>
+        <span class="cov8" title="236">return</span>
 }
 
 // Room returns the room matching code, or nil if no room matches.
 func (m *Manager) Room(code string) (result *Room) {
-        <span class="cov7" title="103">m.mu.RLock()
+        <span class="cov7" title="101">m.mu.RLock()
         result = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
         m.mu.RUnlock()
         return
@@ -1425,26 +1482,34 @@ func (m *Manager) PublicRooms() (result []*Room) {
 // configured Dirty callback in [Options]. A nil player or unchanged value does
 // not invoke the callback.
 func (m *Manager) SetNickname(player *Player, nickname string) {
-        <span class="cov9" title="602">if player != nil </span>{
-                <span class="cov9" title="602">nickname = NormalizeNickname(nickname)
+        <span class="cov9" title="608">if player != nil </span>{
+                <span class="cov9" title="608">nickname = NormalizeNickname(nickname)
                 var room *Room
-                var changed bool
+                var nameChanged, inputChanged, publicHostChanged bool
                 m.mu.RLock()
                 if room = player.Room(); room != nil </span>{
-                        <span class="cov8" title="199">changed = room.setNickname(player, nickname)
+                        <span class="cov8" title="184">nameChanged, inputChanged, publicHostChanged = room.setNickname(player, nickname)
 </span>                } else {
-                        <span class="cov9" title="403">changed = player.setNickname(nickname)
+                        <span class="cov9" title="424">nameChanged, inputChanged = player.setNickname(nickname)
 </span>                }
-                <span class="cov9" title="602">m.mu.RUnlock()
+                <span class="cov9" title="608">m.mu.RUnlock()
 </span>
-                <span class="cov9" title="602">if !changed </span>{
-                        <span class="cov1" title="2">return
+                <span class="cov9" title="608">var tags []any
+                if publicHostChanged </span>{
+                        <span class="cov1" title="1">tags = append(tags, m)
 </span>                }
-                <span class="cov9" title="600">if room != nil </span>{
-                        <span class="cov8" title="198">m.notify(m, player, &amp;player.NicknameInput, room)
-                        return
+                <span class="cov9" title="608">if nameChanged </span>{
+                        <span class="cov9" title="604">tags = append(tags, player)
+                        if room != nil </span>{
+                                <span class="cov8" title="181">tags = append(tags, room)
+</span>                        }
+                }
+                <span class="cov9" title="608">if inputChanged </span>{
+                        <span class="cov9" title="605">tags = append(tags, &amp;player.NicknameInput)
 </span>                }
-                <span class="cov9" title="402">m.notify(m, player, &amp;player.NicknameInput)</span>
+                <span class="cov9" title="608">if len(tags) &gt; 0 </span>{
+                        <span class="cov9" title="605">m.notify(tags...)
+</span>                }
         }
 }
 
@@ -1453,19 +1518,19 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
 // Room lookup and seating are one operation, so a concurrent leave cannot
 // remove the room between them.
 func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) {
-        <span class="cov9" title="449">err = ErrRoomNotFound
+        <span class="cov9" title="450">err = ErrRoomNotFound
         if player != nil </span>{
-                <span class="cov9" title="449">m.mu.Lock()
+                <span class="cov9" title="450">m.mu.Lock()
                 defer m.mu.Unlock()
                 room = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
                 if room != nil </span>{
-                        <span class="cov9" title="352">err = ErrAlreadyInRoom
+                        <span class="cov9" title="351">err = ErrAlreadyInRoom
                         if player.Room() != room </span>{
-                                <span class="cov9" title="352">err = room.join(player)
+                                <span class="cov9" title="351">err = room.join(player)
 </span>                        }
                 }
         }
-        <span class="cov9" title="449">return</span>
+        <span class="cov9" title="450">return</span>
 }
 
 // LeaveRoom removes player from their current room.
@@ -1477,7 +1542,7 @@ func (m *Manager) LeaveRoom(player *Player) (room *Room, empty bool) {
                 defer m.mu.Unlock()
                 if room = player.Room(); room != nil </span>{
                         <span class="cov9" title="405">if empty = room.leave(player); empty &amp;&amp; m.rooms[room.code] == room </span>{
-                                <span class="cov7" title="97">delete(m.rooms, room.code)
+                                <span class="cov7" title="99">delete(m.rooms, room.code)
 </span>                        }
                 }
         }
@@ -1510,10 +1575,10 @@ func (m *Manager) CleanupExpiredSessions() (result []*Room) {
 }
 
 func (m *Manager) newRoomCodeLocked() (roomCode string, err error) {
-        <span class="cov8" title="230">for range 1024 </span>{
-                <span class="cov8" title="230">s := randomCode()
+        <span class="cov8" title="236">for range 1024 </span>{
+                <span class="cov8" title="236">s := randomCode()
                 if _, exists := m.rooms[s]; !exists </span>{
-                        <span class="cov8" title="230">roomCode = s
+                        <span class="cov8" title="236">roomCode = s
                         return
 </span>                }
         }
@@ -1522,7 +1587,7 @@ func (m *Manager) newRoomCodeLocked() (roomCode string, err error) {
 }
 </pre>
 		
-		<pre class="file" id="file7" style="display: none">package game
+		<pre class="file" id="file8" style="display: none">package game
 
 import (
         "sync"
@@ -1575,57 +1640,57 @@ type Player struct {
 //
 // It returns nil for a nil or detached player and is safe to call concurrently.
 func (p *Player) Room() (result *Room) {
-        <span class="cov9" title="2343">if p != nil </span>{
-                <span class="cov9" title="2343">result = p.room.Load()
+        <span class="cov9" title="2353">if p != nil </span>{
+                <span class="cov9" title="2353">result = p.room.Load()
 </span>        }
-        <span class="cov9" title="2343">return</span>
+        <span class="cov9" title="2353">return</span>
 }
 
 // setRoom updates the player's current room. Writes are expected to happen
 // while the manager and room locks are held; the atomic store ensures
 // concurrent readers see a consistent value.
 func (p *Player) setRoom(r *Room) {
-        <span class="cov8" title="988">p.room.Store(r)
+        <span class="cov8" title="993">p.room.Store(r)
 </span>}
 
 // NicknameValue returns the player's room-visible nickname.
 //
 // It returns an empty string for a nil player and is safe to call concurrently.
 func (p *Player) NicknameValue() (result string) {
-        <span class="cov8" title="781">if p != nil </span>{
-                <span class="cov8" title="781">p.uiMu.Lock()
+        <span class="cov8" title="788">if p != nil </span>{
+                <span class="cov8" title="788">p.uiMu.Lock()
                 result = p.Nickname
                 p.uiMu.Unlock()
 </span>        }
-        <span class="cov8" title="781">return</span>
+        <span class="cov8" title="788">return</span>
 }
 
 // NicknameInputValue returns the player's current nickname input.
 //
 // It returns an empty string for a nil player and is safe to call concurrently.
 func (p *Player) NicknameInputValue() (result string) {
-        <span class="cov8" title="983">if p != nil </span>{
-                <span class="cov8" title="983">p.uiMu.Lock()
+        <span class="cov8" title="988">if p != nil </span>{
+                <span class="cov8" title="988">p.uiMu.Lock()
                 result = p.NicknameInput
                 p.uiMu.Unlock()
 </span>        }
-        <span class="cov8" title="983">return</span>
+        <span class="cov8" title="988">return</span>
 }
 
-func (p *Player) setNickname(nickname string) (changed bool) {
-        <span class="cov10" title="3183">if p != nil </span>{
-                <span class="cov10" title="3183">p.uiMu.Lock()
-                if changed = p.Nickname != nickname || p.NicknameInput != nickname; changed </span>{
-                        <span class="cov9" title="2703">p.Nickname = nickname
-                        p.NicknameInput = nickname
-</span>                }
-                <span class="cov10" title="3183">p.uiMu.Unlock()</span>
-        }
-        <span class="cov10" title="3183">return</span>
+func (p *Player) setNickname(nickname string) (nameChanged, inputChanged bool) {
+        <span class="cov10" title="3194">if p != nil </span>{
+                <span class="cov10" title="3194">p.uiMu.Lock()
+                nameChanged = p.Nickname != nickname
+                inputChanged = p.NicknameInput != nickname
+                p.Nickname = nickname
+                p.NicknameInput = nickname
+                p.uiMu.Unlock()
+</span>        }
+        <span class="cov10" title="3194">return</span>
 }
 </pre>
 		
-		<pre class="file" id="file8" style="display: none">package game
+		<pre class="file" id="file9" style="display: none">package game
 
 import (
         "fmt"
@@ -1691,7 +1756,7 @@ type Room struct {
 }
 
 // Code returns the room's immutable join code.
-func (r *Room) Code() string { <span class="cov7" title="449">return r.code }</span>
+func (r *Room) Code() string { <span class="cov7" title="450">return r.code }</span>
 
 // State returns the room's current phase.
 func (r *Room) State() (result RoomState) {
@@ -1927,29 +1992,43 @@ func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result i
 // It reports whether the selection changed. Invalid cards and players that
 // cannot currently submit leave the selection unchanged.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
-        <span class="cov1" title="2">r.mu.Lock()
-        defer r.mu.Unlock()
-        current := r.playerLocked(player)
+        <span class="cov1" title="2">var tags []any
+        r.mu.Lock()
+        defer func() </span>{
+                <span class="cov1" title="2">r.mu.Unlock()
+                for _, tag := range tags </span>{
+                        <span class="cov2" title="4">r.manager.notify(tag)
+</span>                }
+        }()
+        <span class="cov1" title="2">current := r.playerLocked(player)
         if current == nil || !r.canSubmitLocked(current) || card == nil || !slices.Contains(current.Hand, card) </span>{
                 <span class="cov0" title="0">return
 </span>        }
         <span class="cov1" title="2">needPick := r.needPickLocked()
-        if idx := slices.Index(current.SelectedCards, card); idx &gt;= 0 </span>{
-                <span class="cov0" title="0">current.SelectedCards = slices.Delete(current.SelectedCards, idx, idx+1)
-                changed = true
-                return
-</span>        }
-        <span class="cov1" title="2">if needPick == 1 </span>{
+        ready := len(current.SelectedCards) == needPick
+        switch idx := slices.Index(current.SelectedCards, card); </span>{
+        case idx &gt;= 0:
+                // Removing a card also changes the ordinals of later selected cards.
+                <span class="cov0" title="0">for _, affected := range current.SelectedCards[idx:] </span>{
+                        <span class="cov0" title="0">tags = append(tags, r.HandCardTag(player, affected))
+</span>                }
+                <span class="cov0" title="0">current.SelectedCards = slices.Delete(current.SelectedCards, idx, idx+1)</span>
+        case needPick == 1:
+                <span class="cov1" title="2">for _, previous := range current.SelectedCards </span>{
+                        <span class="cov0" title="0">tags = append(tags, r.HandCardTag(player, previous))
+</span>                }
                 <span class="cov1" title="2">current.SelectedCards = []*deck.WhiteCard{card}
-                changed = true
-                return
+                tags = append(tags, r.HandCardTag(player, card))</span>
+        case len(current.SelectedCards) &lt; needPick:
+                <span class="cov0" title="0">current.SelectedCards = append(current.SelectedCards, card)
+                tags = append(tags, r.HandCardTag(player, card))</span>
+        default:
+                <span class="cov0" title="0">return</span>
+        }
+        <span class="cov1" title="2">if ready != (len(current.SelectedCards) == needPick) </span>{
+                <span class="cov1" title="2">tags = append(tags, player.HandReadinessTag())
 </span>        }
-        <span class="cov0" title="0">if len(current.SelectedCards) &gt;= needPick </span>{
-                <span class="cov0" title="0">return
-</span>        }
-        <span class="cov0" title="0">current.SelectedCards = append(current.SelectedCards, card)
-        changed = true
-        return</span>
+        <span class="cov1" title="2">return true</span>
 }
 
 // SubmissionSelected reports whether submission is selected by player.
@@ -1967,19 +2046,34 @@ func (r *Room) SubmissionSelected(player *Player, submission *Submission) (resul
 // It reports whether the selection changed. Unknown submissions and players
 // that cannot currently judge leave the selection unchanged.
 func (r *Room) ToggleSubmissionSelection(player *Player, submission *Submission) (changed bool) {
-        <span class="cov1" title="1">r.mu.Lock()
-        defer r.mu.Unlock()
-        current := r.playerLocked(player)
+        <span class="cov1" title="1">var tags []any
+        r.mu.Lock()
+        defer func() </span>{
+                <span class="cov1" title="1">r.mu.Unlock()
+                for _, tag := range tags </span>{
+                        <span class="cov1" title="2">r.manager.notify(tag)
+</span>                }
+        }()
+        <span class="cov1" title="1">current := r.playerLocked(player)
         if current == nil || r.state != StateJudging || r.judgeLocked() != current || submission == nil || !slices.Contains(r.submissions, submission) </span>{
                 <span class="cov0" title="0">return
 </span>        }
-        <span class="cov1" title="1">if current.SelectedSubmission == submission </span>{
+        <span class="cov1" title="1">previous := current.SelectedSubmission
+        if previous == submission </span>{
                 <span class="cov0" title="0">current.SelectedSubmission = nil
 </span>        } else {
                 <span class="cov1" title="1">current.SelectedSubmission = submission
 </span>        }
-        <span class="cov1" title="1">changed = true
-        return</span>
+        <span class="cov1" title="1">if previous != nil </span>{
+                <span class="cov0" title="0">tags = append(tags, r.SubmissionTag(player, previous))
+</span>        }
+        <span class="cov1" title="1">if current.SelectedSubmission != nil </span>{
+                <span class="cov1" title="1">tags = append(tags, r.SubmissionTag(player, current.SelectedSubmission))
+</span>        }
+        <span class="cov1" title="1">if (previous == nil) != (current.SelectedSubmission == nil) </span>{
+                <span class="cov1" title="1">tags = append(tags, player.JudgeReadinessTag())
+</span>        }
+        <span class="cov1" title="1">return true</span>
 }
 
 // Submissions returns a shallow copy of the current round's submissions.
@@ -2060,21 +2154,22 @@ func (r *Room) IsWinningSubmission(submission *Submission) (result bool) {
 //
 // Only the host may change this setting while the room is in [StateLobby].
 func (r *Room) SetPrivate(player *Player, private bool) (err error) {
-        <span class="cov2" title="4">r.mu.Lock()
+        <span class="cov2" title="5">r.mu.Lock()
         defer r.mu.Unlock()
         err = r.setPrivateLocked(player, private)
         return
 </span>}
 
-func (r *Room) setNickname(player *Player, nickname string) (changed bool) {
-        <span class="cov8" title="2199">r.mu.Lock()
+func (r *Room) setNickname(player *Player, nickname string) (nameChanged, inputChanged, publicHostChanged bool) {
+        <span class="cov8" title="2184">r.mu.Lock()
         defer r.mu.Unlock()
         current := r.playerLocked(player)
         if current != nil </span>{
-                <span class="cov8" title="2199">nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
-                changed = current.setNickname(nickname)
+                <span class="cov8" title="2184">nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
+                nameChanged, inputChanged = current.setNickname(nickname)
+                publicHostChanged = nameChanged &amp;&amp; r.host == current &amp;&amp; !r.private
 </span>        }
-        <span class="cov8" title="2199">return</span>
+        <span class="cov8" title="2184">return</span>
 }
 
 // SetTargetScore changes the number of points required to win.
@@ -2346,19 +2441,19 @@ func (r *Room) ProceedReview(player *Player) (err error) {
 }
 
 func (r *Room) join(player *Player) (err error) {
-        <span class="cov7" title="352">r.mu.Lock()
+        <span class="cov7" title="351">r.mu.Lock()
         defer r.mu.Unlock()
         if r.playerLocked(player) == nil </span>{
-                <span class="cov7" title="352">if err = r.canJoinLocked(player); err == nil </span>{
-                        <span class="cov7" title="351">r.seatLocked(player)
+                <span class="cov7" title="351">if err = r.canJoinLocked(player); err == nil </span>{
+                        <span class="cov7" title="350">r.seatLocked(player)
                         r.players = append(r.players, player)
                         if r.host == nil </span>{
                                 <span class="cov0" title="0">r.host = player
 </span>                        }
-                        <span class="cov7" title="351">r.dealJoinedPlayerLocked(player)</span>
+                        <span class="cov7" title="350">r.dealJoinedPlayerLocked(player)</span>
                 }
         }
-        <span class="cov7" title="352">return</span>
+        <span class="cov7" title="351">return</span>
 }
 
 func (r *Room) leave(player *Player) (empty bool) {
@@ -2384,20 +2479,20 @@ func (r *Room) leave(player *Player) (empty bool) {
                         r.players = append(r.players[:idx], r.players[idx+1:]...)
                         r.submissions = slices.DeleteFunc(r.submissions, func(sub *Submission) (result bool) </span>{ <span class="cov2" title="6">result = sub.Player == current; return }</span>)
                         <span class="cov7" title="405">for _, other := range r.players </span>{
-                                <span class="cov6" title="314">if other.SelectedSubmission != nil &amp;&amp; other.SelectedSubmission.Player == current </span>{
+                                <span class="cov6" title="312">if other.SelectedSubmission != nil &amp;&amp; other.SelectedSubmission.Player == current </span>{
                                         <span class="cov1" title="1">other.SelectedSubmission = nil
 </span>                                }
                         }
                         <span class="cov7" title="405">if r.host == current </span>{
                                 <span class="cov6" title="202">if len(r.players) &gt; 0 </span>{
-                                        <span class="cov5" title="105">r.host = r.players[0]
+                                        <span class="cov5" title="103">r.host = r.players[0]
 </span>                                } else {
-                                        <span class="cov5" title="97">r.host = nil
+                                        <span class="cov5" title="99">r.host = nil
 </span>                                }
                         }
                         <span class="cov7" title="405">if len(r.players) == 0 </span>{
-                                <span class="cov5" title="97">r.clearReviewLocked()
-</span>                        } else <span class="cov6" title="308">if r.state != StateLobby </span>{
+                                <span class="cov5" title="99">r.clearReviewLocked()
+</span>                        } else <span class="cov6" title="306">if r.state != StateLobby </span>{
                                 <span class="cov2" title="4">switch </span>{
                                 case len(r.players) &lt; r.minPlayers:
                                         <span class="cov1" title="2">r.resetToLobbyLocked()</span>
@@ -2428,7 +2523,7 @@ func (r *Room) expiredPlayers() (result []*Player) {
 }
 
 func (r *Room) seatLocked(player *Player) {
-        <span class="cov7" title="581">player.setNickname(r.uniqueNicknameLocked(player))
+        <span class="cov7" title="586">player.setNickname(r.uniqueNicknameLocked(player))
         player.setRoom(r)
         player.Score = 0
         player.Hand = nil
@@ -2438,20 +2533,20 @@ func (r *Room) seatLocked(player *Player) {
 </span>}
 
 func (r *Room) canJoinLocked(player *Player) (err error) {
-        <span class="cov7" title="353">if player == nil </span>{
+        <span class="cov7" title="352">if player == nil </span>{
                 <span class="cov0" title="0">err = ErrRoomNotFound
                 return
 </span>        }
-        <span class="cov7" title="353">if player.Room() != nil </span>{
+        <span class="cov7" title="352">if player.Room() != nil </span>{
                 <span class="cov0" title="0">err = ErrAlreadyInRoom
                 return
 </span>        }
-        <span class="cov7" title="353">if len(r.players) &gt;= MaxPlayers </span>{
+        <span class="cov7" title="352">if len(r.players) &gt;= MaxPlayers </span>{
                 <span class="cov0" title="0">err = ErrRoomFull
                 return
 </span>        }
-        <span class="cov7" title="353">if r.state == StateLobby </span>{
-                <span class="cov7" title="349">return
+        <span class="cov7" title="352">if r.state == StateLobby </span>{
+                <span class="cov7" title="348">return
 </span>        }
         <span class="cov2" title="4">_, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
         if whiteCount &lt; MinWhiteCardsPerPlayer*(len(r.players)+1) </span>{
@@ -2461,8 +2556,8 @@ func (r *Room) canJoinLocked(player *Player) (err error) {
 }
 
 func (r *Room) dealJoinedPlayerLocked(player *Player) {
-        <span class="cov7" title="351">if player == nil || r.state == StateLobby </span>{
-                <span class="cov7" title="349">return
+        <span class="cov7" title="350">if player == nil || r.state == StateLobby </span>{
+                <span class="cov7" title="348">return
 </span>        }
         <span class="cov1" title="2">for len(player.Hand) &lt; HandSize </span>{
                 <span class="cov4" title="20">card := r.drawWhiteLocked()
@@ -2488,37 +2583,37 @@ func (r *Room) dealJoinedPlayerLocked(player *Player) {
 }
 
 func (r *Room) uniqueNicknameLocked(player *Player) (result string) {
-        <span class="cov7" title="581">result = NormalizeNickname(player.NicknameInputValue())
+        <span class="cov7" title="586">result = NormalizeNickname(player.NicknameInputValue())
         nickname := player.NicknameValue()
         if result == "Player" &amp;&amp; strings.TrimSpace(nickname) != "" </span>{
-                <span class="cov5" title="99">result = NormalizeNickname(nickname)
+                <span class="cov5" title="102">result = NormalizeNickname(nickname)
 </span>        }
-        <span class="cov7" title="581">result = r.uniqueNicknameForLocked(player, result)
+        <span class="cov7" title="586">result = r.uniqueNicknameForLocked(player, result)
         return</span>
 }
 
 func (r *Room) uniqueNicknameForLocked(player *Player, nickname string) (result string) {
-        <span class="cov9" title="2780">result = nickname
+        <span class="cov9" title="2770">result = nickname
         base := result
         for suffix := 2; ; suffix++ </span>{
-                <span class="cov9" title="2982">if !r.nicknameTakenLocked(result, player) </span>{
-                        <span class="cov9" title="2780">return
+                <span class="cov9" title="2972">if !r.nicknameTakenLocked(result, player) </span>{
+                        <span class="cov9" title="2770">return
 </span>                }
                 <span class="cov6" title="202">result = fmt.Sprintf("%s-%d", base, suffix)</span>
         }
 }
 
 func (r *Room) nicknameTakenLocked(candidate string, exclude *Player) (result bool) {
-        <span class="cov9" title="2982">for _, player := range r.players </span>{
-                <span class="cov9" title="4977">if player == exclude </span>{
-                        <span class="cov8" title="2199">continue</span>
+        <span class="cov9" title="2972">for _, player := range r.players </span>{
+                <span class="cov9" title="4942">if player == exclude </span>{
+                        <span class="cov8" title="2184">continue</span>
                 }
-                <span class="cov9" title="2778">if strings.EqualFold(player.Nickname, candidate) </span>{
+                <span class="cov9" title="2758">if strings.EqualFold(player.Nickname, candidate) </span>{
                         <span class="cov6" title="202">result = true
                         return
 </span>                }
         }
-        <span class="cov9" title="2780">return</span>
+        <span class="cov9" title="2770">return</span>
 }
 
 func (r *Room) resetToLobbyLocked() {
@@ -2686,11 +2781,11 @@ func (r *Room) reviewTimerElapsed(token uint64) {
 }
 
 func (r *Room) clearReviewLocked() {
-        <span class="cov6" title="169">if r.reviewTimer != nil </span>{
+        <span class="cov6" title="171">if r.reviewTimer != nil </span>{
                 <span class="cov3" title="8">r.reviewTimer.Stop()
                 r.reviewTimer = nil
 </span>        }
-        <span class="cov6" title="169">r.reviewToken++
+        <span class="cov6" title="171">r.reviewToken++
         r.reviewDeadline = time.Time{}
         r.reviewWinner = nil
         r.reviewSubmission = nil
@@ -2726,38 +2821,38 @@ func (r *Room) drawBlackLocked() (result *deck.BlackCard) {
 }
 
 func (r *Room) judgeLocked() (result *Player) {
-        <span class="cov7" title="529">if len(r.players) == 0 || r.czarIndex &lt; 0 || r.czarIndex &gt;= len(r.players) </span>{
+        <span class="cov7" title="531">if len(r.players) == 0 || r.czarIndex &lt; 0 || r.czarIndex &gt;= len(r.players) </span>{
                 <span class="cov7" title="401">return
 </span>        }
-        <span class="cov6" title="128">result = r.players[r.czarIndex]
+        <span class="cov6" title="130">result = r.players[r.czarIndex]
         return</span>
 }
 
 func (r *Room) currentBlackLocked() (result *deck.BlackCard) {
-        <span class="cov5" title="76">result = r.currentBlack
+        <span class="cov5" title="77">result = r.currentBlack
         return
 </span>}
 
 func (r *Room) canSubmitLocked(player *Player) (result bool) {
-        <span class="cov3" title="9">result = player != nil &amp;&amp; r.state == StatePlaying &amp;&amp; r.judgeLocked() != player &amp;&amp; len(player.Submitted) == 0
+        <span class="cov3" title="10">result = player != nil &amp;&amp; r.state == StatePlaying &amp;&amp; r.judgeLocked() != player &amp;&amp; len(player.Submitted) == 0
         return
 </span>}
 
 func (r *Room) needPickLocked() (result int) {
-        <span class="cov2" title="4">if black := r.currentBlackLocked(); black != nil </span>{
-                <span class="cov2" title="4">result = black.Pick
+        <span class="cov2" title="5">if black := r.currentBlackLocked(); black != nil </span>{
+                <span class="cov2" title="5">result = black.Pick
 </span>        }
-        <span class="cov2" title="4">return</span>
+        <span class="cov2" title="5">return</span>
 }
 
 func (r *Room) playerLocked(player *Player) (result *Player) {
-        <span class="cov9" title="3225">for _, current := range r.players </span>{
-                <span class="cov10" title="5957">if current == player </span>{
-                        <span class="cov9" title="2873">result = current
+        <span class="cov9" title="3211">for _, current := range r.players </span>{
+                <span class="cov10" title="5924">if current == player </span>{
+                        <span class="cov9" title="2860">result = current
                         return
 </span>                }
         }
-        <span class="cov7" title="352">return</span>
+        <span class="cov7" title="351">return</span>
 }
 
 func selectionOrderLocked(player *Player, card *deck.WhiteCard) (result int) {
@@ -2825,22 +2920,22 @@ func (r *Room) setTargetScoreLocked(player *Player, score int) (err error) {
 }
 
 func (r *Room) setPrivateLocked(player *Player, private bool) (err error) {
-        <span class="cov2" title="4">if err = r.lobbyControlErrorLocked(player); err == nil </span>{
-                <span class="cov1" title="2">r.private = private
+        <span class="cov2" title="5">if err = r.lobbyControlErrorLocked(player); err == nil </span>{
+                <span class="cov2" title="3">r.private = private
 </span>        }
-        <span class="cov2" title="4">return</span>
+        <span class="cov2" title="5">return</span>
 }
 
 func (r *Room) lobbyControlErrorLocked(player *Player) (err error) {
-        <span class="cov4" title="19">if player == nil || r.host != player </span>{
+        <span class="cov4" title="20">if player == nil || r.host != player </span>{
                 <span class="cov2" title="5">err = ErrOnlyHostCanEdit
                 return
 </span>        }
-        <span class="cov3" title="14">if r.state != StateLobby </span>{
+        <span class="cov3" title="15">if r.state != StateLobby </span>{
                 <span class="cov2" title="3">err = ErrGameInProgress
                 return
 </span>        }
-        <span class="cov3" title="11">return</span>
+        <span class="cov3" title="12">return</span>
 }
 
 func (r *Room) normalizeTargetScoreLocked(score int) (result int) {
@@ -2854,10 +2949,10 @@ func (r *Room) normalizeTargetScoreLocked(score int) (result int) {
 }
 
 func (r *Room) canStartLocked(player *Player) (result bool) {
-        <span class="cov1" title="2">if player == nil || r.host != player || r.state != StateLobby || len(r.players) &lt; r.minPlayers </span>{
+        <span class="cov2" title="3">if player == nil || r.host != player || r.state != StateLobby || len(r.players) &lt; r.minPlayers </span>{
                 <span class="cov1" title="1">return
 </span>        }
-        <span class="cov1" title="1">blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
+        <span class="cov1" title="2">blackCount, whiteCount := r.catalog.UnionCounts(r.selectedDecks)
         result = blackCount &gt;= MinBlackCards &amp;&amp; whiteCount &gt;= MinWhiteCardsPerPlayer*len(r.players)
         return</span>
 }
@@ -2892,7 +2987,7 @@ func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {
                 <span class="cov0" title="0">return
 </span>        }
         <span class="cov1" title="2">for i, card := range r.blackDraw </span>{
-                <span class="cov5" title="89">if card == best </span>{
+                <span class="cov5" title="88">if card == best </span>{
                         <span class="cov1" title="2">last := len(r.blackDraw) - 1
                         r.blackDraw[i], r.blackDraw[last] = r.blackDraw[last], r.blackDraw[i]
                         return
@@ -2901,7 +2996,47 @@ func (r *Room) prepareOpeningBlackLocked(cards []*deck.BlackCard) {
 }
 </pre>
 		
-		<pre class="file" id="file9" style="display: none">package ui
+		<pre class="file" id="file10" style="display: none">package game
+
+import "github.com/linkdata/xyzzy/internal/deck"
+
+type handCardTag struct {
+        room   *Room
+        player *Player
+        card   *deck.WhiteCard
+}
+type submissionTag struct {
+        room       *Room
+        player     *Player
+        submission *Submission
+}
+
+// HandCardTag identifies one player's selection state for a card in this room.
+func (r *Room) HandCardTag(player *Player, card *deck.WhiteCard) any {
+        <span class="cov5" title="2">return handCardTag{r, player, card}
+</span>}
+
+// SubmissionTag identifies one player's selection state for a submission.
+func (r *Room) SubmissionTag(player *Player, submission *Submission) any {
+        <span class="cov1" title="1">return submissionTag{r, player, submission}
+</span>}
+
+// HandReadinessTag identifies whether the player's hand selection is complete.
+func (p *Player) HandReadinessTag() any { <span class="cov5" title="2">return &amp;p.SelectedCards }</span>
+
+// JudgeReadinessTag identifies whether the player has chosen a submission.
+func (p *Player) JudgeReadinessTag() any { <span class="cov1" title="1">return &amp;p.SelectedSubmission }</span>
+
+func (r *Room) submitReadyLocked(current *Player) bool {
+        <span class="cov8" title="3">return current != nil &amp;&amp; r.canSubmitLocked(current) &amp;&amp; len(current.SelectedCards) == r.needPickLocked()
+</span>}
+
+func (r *Room) judgeReadyLocked(current *Player) bool {
+        <span class="cov10" title="4">return current != nil &amp;&amp; r.state == StateJudging &amp;&amp; r.judgeLocked() == current &amp;&amp; current.SelectedSubmission != nil
+</span>}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package ui
 
 import (
         "crypto/rand"
@@ -2942,7 +3077,7 @@ type App struct {
 // It enables [jaws.StatusMetricActiveSessions]. To publish game changes to live
 // pages, manager must be constructed with [game.Options.Dirty] set to jw.Dirty.
 func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
-        <span class="cov5" title="71">jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
+        <span class="cov5" title="79">jw.StatusMetrics.Or(jaws.StatusMetricActiveSessions)
         return &amp;App{
                 Jaws:              jw,
                 Catalog:           catalog,
@@ -2953,15 +3088,15 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 
 // SetupRoutes registers the App's HTTP routes and templates on mux.
 func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
-        <span class="cov5" title="63">var templates *template.Template
+        <span class="cov5" title="70">var templates *template.Template
         if templates, err = template.New("root").ParseFS(xyzzy.Assets, "assets/templates/*.html"); err == nil </span>{
-                <span class="cov5" title="63">if err = a.Jaws.AddTemplateLookuper(templates); err == nil </span>{
-                        <span class="cov5" title="63">if err = a.Jaws.Setup(
+                <span class="cov5" title="70">if err = a.Jaws.AddTemplateLookuper(templates); err == nil </span>{
+                        <span class="cov5" title="70">if err = a.Jaws.Setup(
                                 mux.Handle, "/static",
                                 jawsboot.Setup,
                                 staticserve.MustNewFS(xyzzy.Assets, "assets/static", "images/favicon.svg", "app.css"),
                         ); err == nil </span>{
-                                <span class="cov5" title="63">mux.Handle("GET /jaws/", a.Jaws)
+                                <span class="cov5" title="70">mux.Handle("GET /jaws/", a.Jaws)
                                 mux.Handle("GET /robots.txt", http.HandlerFunc(a.serveRobots))
                                 mux.Handle("GET /.well-known/security.txt", http.HandlerFunc(a.serveSecurityTxt))
                                 mux.Handle("GET /{$}", a.Jaws.SessionMiddleware(http.HandlerFunc(a.serveLobby)))
@@ -2970,7 +3105,7 @@ func (a *App) SetupRoutes(mux *http.ServeMux) (err error) {
 </span>                        }
                 }
         }
-        <span class="cov5" title="63">return</span>
+        <span class="cov5" title="70">return</span>
 }
 
 // Middleware applies the App's HTTP security headers to next.
@@ -3016,72 +3151,71 @@ func (a *App) serveRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) {
-        <span class="cov10" title="3437">a.playerMu.Lock()
+        <span class="cov10" title="3443">a.playerMu.Lock()
         if result, _ = sess.Get(sessionKeyPlayer).(*game.Player); result == nil </span>{
-                <span class="cov7" title="228">nickname := a.nicknameFromCookie(r)
+                <span class="cov7" title="234">nickname := a.nicknameFromCookie(r)
                 if nickname == "" </span>{
-                        <span class="cov6" title="227">nickname = generateNickname()
+                        <span class="cov7" title="233">nickname = generateNickname()
 </span>                } else {
                         <span class="cov1" title="1">nickname = game.NormalizeNickname(nickname)
 </span>                }
-                <span class="cov7" title="228">result = &amp;game.Player{
+                <span class="cov7" title="234">result = &amp;game.Player{
                         Session:       sess,
                         Nickname:      nickname,
                         NicknameInput: nickname,
 </span>                }
-                <span class="cov7" title="228">sess.Set(sessionKeyPlayer, result)</span>
+                <span class="cov7" title="234">sess.Set(sessionKeyPlayer, result)</span>
         }
-        <span class="cov10" title="3437">a.playerMu.Unlock()
+        <span class="cov10" title="3443">a.playerMu.Unlock()
 </span>
-        <span class="cov10" title="3437">if result.Room() == nil </span>{
-                <span class="cov9" title="3412">if nickname := result.NicknameValue(); nickname == "" </span>{
+        <span class="cov10" title="3443">if result.Room() == nil </span>{
+                <span class="cov9" title="3418">if nickname := result.NicknameValue(); nickname == "" </span>{
                         <span class="cov1" title="1">a.Manager.SetNickname(result, generateNickname())
-</span>                } else <span class="cov9" title="3411">if result.NicknameInputValue() == "" </span>{
+</span>                } else <span class="cov9" title="3417">if result.NicknameInputValue() == "" </span>{
                         <span class="cov0" title="0">a.Manager.SetNickname(result, nickname)
 </span>                }
         }
-        <span class="cov10" title="3437">return</span>
+        <span class="cov10" title="3443">return</span>
 }
 
 func (a *App) cleanupExpired() {
-        <span class="cov6" title="129">affected := a.Manager.CleanupExpiredSessions()
+        <span class="cov6" title="130">affected := a.Manager.CleanupExpiredSessions()
         if len(affected) &gt; 0 </span>{
-                <span class="cov1" title="2">tags := []any{a.Manager}
+                <span class="cov2" title="3">a.Jaws.Dirty(a.Manager)
                 for _, room := range affected </span>{
-                        <span class="cov1" title="2">tags = append(tags, room)
+                        <span class="cov6" title="112">a.Jaws.Dirty(room)
 </span>                }
-                <span class="cov1" title="2">a.Jaws.Dirty(tags...)</span>
         }
 }
 
 func (a *App) nicknameCookieName() (result string) {
-        <span class="cov7" title="364">result = strings.TrimSpace(a.Jaws.CookieName)
+        <span class="cov7" title="369">result = strings.TrimSpace(a.Jaws.CookieName)
         if result == "" </span>{
                 <span class="cov0" title="0">result = "jaws"
 </span>        }
-        <span class="cov7" title="364">result += "_nickname"
+        <span class="cov7" title="369">result += "_nickname"
         return</span>
 }
 
 func (a *App) nicknameFromCookie(r *http.Request) (result string) {
-        <span class="cov7" title="355">if r != nil </span>{
-                <span class="cov7" title="231">cookie, err := r.Cookie(a.nicknameCookieName())
+        <span class="cov7" title="361">if r != nil </span>{
+                <span class="cov7" title="237">cookie, err := r.Cookie(a.nicknameCookieName())
                 if err == nil &amp;&amp; cookie.Value != "" </span>{
                         <span class="cov4" title="20">if raw, err := base64.RawURLEncoding.DecodeString(cookie.Value); err == nil </span>{
                                 <span class="cov4" title="20">result = strings.TrimSpace(string(raw))
 </span>                        }
                 }
         }
-        <span class="cov7" title="355">return</span>
+        <span class="cov7" title="361">return</span>
 }
 
 func (a *App) setNicknameCookie(w http.ResponseWriter, r *http.Request, nickname string) {
-        <span class="cov6" title="124">nickname = strings.TrimSpace(nickname)
+        <span class="cov6" title="123">nickname = strings.TrimSpace(nickname)
         value := ""
         if nickname != "" </span>{
-                <span class="cov6" title="124">value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
+                <span class="cov6" title="123">value = base64.RawURLEncoding.EncodeToString([]byte(nickname))
 </span>        }
-        <span class="cov6" title="124">http.SetCookie(w, &amp;http.Cookie{ // #nosec G124 -- Secure follows JaWS proxy trust; HttpOnly and SameSite are set below.
+        <span class="cov6" title="123">http.SetCookie(w, &amp;http.Cookie{ // #nosec G124 -- Secure follows JaWS proxy trust; HttpOnly and SameSite are set below.
                 Name:     a.nicknameCookieName(),
                 Value:    value,
                 Path:     "/",
@@ -3100,15 +3234,15 @@ func (a *App) syncNicknameCookie(w http.ResponseWriter, r *http.Request, player 
                         nickname = a.playerNickname(player)
 </span>                }
                 <span class="cov6" title="127">if nickname != a.nicknameFromCookie(r) </span>{
-                        <span class="cov6" title="117">a.setNicknameCookie(w, r, nickname)
+                        <span class="cov6" title="116">a.setNicknameCookie(w, r, nickname)
 </span>                }
         }
 }
 
 func (a *App) playerNickname(player *game.Player) (result string) {
-        <span class="cov7" title="266">if player != nil </span>{
-                <span class="cov7" title="266">if room := player.Room(); room != nil </span>{
-                        <span class="cov5" title="53">result = room.NicknameFor(player)
+        <span class="cov7" title="265">if player != nil </span>{
+                <span class="cov7" title="265">if room := player.Room(); room != nil </span>{
+                        <span class="cov5" title="52">result = room.NicknameFor(player)
                         return
 </span>                }
                 <span class="cov6" title="213">result = player.NicknameValue()</span>
@@ -3117,7 +3251,7 @@ func (a *App) playerNickname(player *game.Player) (result string) {
 }
 
 func generateNickname() (result string) {
-        <span class="cov7" title="228">var b [3]byte
+        <span class="cov7" title="234">var b [3]byte
         _, _ = rand.Read(b[:])
         result = fmt.Sprintf("Player%X", b)
         return
@@ -3131,10 +3265,10 @@ func (a *App) createRoom(player *game.Player) (room *game.Room, err error) {
 }
 
 func (a *App) joinRoom(player *game.Player, roomCode string) (room *game.Room, err error) {
-        <span class="cov4" title="28">if room, err = a.Manager.JoinRoom(roomCode, player); err == nil </span>{
-                <span class="cov4" title="26">a.Jaws.Dirty(a.Manager, room, player)
+        <span class="cov4" title="27">if room, err = a.Manager.JoinRoom(roomCode, player); err == nil </span>{
+                <span class="cov4" title="25">a.Jaws.Dirty(a.Manager, room, player)
 </span>        }
-        <span class="cov4" title="28">return</span>
+        <span class="cov4" title="27">return</span>
 }
 
 func (a *App) leaveRoom(player *game.Player) (room *game.Room) {
@@ -3145,22 +3279,19 @@ func (a *App) leaveRoom(player *game.Player) (room *game.Room) {
 
 // RoomURL returns the canonical path for code, or the lobby path for an empty code.
 func (a *App) RoomURL(code string) (result string) {
-        <span class="cov3" title="15">code = strings.ToUpper(strings.TrimSpace(code))
+        <span class="cov4" title="16">code = strings.ToUpper(strings.TrimSpace(code))
         if code == "" </span>{
                 <span class="cov0" title="0">result = "/"
                 return
 </span>        }
-        <span class="cov3" title="15">result = path.Join("/room", code)
+        <span class="cov4" title="16">result = path.Join("/room", code)
         return</span>
 }
 </pre>
 		
-		<pre class="file" id="file10" style="display: none">package ui
+		<pre class="file" id="file12" style="display: none">package ui
 
 import (
-        "net"
-        "net/http"
-        "strings"
         "sync"
         "time"
 )
@@ -3184,67 +3315,53 @@ type createRoomBucket struct {
 }
 
 func newCreateRoomLimiter() (result *createRoomLimiter) {
-        <span class="cov8" title="73">result = &amp;createRoomLimiter{
+        <span class="cov8" title="81">result = &amp;createRoomLimiter{
                 now:     time.Now,
                 buckets: make(map[string]*createRoomBucket),
 </span>        }
-        <span class="cov8" title="73">return
+        <span class="cov8" title="81">return
 </span>}
 
 // Allow reports whether one create-room attempt may proceed for ip.
 func (l *createRoomLimiter) Allow(ip string) (ok bool) {
-        <span class="cov8" title="84">now := l.now()
+        <span class="cov8" title="110">now := l.now()
         l.mu.Lock()
         defer l.mu.Unlock()
 </span>
-        <span class="cov8" title="84">bucket := l.buckets[ip]
+        <span class="cov8" title="110">bucket := l.buckets[ip]
         if bucket == nil </span>{
-                <span class="cov3" title="5">bucket = &amp;createRoomBucket{
+                <span class="cov4" title="8">bucket = &amp;createRoomBucket{
                         minuteTokens: createRoomMinuteBurst,
                         hourTokens:   createRoomHourBurst,
                         minuteSeen:   now,
                         hourSeen:     now,
 </span>                }
-                <span class="cov3" title="5">l.buckets[ip] = bucket
+                <span class="cov4" title="8">l.buckets[ip] = bucket
 </span>        }
 
-        <span class="cov8" title="84">bucket.minuteTokens = refillTokens(bucket.minuteTokens, bucket.minuteSeen, now, 5.0/60.0, createRoomMinuteBurst)
+        <span class="cov8" title="110">bucket.minuteTokens = refillTokens(bucket.minuteTokens, bucket.minuteSeen, now, 5.0/60.0, createRoomMinuteBurst)
         bucket.hourTokens = refillTokens(bucket.hourTokens, bucket.hourSeen, now, 50.0/3600.0, createRoomHourBurst)
         bucket.minuteSeen = now
         bucket.hourSeen = now
 </span>
-        <span class="cov8" title="84">if bucket.minuteTokens &gt;= 1 &amp;&amp; bucket.hourTokens &gt;= 1 </span>{
-                <span class="cov8" title="81">bucket.minuteTokens--
+        <span class="cov8" title="110">if bucket.minuteTokens &gt;= 1 &amp;&amp; bucket.hourTokens &gt;= 1 </span>{
+                <span class="cov8" title="102">bucket.minuteTokens--
                 bucket.hourTokens--
                 ok = true
 </span>        }
-        <span class="cov8" title="84">return</span>
+        <span class="cov8" title="110">return</span>
 }
 
 func refillTokens(tokens float64, lastSeen, now time.Time, rate float64, burst float64) (result float64) {
-        <span class="cov10" title="168">result = tokens + now.Sub(lastSeen).Seconds()*rate
+        <span class="cov10" title="220">result = tokens + now.Sub(lastSeen).Seconds()*rate
         if result &gt; burst </span>{
                 <span class="cov0" title="0">result = burst
 </span>        }
-        <span class="cov10" title="168">return</span>
-}
-
-func clientIP(r *http.Request) (result string) {
-        <span class="cov4" title="8">if r != nil </span>{
-                <span class="cov4" title="7">host := r.RemoteAddr
-                if splitHost, _, err := net.SplitHostPort(host); err == nil </span>{
-                        <span class="cov3" title="5">host = splitHost
-</span>                }
-                <span class="cov4" title="7">result = strings.TrimSpace(host)</span>
-        }
-        <span class="cov4" title="8">if result == "" </span>{
-                <span class="cov2" title="2">result = "unknown"
-</span>        }
-        <span class="cov4" title="8">return</span>
+        <span class="cov10" title="220">return</span>
 }
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">package ui
+		<pre class="file" id="file13" style="display: none">package ui
 
 import (
         "strings"
@@ -3266,51 +3383,51 @@ type roomDeckTag struct {
 }
 
 func (d deckInput) JawsGet(*jaws.Element) (result bool) {
-        <span class="cov7" title="46">result = d.Room.DeckEnabled(d.Deck)
+        <span class="cov6" title="53">result = d.Room.DeckEnabled(d.Deck)
         return
 </span>}
 
 func (d deckInput) JawsSet(elem *jaws.Element, value bool) (err error) {
-        <span class="cov3" title="5">var changed bool
+        <span class="cov3" title="8">var changed bool
         if changed, err = d.Room.SetDeckEnabled(d.Player, d.Deck, value); err == nil </span>{
-                <span class="cov3" title="4">if !changed </span>{
-                        <span class="cov1" title="1">err = jaws.ErrValueUnchanged
+                <span class="cov3" title="7">if !changed </span>{
+                        <span class="cov1" title="2">err = jaws.ErrValueUnchanged
                         return
 </span>                }
-                <span class="cov2" title="3">elem.Dirty(d.Room)</span>
+                <span class="cov3" title="5">elem.Dirty(d.Room.DeckSelectionTag())</span>
         }
-        <span class="cov3" title="4">return</span>
+        <span class="cov3" title="6">return</span>
 }
 
 func (d deckInput) JawsGetTag() (result any) {
-        <span class="cov7" title="43">if d.Room != nil </span>{
-                <span class="cov7" title="42">result = roomDeckTag{Room: d.Room, Deck: d.Deck}
+        <span class="cov6" title="42">if d.Room != nil </span>{
+                <span class="cov6" title="41">result = roomDeckTag{Room: d.Room, Deck: d.Deck}
 </span>        }
-        <span class="cov7" title="43">return</span>
+        <span class="cov6" title="42">return</span>
 }
 
 func cardFootnote(deckName, cardID string) (result string) {
-        <span class="cov8" title="56">number := strings.Map(func(r rune) (result rune) </span>{
-                <span class="cov10" title="166">if r &gt;= '0' &amp;&amp; r &lt;= '9' </span>{
-                        <span class="cov9" title="110">result = r
+        <span class="cov8" title="196">number := strings.Map(func(r rune) (result rune) </span>{
+                <span class="cov10" title="586">if r &gt;= '0' &amp;&amp; r &lt;= '9' </span>{
+                        <span class="cov9" title="390">result = r
                         return
 </span>                }
-                <span class="cov8" title="56">result = -1
+                <span class="cov8" title="196">result = -1
                 return</span>
         }, cardID)
-        <span class="cov8" title="56">switch </span>{
+        <span class="cov8" title="196">switch </span>{
         case deckName == "":
                 <span class="cov0" title="0">result = number</span>
         case number == "":
                 <span class="cov0" title="0">result = deckName</span>
         default:
-                <span class="cov8" title="56">result = deckName + " · " + number</span>
+                <span class="cov8" title="196">result = deckName + " · " + number</span>
         }
-        <span class="cov8" title="56">return</span>
+        <span class="cov8" title="196">return</span>
 }
 </pre>
 		
-		<pre class="file" id="file12" style="display: none">package ui
+		<pre class="file" id="file14" style="display: none">package ui
 
 import (
         "strings"
@@ -3344,23 +3461,23 @@ func (s roomSection) JawsGetTag() (result any) {
                 <span class="cov2" title="2">result = []any{s.Player, s.App.Manager}
                 return
 </span>        }
-        <span class="cov7" title="43">result = []any{s.Player, s.App.Manager, s.RequestedRoom}
+        <span class="cov8" title="43">result = []any{s.Player, s.App.Manager, s.RequestedRoom}
         return</span>
 }
 
 func (s roomSection) JawsContains(*jaws.Element) (result []jaws.UI) {
-        <span class="cov10" title="128">root := templateDot{App: s.App, Player: s.Player}
+        <span class="cov10" title="124">root := templateDot{App: s.App, Player: s.Player}
         room := s.currentRoom()
         if s.Kind == roomSectionSidebar </span>{
-                <span class="cov8" title="59">if room != nil </span>{
-                        <span class="cov7" title="33">dot := roomTemplateDot{templateDot: root, Room: room}
+                <span class="cov8" title="58">if room != nil </span>{
+                        <span class="cov7" title="32">dot := roomTemplateDot{templateDot: root, Room: room}
                         result = []jaws.UI{jui.NewTemplate("div", "room_summary_panel.html", dot)}
 </span>                }
-                <span class="cov8" title="59">return</span>
+                <span class="cov8" title="58">return</span>
         }
 
-        <span class="cov8" title="69">if room != nil </span>{
-                <span class="cov7" title="40">dot := gameTemplateDot{templateDot: root, Room: room}
+        <span class="cov8" title="66">if room != nil </span>{
+                <span class="cov7" title="37">dot := gameTemplateDot{templateDot: root, Room: room}
                 result = []jaws.UI{jui.NewTemplate("div", roomGameTemplateName(room.State()), dot)}
                 return
 </span>        }
@@ -3381,26 +3498,26 @@ func (s roomSection) requestedRoom() (result *game.Room) {
 }
 
 func (s roomSection) currentRoom() (result *game.Room) {
-        <span class="cov10" title="128">if s.Player != nil </span>{
-                <span class="cov10" title="128">if room := s.Player.Room(); room != nil &amp;&amp; room == s.RequestedRoom </span>{
-                        <span class="cov8" title="73">result = room
+        <span class="cov10" title="124">if s.Player != nil </span>{
+                <span class="cov10" title="124">if room := s.Player.Room(); room != nil &amp;&amp; room == s.RequestedRoom </span>{
+                        <span class="cov8" title="69">result = room
 </span>                }
         }
-        <span class="cov10" title="128">return</span>
+        <span class="cov10" title="124">return</span>
 }
 
 func roomGameTemplateName(state game.RoomState) (result string) {
-        <span class="cov8" title="45">switch state </span>{
+        <span class="cov7" title="42">switch state </span>{
         case game.StateLobby:
-                <span class="cov7" title="28">result = "room_game_lobby.html"</span>
+                <span class="cov7" title="26">result = "room_game_lobby.html"</span>
         case game.StatePlaying:
-                <span class="cov4" title="6">result = "room_game_playing.html"</span>
+                <span class="cov4" title="5">result = "room_game_playing.html"</span>
         case game.StateJudging:
                 <span class="cov3" title="3">result = "room_game_judging.html"</span>
         case game.StateReview:
                 <span class="cov4" title="7">result = "room_game_review.html"</span>
         }
-        <span class="cov8" title="45">return</span>
+        <span class="cov7" title="42">return</span>
 }
 
 func normalizeRoomCode(roomCode string) (result string) {
@@ -3409,7 +3526,7 @@ func normalizeRoomCode(roomCode string) (result string) {
 </span>}
 </pre>
 		
-		<pre class="file" id="file13" style="display: none">package ui
+		<pre class="file" id="file15" style="display: none">package ui
 
 import (
         "io"
@@ -3433,10 +3550,11 @@ func (a *App) serveNotFound(w http.ResponseWriter, r *http.Request) {
 </span>}
 </pre>
 		
-		<pre class="file" id="file14" style="display: none">package ui
+		<pre class="file" id="file16" style="display: none">package ui
 
 import (
         "html/template"
+        "strconv"
 
         "github.com/linkdata/jaws"
         "github.com/linkdata/xyzzy/internal/game"
@@ -3448,46 +3566,57 @@ type submissionView struct {
         Submission *game.Submission
 }
 
-// JawsGetTag returns no dependency tag.
-func (submissionView) JawsGetTag() any { <span class="cov9" title="11">return nil }</span>
+func (v submissionView) JawsGetTag() any { <span class="cov8" title="18">return v.Room.SubmissionTag(v.Player, v.Submission) }</span>
+
+// UpdateAttrs applies selection state when the card template runs.
+func (v submissionView) UpdateAttrs(elem *jaws.Element) string {
+        <span class="cov9" title="25">if !v.Room.CanJudge(v.Player) </span>{
+                <span class="cov7" title="11">return ""
+</span>        }
+        <span class="cov8" title="14">elem.SetAttr("aria-pressed", strconv.FormatBool(v.Room.SubmissionSelected(v.Player, v.Submission)))
+        return ""</span>
+}
 
 func (v submissionView) Cards() (result []whiteCardView) {
-        <span class="cov9" title="11">if v.Room != nil &amp;&amp; v.Submission != nil </span>{
-                <span class="cov9" title="11">result = submissionCardViews(v.Room, v.Submission)
+        <span class="cov9" title="25">if v.Room != nil &amp;&amp; v.Submission != nil </span>{
+                <span class="cov9" title="25">result = submissionCardViews(v.Room, v.Submission)
 </span>        }
-        <span class="cov9" title="11">return</span>
+        <span class="cov9" title="25">return</span>
 }
 
-func (v submissionView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-        <span class="cov10" title="14">result = cardInitialHTMLAttr(
-                v.Room.SubmissionSelected(v.Player, v.Submission),
-                v.Room.IsWinningSubmission(v.Submission),
-                !v.Room.CanJudge(v.Player),
-        )
-        return
+func (v submissionView) InitialAttrs() (attrs template.HTMLAttr) {
+        <span class="cov9" title="20">if v.Room.CanJudge(v.Player) </span>{
+                <span class="cov6" title="8">if v.Room.SubmissionSelected(v.Player, v.Submission) </span>{
+                        <span class="cov1" title="1">attrs = `aria-pressed="true"`
+</span>                } else {
+                        <span class="cov6" title="7">attrs = `aria-pressed="false"`
+</span>                }
+        } else {
+                <span class="cov7" title="12">attrs = `aria-disabled="true"`
+</span>        }
+        <span class="cov9" title="20">if v.Room.IsWinningSubmission(v.Submission) </span>{
+                <span class="cov6" title="8">attrs += ` data-winning="true"`
+</span>        }
+        <span class="cov9" title="20">return</span>
+}
+
+func (v submissionView) JawsClick(*jaws.Element, jaws.Click) error {
+        <span class="cov6" title="7">v.Room.ToggleSubmissionSelection(v.Player, v.Submission)
+        return nil
 </span>}
 
-func (v submissionView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
-        <span class="cov4" title="3">if v.Room.ToggleSubmissionSelection(v.Player, v.Submission) </span>{
-                // Wrapper attributes are initial-only, so reconstruct the cards through
-                // their player-tagged parent after selection changes.
-                <span class="cov3" title="2">elem.Dirty(v.Player)
-</span>        }
-        <span class="cov4" title="3">return</span>
-}
-
 func submissionCardViews(room *game.Room, submission *game.Submission) (result []whiteCardView) {
-        <span class="cov9" title="11">cards := room.SubmissionCards(submission)
+        <span class="cov9" title="25">cards := room.SubmissionCards(submission)
         result = make([]whiteCardView, 0, len(cards))
         for _, card := range cards </span>{
                 // Submitted cards omit Player so hand-selection ordinals stay private.
-                <span class="cov9" title="12">result = append(result, whiteCardView{Room: room, Card: card})
+                <span class="cov10" title="26">result = append(result, whiteCardView{Room: room, Card: card})
 </span>        }
-        <span class="cov9" title="11">return</span>
+        <span class="cov9" title="25">return</span>
 }
 </pre>
 		
-		<pre class="file" id="file15" style="display: none">package ui
+		<pre class="file" id="file17" style="display: none">package ui
 
 import (
         "errors"
@@ -3580,7 +3709,7 @@ type gameTemplateDot struct {
 }
 
 func (d gameTemplateDot) JawsGetTag() any {
-        <span class="cov6" title="25">return []any{d.Player, d.Room}
+        <span class="cov7" title="40">return []any{d.Player, d.Room}
 </span>}
 
 func (d roomPageDot) RoomSidebar() (result jaws.Container) {
@@ -3621,27 +3750,27 @@ func (d templateDot) SaveNicknameButton() (result jui.Object) {
 }
 
 func (d templateDot) CreateRoomButton() (result jui.Object) {
-        <span class="cov9" title="95">result = jui.New("Create Room").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) </span>{
-                <span class="cov2" title="2">if current := d.Player.Room(); current != nil </span>{
+        <span class="cov9" title="99">result = jui.New("Create Room").Clicked(func(_ jui.Object, elem *jaws.Element, _ jaws.Click) (err error) </span>{
+                <span class="cov4" title="8">if current := d.Player.Room(); current != nil </span>{
                         <span class="cov0" title="0">elem.Redirect(d.App.RoomURL(current.Code()))
                         return
 </span>                }
-                <span class="cov2" title="2">if !d.App.createRoomLimiter.Allow(clientIP(elem.Initial())) </span>{
-                        <span class="cov1" title="1">elem.Alert("warning", "Please wait before creating another room.")
+                <span class="cov4" title="8">if !d.App.createRoomLimiter.Allow(elem.Session().IP().String()) </span>{
+                        <span class="cov4" title="6">elem.Alert("warning", "Please wait before creating another room.")
                         return
 </span>                }
-                <span class="cov1" title="1">var room *game.Room
+                <span class="cov2" title="2">var room *game.Room
                 if room, err = d.App.createRoom(d.Player); err == nil </span>{
-                        <span class="cov1" title="1">elem.Redirect(d.App.RoomURL(room.Code()))
+                        <span class="cov2" title="2">elem.Redirect(d.App.RoomURL(room.Code()))
 </span>                }
-                <span class="cov1" title="1">return</span>
+                <span class="cov2" title="2">return</span>
         })
-        <span class="cov9" title="95">return</span>
+        <span class="cov9" title="99">return</span>
 }
 
 func (d templateDot) DisplayNickname() (result bind.Getter[string]) {
         <span class="cov9" title="127">result = bind.StringGetterFunc(func(*jaws.Element) (nickname string) </span>{
-                <span class="cov10" title="139">nickname = d.App.playerNickname(d.Player)
+                <span class="cov10" title="138">nickname = d.App.playerNickname(d.Player)
                 return
 </span>        }, d.Player)
         <span class="cov9" title="127">return</span>
@@ -3656,41 +3785,41 @@ func (d templateDot) OnlineCount() (result bind.Getter[string]) {
 }
 
 func (d gameTemplateDot) DeckInput(selectedDeck *deck.Deck) (result deckInput) {
-        <span class="cov7" title="41">result = deckInput{Room: d.Room, Player: d.Player, Deck: selectedDeck}
+        <span class="cov7" title="40">result = deckInput{Room: d.Room, Player: d.Player, Deck: selectedDeck}
         return
 </span>}
 
 func (d gameTemplateDot) HandCardViews() (result []whiteCardView) {
-        <span class="cov3" title="3">cards := d.Room.HandFor(d.Player)
+        <span class="cov5" title="11">cards := d.Room.HandFor(d.Player)
         result = make([]whiteCardView, 0, len(cards))
         for _, card := range cards </span>{
-                <span class="cov7" title="30">result = append(result, whiteCardView{
+                <span class="cov9" title="110">result = append(result, whiteCardView{
                         Room:   d.Room,
                         Player: d.Player,
                         Card:   card,
                 })
 </span>        }
-        <span class="cov3" title="3">return</span>
+        <span class="cov5" title="11">return</span>
 }
 
 func (d gameTemplateDot) SubmissionViews() (result []submissionView) {
-        <span class="cov5" title="10">submissions := d.Room.Submissions()
+        <span class="cov5" title="13">submissions := d.Room.Submissions()
         result = make([]submissionView, 0, len(submissions))
         for _, submission := range submissions </span>{
-                <span class="cov5" title="10">result = append(result, submissionView{
+                <span class="cov6" title="16">result = append(result, submissionView{
                         Room:       d.Room,
                         Player:     d.Player,
                         Submission: submission,
                 })
 </span>        }
-        <span class="cov5" title="10">return</span>
+        <span class="cov5" title="13">return</span>
 }
 
 func (d gameTemplateDot) WaitingTitle() (result string) {
-        <span class="cov3" title="3">switch d.Room.State() </span>{
+        <span class="cov3" title="4">switch d.Room.State() </span>{
         case game.StateJudging:
-                <span class="cov1" title="1">if judge := d.Room.JudgeName(); judge != "" </span>{
-                        <span class="cov1" title="1">result = judge + " is picking the winner"
+                <span class="cov2" title="2">if judge := d.Room.JudgeName(); judge != "" </span>{
+                        <span class="cov2" title="2">result = judge + " is picking the winner"
                         return
 </span>                }
                 <span class="cov0" title="0">result = "Waiting for the judge"</span>
@@ -3724,29 +3853,30 @@ func (d gameTemplateDot) WaitingDetail() (result string) {
 }
 
 func (d gameTemplateDot) BlackFootnote(card *deck.BlackCard) (result string) {
-        <span class="cov5" title="13">result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
+        <span class="cov6" title="24">result = cardFootnote(d.Room.FirstSelectedDeckNameForBlackCard(card), card.ID)
         return
 </span>}
 
 func (roomTemplateDot) StateBadgeClass(state game.RoomState) (result string) {
-        <span class="cov7" title="35">switch state </span>{
+        <span class="cov7" title="32">switch state </span>{
         case game.StateLobby:
-                <span class="cov6" title="22">result = "bg-secondary"</span>
+                <span class="cov6" title="20">result = "bg-secondary"</span>
         case game.StatePlaying:
-                <span class="cov3" title="5">result = "bg-success"</span>
+                <span class="cov3" title="4">result = "bg-success"</span>
         case game.StateReview:
                 <span class="cov4" title="6">result = "bg-info text-dark"</span>
         default:
                 <span class="cov2" title="2">result = "bg-warning text-dark"</span>
         }
-        <span class="cov7" title="35">return</span>
+        <span class="cov7" title="32">return</span>
 }
 </pre>
 		
-		<pre class="file" id="file16" style="display: none">package ui
+		<pre class="file" id="file18" style="display: none">package ui
 
 import (
         "html/template"
+        "strconv"
 
         "github.com/linkdata/jaws"
         "github.com/linkdata/xyzzy/internal/deck"
@@ -3759,47 +3889,35 @@ type whiteCardView struct {
         Card   *deck.WhiteCard
 }
 
-// JawsGetTag returns no dependency tag.
-func (whiteCardView) JawsGetTag() any { <span class="cov8" title="31">return nil }</span>
+func (v whiteCardView) JawsGetTag() any { <span class="cov8" title="113">return v.Room.HandCardTag(v.Player, v.Card) }</span>
+
+// UpdateAttrs applies selection state when the card template runs.
+func (v whiteCardView) UpdateAttrs(elem *jaws.Element) string {
+        <span class="cov8" title="146">elem.SetAttr("aria-pressed", strconv.FormatBool(v.SelectionOrder() &gt; 0))
+        return ""
+</span>}
 
 func (v whiteCardView) SelectionOrder() (result int) {
-        <span class="cov10" title="78">result = v.Room.SelectionOrderFor(v.Player, v.Card)
+        <span class="cov10" title="433">result = v.Room.SelectionOrderFor(v.Player, v.Card)
         return
 </span>}
 
 func (v whiteCardView) WhiteFootnote() (result string) {
-        <span class="cov8" title="43">result = cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
+        <span class="cov8" title="172">result = cardFootnote(v.Room.FirstSelectedDeckNameForWhiteCard(v.Card), v.Card.ID)
         return
 </span>}
 
-func (v whiteCardView) JawsInitialHTMLAttr(*jaws.Element) (result template.HTMLAttr) {
-        <span class="cov8" title="34">result = cardInitialHTMLAttr(v.SelectionOrder() &gt; 0, false, false)
-        return
+func (v whiteCardView) InitialAttrs() template.HTMLAttr {
+        <span class="cov8" title="114">if v.SelectionOrder() &gt; 0 </span>{
+                <span class="cov1" title="1">return `aria-pressed="true"`
+</span>        }
+        <span class="cov8" title="113">return `aria-pressed="false"`</span>
+}
+
+func (v whiteCardView) JawsClick(*jaws.Element, jaws.Click) error {
+        <span class="cov5" title="17">v.Room.ToggleCardSelection(v.Player, v.Card)
+        return nil
 </span>}
-
-func cardInitialHTMLAttr(selected, winning, ariaDisabled bool) (result template.HTMLAttr) {
-        <span class="cov8" title="48">class := `class="card-face card-face-white w-100 text-start`
-        if winning </span>{
-                <span class="cov5" title="8">class += ` is-winning`
-</span>        }
-        <span class="cov8" title="48">if selected </span>{
-                <span class="cov4" title="5">class += ` is-selected`
-</span>        }
-        <span class="cov8" title="48">result = template.HTMLAttr(class + `"`) // #nosec G203 -- class contains only fixed application literals
-        if ariaDisabled </span>{
-                <span class="cov5" title="10">result += ` aria-disabled="true"`
-</span>        }
-        <span class="cov8" title="48">return</span>
-}
-
-func (d whiteCardView) JawsClick(elem *jaws.Element, _ jaws.Click) (err error) {
-        <span class="cov3" title="3">if d.Room.ToggleCardSelection(d.Player, d.Card) </span>{
-                // Wrapper attributes are initial-only, so reconstruct the cards through
-                // their player-tagged parent after selection changes.
-                <span class="cov3" title="3">elem.Dirty(d.Player)
-</span>        }
-        <span class="cov3" title="3">return</span>
-}
 </pre>
 		
 		</div>
