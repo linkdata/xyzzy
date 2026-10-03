@@ -1,9 +1,6 @@
 package ui
 
 import (
-	"net"
-	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -68,20 +65,6 @@ func refillTokens(tokens float64, lastSeen, now time.Time, rate float64, burst f
 	result = tokens + now.Sub(lastSeen).Seconds()*rate
 	if result > burst {
 		result = burst
-	}
-	return
-}
-
-func clientIP(r *http.Request) (result string) {
-	if r != nil {
-		host := r.RemoteAddr
-		if splitHost, _, err := net.SplitHostPort(host); err == nil {
-			host = splitHost
-		}
-		result = strings.TrimSpace(host)
-	}
-	if result == "" {
-		result = "unknown"
 	}
 	return
 }

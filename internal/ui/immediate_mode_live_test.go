@@ -696,7 +696,7 @@ func TestCreateRoomButtonWarnsWhenRateLimited(t *testing.T) {
 	player := h.app.player(sess, nil)
 	rq := immediateModeRequestForHTML(t, sess, pageHTML)
 	buttonJID := immediateModeButtonJID(t, rq, pageHTML, "Create Room")
-	ip := clientIP(rq.Initial())
+	ip := rq.Session().IP().String()
 	for attempt := range createRoomMinuteBurst {
 		if !h.app.createRoomLimiter.Allow(ip) {
 			t.Fatalf("limiter setup attempt %d rejected", attempt+1)
