@@ -761,6 +761,43 @@ func TestLobbyLeavesRoomImmediately(t *testing.T) {
 	}
 }
 
+func TestLobbyNavigationSiteControlsLeaving(t *testing.T) {
+	for _, tt := range []struct {
+		site     string
+		redirect bool
+	}{
+		{site: "cross-site", redirect: true},
+		{site: "same-site", redirect: true},
+		{site: "same-origin"},
+		{site: "none"},
+	} {
+		t.Run(tt.site, func(t *testing.T) {
+			app, mux := testApp(t)
+			sess := newTestSession(t, app)
+			player := app.player(sess, nil)
+			room, err := app.createRoom(player)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+			req.Header.Set("Sec-Fetch-Site", tt.site)
+			req.AddCookie(sess.Cookie())
+			rec := httptest.NewRecorder()
+			app.Middleware(mux).ServeHTTP(rec, req)
+			if tt.redirect {
+				if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != app.RoomURL(room.Code()) || rec.Header().Get("Cache-Control") != "no-store" {
+					t.Fatalf("response = %d, %q, %q", rec.Code, rec.Header().Get("Location"), rec.Header().Get("Cache-Control"))
+				}
+				if player.Room() != room {
+					t.Fatal("cross-site navigation unseated player")
+				}
+			} else if player.Room() != nil {
+				t.Fatal("in-app navigation left player seated")
+			}
+		})
+	}
+}
+
 func TestSetNicknameInRoomKeepsNicknameUnique(t *testing.T) {
 	app, _ := testApp(t)
 	host := &game.Player{Nickname: "Alice", NicknameInput: "Alice"}

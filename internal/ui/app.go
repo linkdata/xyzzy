@@ -83,7 +83,13 @@ func (a *App) serveLobby(w http.ResponseWriter, r *http.Request) {
 	}
 	player := a.player(sess, r)
 	a.cleanupExpired()
-	if player.Room() != nil {
+	if current := player.Room(); current != nil {
+		site := r.Header.Get("Sec-Fetch-Site")
+		if site != "" && site != "same-origin" && site != "none" {
+			w.Header().Set("Cache-Control", "no-store")
+			http.Redirect(w, r, a.RoomURL(current.Code()), http.StatusSeeOther)
+			return
+		}
 		a.leaveRoom(player)
 	}
 	a.syncNicknameCookie(w, r, player)
