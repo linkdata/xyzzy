@@ -70,9 +70,13 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 		}
 		settle := func() { synctest.Wait(); time.Sleep(jaws.DefaultUpdateInterval + time.Millisecond); synctest.Wait() }
 		settle()
-		for _, p := range pages {
-			if len(p.records) != 0 {
-				t.Fatalf("initial commands: %+v", p.records)
+		for i, p := range pages {
+			if i < 2 {
+				if len(p.records) != 1 || p.records[0] != (wire.WsMsg{Jid: p.start, What: what.RAttr, Data: "disabled"}) {
+					t.Fatalf("initial commands: %+v", p.records)
+				}
+			} else if len(p.records) != 0 {
+				t.Fatalf("guest initial commands: %+v", p.records)
 			}
 		}
 		for step, value := range []string{"false", "false", "true"} {
@@ -89,45 +93,34 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 					}
 					continue
 				}
-				expected := map[jid.Jid]what.What{p.count: what.Inner}
-				if i < 2 {
-					expected[p.start] = what.SAttr
+				type key struct {
+					id   jid.Jid
+					what what.What
 				}
-				if value == "true" && i < 2 {
-					expected[p.start] = what.RAttr
+				expected := map[key]string{{p.count, what.Inner}: "0 black / 0 white selected"}
+				if value == "true" {
+					expected[key{p.count, what.Inner}] = "50 black / 80 white selected"
+				}
+				if i < 2 {
+					expected[key{p.start, what.Inner}] = "Start Game"
+					if value == "true" {
+						expected[key{p.start, what.RAttr}] = "disabled"
+					} else {
+						expected[key{p.start, what.SAttr}] = "disabled\n"
+					}
 				}
 				if i > 0 {
-					expected[p.deck] = what.Value
+					expected[key{p.deck, what.Value}] = value
 				}
 				if len(p.records) != len(expected) {
-					t.Fatalf("peer %d records=%+v, expected targets=%v", i, p.records, expected)
+					t.Fatalf("peer %d records=%+v, expected=%v", i, p.records, expected)
 				}
 				for _, msg := range p.records {
-					if want, ok := expected[msg.Jid]; !ok || msg.What != want {
+					k := key{msg.Jid, msg.What}
+					if want, ok := expected[k]; !ok || msg.Data != want {
 						t.Fatalf("unexpected update %+v", msg)
 					}
-					if msg.Jid == p.count {
-						wantCount := "0 black / 0 white selected"
-						if value == "true" {
-							wantCount = "50 black / 80 white selected"
-						}
-						if msg.Data != wantCount {
-							t.Fatalf("count = %q, want %q", msg.Data, wantCount)
-						}
-					}
-					if msg.Jid == p.start {
-						want := "disabled\n"
-						if value == "true" {
-							want = "disabled"
-						}
-						if msg.Data != want {
-							t.Fatalf("readiness = %q, want %q", msg.Data, want)
-						}
-					}
-					if msg.Jid == p.deck && msg.Data != value {
-						t.Fatalf("checkbox = %q, want %q", msg.Data, value)
-					}
-					delete(expected, msg.Jid)
+					delete(expected, k)
 				}
 				for _, old := range p.controls {
 					if p.tr.GetElementByJid(old.Jid()) != old {

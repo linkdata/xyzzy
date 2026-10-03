@@ -74,7 +74,17 @@ func (r *Room) LobbyControlAttrs(player *Player) (result template.HTMLAttr) {
 // players and the selected decks provide enough cards. A successful click
 // starts the game.
 func (r *Room) StartGameButton(player *Player) (result ui.Object) {
-	result = ui.New("Start Game").
+	result = ui.New(bind.HTMLGetterFunc(func(elem *jaws.Element) template.HTML {
+		r.mu.RLock()
+		enabled := r.canStartLocked(player)
+		r.mu.RUnlock()
+		if enabled {
+			elem.RemoveAttr("disabled")
+		} else {
+			elem.SetAttr("disabled", "")
+		}
+		return "Start Game"
+	})).
 		Clicked(func(obj ui.Object, elem *jaws.Element, click jaws.Click) (err error) {
 			if err = r.Start(player); err == nil {
 				elem.Dirty(r)

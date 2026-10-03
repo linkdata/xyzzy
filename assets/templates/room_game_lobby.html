@@ -39,7 +39,9 @@
     {{$.Span $targetScore `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>
-  {{$.NewUI ($room.StartGameControl $player) `class="btn btn-success"` $room.DeckSelectionTag}}
+  {{if $room.IsHost $player}}
+  {{$.Button ($room.StartGameButton $player) `class="btn btn-success"` $room.DeckSelectionTag}}
+  {{end}}
 </div>
 
 <div class="row row-cols-1 row-cols-md-3 g-2">

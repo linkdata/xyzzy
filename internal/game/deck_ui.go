@@ -5,7 +5,6 @@ import (
 
 	"github.com/linkdata/jaws"
 	"github.com/linkdata/jaws/lib/bind"
-	"github.com/linkdata/jaws/lib/ui"
 )
 
 // DeckSelectionTag identifies counts and readiness derived from selected decks.
@@ -19,30 +18,4 @@ func (r *Room) DeckCounts() bind.Getter[string] {
 		r.mu.RUnlock()
 		return fmt.Sprintf("%d black / %d white selected", black, white)
 	}, r.DeckSelectionTag())
-}
-
-type startGameControl struct {
-	ui.Button
-	room   *Room
-	player *Player
-}
-
-// StartGameControl keeps the action's button while its readiness changes.
-func (r *Room) StartGameControl(player *Player) jaws.UI {
-	return &startGameControl{Button: *ui.NewButton(r.StartGameButton(player)), room: r, player: player}
-}
-
-func (b *startGameControl) JawsUpdate(elem *jaws.Element) {
-	b.room.mu.RLock()
-	if b.player == nil || b.room.host != b.player {
-		b.room.mu.RUnlock()
-		return
-	}
-	enabled := b.room.canStartLocked(b.player)
-	b.room.mu.RUnlock()
-	if enabled {
-		elem.RemoveAttr("disabled")
-	} else {
-		elem.SetAttr("disabled", "")
-	}
 }

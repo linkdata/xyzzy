@@ -195,7 +195,7 @@ func TestLobbyControlAndButtonInitialAttrs(t *testing.T) {
 	if got := room.StartGameButton(host).JawsInitialHTMLAttr(nil); got != "" {
 		t.Fatalf("StartGameButton(host) attrs with enough players = %q, want empty", got)
 	}
-	if got := room.StartGameButton(host).JawsGetHTML(nil); got != "Start Game" {
+	if got := room.StartGameButton(host).JawsGetHTML(newJawsTestElement(t)); got != "Start Game" {
 		t.Fatalf("StartGameButton() content = %q, want Start Game", got)
 	}
 
