@@ -149,9 +149,9 @@ an actual selection change also dirties the `Room` so shared counts and controls
 update. An unchanged edit returns `jaws.ErrValueUnchanged` and dirties neither.
 
 `Manager.SetNickname` is likewise the single committed-nickname boundary. It
-normalizes or uniquifies the value, then publishes the manager, player, editable
-field, and—when seated—the room. Sibling inputs, navbar labels, and shared room
-text therefore reconcile from one mutation boundary.
+normalizes or uniquifies the value and publishes only changed dependencies after
+unlocking. Displayed-name changes update the player and room; input-only changes
+update the editable field. Only public-host name changes update the public list.
 
 Semantic actions are returned as `ui.Object` values. The object's primary
 getter may be a dynamic string getter, so its label, click behavior, dependency

@@ -105,23 +105,31 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
 	if player != nil {
 		nickname = NormalizeNickname(nickname)
 		var room *Room
-		var changed bool
+		var nameChanged, inputChanged, publicHostChanged bool
 		m.mu.RLock()
 		if room = player.Room(); room != nil {
-			changed = room.setNickname(player, nickname)
+			nameChanged, inputChanged, publicHostChanged = room.setNickname(player, nickname)
 		} else {
-			changed = player.setNickname(nickname)
+			nameChanged, inputChanged = player.setNickname(nickname)
 		}
 		m.mu.RUnlock()
 
-		if !changed {
-			return
+		var tags []any
+		if publicHostChanged {
+			tags = append(tags, m)
 		}
-		if room != nil {
-			m.notify(m, player, &player.NicknameInput, room)
-			return
+		if nameChanged {
+			tags = append(tags, player)
+			if room != nil {
+				tags = append(tags, room)
+			}
 		}
-		m.notify(m, player, &player.NicknameInput)
+		if inputChanged {
+			tags = append(tags, &player.NicknameInput)
+		}
+		if len(tags) > 0 {
+			m.notify(tags...)
+		}
 	}
 }
 

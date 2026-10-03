@@ -52,7 +52,6 @@ func TestManagerSetNicknamePublishesAfterUnlock(t *testing.T) {
 		t.Fatalf("dirty callback lock state = manager %t, room %t, player %t; want all unlocked", managerUnlocked, roomUnlocked, playerUnlocked)
 	}
 	want := map[any]bool{
-		manager:                             true,
 		player:                              true,
 		room:                                true,
 		player.NicknameField().JawsGetTag(): true,
@@ -155,5 +154,67 @@ func TestManagerSetNicknameSerializesWithMembershipChanges(t *testing.T) {
 		if got := target.NicknameInputValue(); got != "Casey" {
 			t.Fatalf("trial %d: standalone nickname input = %q, want %q", trial, got, "Casey")
 		}
+	}
+}
+
+func TestNicknameDependencyScope(t *testing.T) {
+	for _, scenario := range []string{"detached", "guest", "public host", "private host", "draft only", "unchanged"} {
+		t.Run(scenario, func(t *testing.T) {
+			catalog := testCatalog(t)
+			var got []any
+			manager := NewManagerWithOptions(catalog, Options{Dirty: func(tags ...any) { got = append(got, tags...) }})
+			host, player := testPlayer("Host"), testPlayer("Player")
+			room, err := manager.CreateRoom(host, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario != "detached" {
+				player = host
+				if scenario == "guest" {
+					player = testPlayer("Guest")
+					if _, err = manager.JoinRoom(room.Code(), player); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if scenario == "private host" {
+				if err = room.SetPrivate(host, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			nickname := "Renamed"
+			if scenario == "draft only" || scenario == "unchanged" {
+				nickname = player.NicknameValue()
+			}
+			if scenario == "draft only" {
+				if err = player.NicknameField().JawsSet(nil, nickname+" !"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			manager.SetNickname(player, nickname)
+			want := map[any]bool{}
+			switch scenario {
+			case "unchanged":
+			case "draft only":
+				want[&player.NicknameInput] = true
+			default:
+				want[player], want[&player.NicknameInput] = true, true
+				if scenario != "detached" {
+					want[room] = true
+				}
+				if scenario == "public host" {
+					want[manager] = true
+				}
+			}
+			if len(got) != len(want) {
+				t.Fatalf("tags = %#v, want %#v", got, want)
+			}
+			for _, tag := range got {
+				if !want[tag] {
+					t.Fatalf("unexpected tag: %#v", tag)
+				}
+				delete(want, tag)
+			}
+		})
 	}
 }
