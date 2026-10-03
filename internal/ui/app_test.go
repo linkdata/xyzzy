@@ -436,6 +436,26 @@ func newPrivateToggleElement(app *App, toggle bind.Binder[bool]) (result *jaws.E
 	return
 }
 
+func TestDisplayVersion(t *testing.T) {
+	for _, tt := range []struct {
+		moduleVersion string
+		want          string
+	}{
+		{moduleVersion: "v1.1.0", want: "v1.1.0"},
+		{moduleVersion: "v0.2.0", want: "v0.2.0"},
+		{moduleVersion: "(devel)", want: "development"},
+		{moduleVersion: "v1.2.1-0.20261003193052-7f8daf22da69", want: "development"},
+		{moduleVersion: "v1.1.0+dirty", want: "development"},
+		{moduleVersion: "", want: "development"},
+	} {
+		t.Run(tt.moduleVersion, func(t *testing.T) {
+			if got := displayVersion(tt.moduleVersion); got != tt.want {
+				t.Fatalf("displayVersion(%q) = %q, want %q", tt.moduleVersion, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLobbyRenders(t *testing.T) {
 	app, mux := testApp(t)
 	handler := app.Middleware(mux)
@@ -461,6 +481,9 @@ func TestLobbyRenders(t *testing.T) {
 	}
 	if !strings.Contains(body, ">0</span> online</small>") {
 		t.Fatalf("expected a GET-only lobby to show no online sessions, got %s", body)
+	}
+	if !strings.Contains(body, `href="https://github.com/linkdata/xyzzy">Version: `+app.Version()+`</a>`) {
+		t.Fatalf("expected lobby version to link to the repository, got %s", body)
 	}
 	if !strings.Contains(body, `rel="icon"`) || app.Jaws.FaviconURL() == "" {
 		t.Fatalf("unexpected lobby body: %s", body)

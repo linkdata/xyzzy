@@ -38,6 +38,10 @@ with:
 go build -o xyzzy ./cmd/xyzzy
 ```
 
+The lobby links to this repository and shows the Git version tag for a binary
+built from a clean release tag. Development builds, including `go run`, show
+`development` instead.
+
 Game and session state are in memory, so restarting the process starts fresh.
 Use `-certdir` with `fullchain.pem` and `privkey.pem` for direct HTTPS. Run
 `go run ./cmd/xyzzy -h` for all server options and their defaults.

@@ -30,8 +30,9 @@
               <li>The room host selects card packs and starts the game.</li>
               <li>Returning to the lobby leaves your current room immediately.</li>
             </ul>
-            <div class="mt-3 text-end">
-              <small class="text-muted">{{$.Span .OnlineCount}} online</small>
+            <div class="mt-3 d-flex flex-wrap justify-content-between gap-2">
+              <small><a class="link-secondary text-nowrap" href="https://github.com/linkdata/xyzzy">Version: {{.App.Version}}</a></small>
+              <small class="text-muted ms-auto">{{$.Span .OnlineCount}} online</small>
             </div>
           </div>
         </div>

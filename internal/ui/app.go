@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"net/http"
 	"path"
+	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -24,6 +26,8 @@ const (
 	sessionKeyPlayer  = "player"
 	nicknameCookieTTL = 365 * 24 * 60 * 60
 )
+
+var releaseTag = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 // App serves the xyzzy HTTP and JaWS user interface.
 type App struct {
@@ -46,6 +50,21 @@ func New(jw *jaws.Jaws, catalog *deck.Catalog, manager *game.Manager) *App {
 		Manager:           manager,
 		createRoomLimiter: newCreateRoomLimiter(),
 	}
+}
+
+// Version returns the release tag embedded in the binary, or a development label.
+func (*App) Version() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		return displayVersion(info.Main.Version)
+	}
+	return "development"
+}
+
+func displayVersion(moduleVersion string) string {
+	if releaseTag.MatchString(moduleVersion) {
+		return moduleVersion
+	}
+	return "development"
 }
 
 // SetupRoutes registers the App's HTTP routes and templates on mux.
