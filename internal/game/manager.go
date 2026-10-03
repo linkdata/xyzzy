@@ -30,11 +30,13 @@ func (m *Manager) notify(tags ...any) {
 //
 // An empty defaultDecks slice uses the catalog defaults. It returns
 // [ErrAlreadyInRoom] when player is nil or already seated.
+// If seating normalizes the nickname input, its dependency tag is published
+// through [Options.Dirty] after releasing the state locks.
 func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *Room, err error) {
 	err = ErrAlreadyInRoom
 	if player != nil {
+		var inputChanged bool
 		m.mu.Lock()
-		defer m.mu.Unlock()
 		if player.Room() == nil {
 			var code string
 			if code, err = m.newRoomCodeLocked(); err == nil {
@@ -51,11 +53,15 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
 					czarIndex:     -1,
 					selectedDecks: normalizeDecks(m.catalog, defaultDecks),
 				}
-				room.seatLocked(player)
+				inputChanged = room.seatLocked(player)
 				room.host = player
 				room.players = []*Player{player}
 				m.rooms[code] = room
 			}
+		}
+		m.mu.Unlock()
+		if inputChanged {
+			m.notify(&player.NicknameInput)
 		}
 	}
 	return
@@ -137,17 +143,23 @@ func (m *Manager) SetNickname(player *Player, nickname string) {
 //
 // Room lookup and seating are one operation, so a concurrent leave cannot
 // remove the room between them.
+// If seating normalizes the nickname input, its dependency tag is published
+// through [Options.Dirty] after releasing the state locks.
 func (m *Manager) JoinRoom(code string, player *Player) (room *Room, err error) {
 	err = ErrRoomNotFound
 	if player != nil {
+		var inputChanged bool
 		m.mu.Lock()
-		defer m.mu.Unlock()
 		room = m.rooms[strings.ToUpper(strings.TrimSpace(code))]
 		if room != nil {
 			err = ErrAlreadyInRoom
 			if player.Room() != room {
-				err = room.join(player)
+				inputChanged, err = room.join(player)
 			}
+		}
+		m.mu.Unlock()
+		if inputChanged {
+			m.notify(&player.NicknameInput)
 		}
 	}
 	return

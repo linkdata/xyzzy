@@ -5,6 +5,71 @@ import (
 	"testing"
 )
 
+func TestManagerSeatingPublishesNicknameInputAfterUnlock(t *testing.T) {
+	for _, tc := range []struct {
+		name, nickname, input, want string
+		create                      bool
+	}{
+		{"create normalized", " A l i c e !!! ", " A l i c e !!! ", "Alice", true},
+		{"create normalized draft", "Alice", " D r a f t !!! ", "Draft", true},
+		{"create accepted draft", "Alice", "Draft", "Draft", true},
+		{"create unchanged", "Alice", "Alice", "Alice", true},
+		{"join duplicate", "Alice", "Alice", "Alice-2", false},
+		{"join normalized draft", "Bob", " D r a f t !!! ", "Draft", false},
+		{"join accepted draft", "Bob", "Draft", "Draft", false},
+		{"join unchanged", "Bob", "Bob", "Bob", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := NewManager(testCatalog(t))
+			room, err := manager.CreateRoom(testPlayer("Alice"), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			player := &Player{Nickname: tc.nickname, NicknameInput: tc.input}
+			var calls int
+			manager.opts.Dirty = func(tags ...any) {
+				calls++
+				if len(tags) != 1 || tags[0] != player.NicknameField().JawsGetTag() {
+					t.Fatalf("seating dirtied %v, want only the nickname input tag", tags)
+				}
+				for _, lock := range []interface {
+					TryLock() bool
+					Unlock()
+				}{&manager.mu, &player.Room().mu, &player.uiMu} {
+					if !lock.TryLock() {
+						t.Fatal("seating published while holding a state lock")
+					}
+					lock.Unlock()
+				}
+			}
+			seat := func() error {
+				if tc.create {
+					_, err := manager.CreateRoom(player, nil)
+					return err
+				}
+				_, err := manager.JoinRoom(room.Code(), player)
+				return err
+			}
+			if _, err = manager.JoinRoom("MISSING", player); err != ErrRoomNotFound || calls != 0 {
+				t.Fatalf("missing room: err=%v, callbacks=%d", err, calls)
+			}
+			if err = seat(); err != nil {
+				t.Fatal(err)
+			}
+			wantCalls := 0
+			if tc.input != tc.want {
+				wantCalls = 1
+			}
+			if calls != wantCalls || player.NicknameValue() != tc.want || player.NicknameInputValue() != tc.want {
+				t.Fatalf("seating: callbacks=%d, nickname=%q, input=%q; want %d, %q, %q", calls, player.NicknameValue(), player.NicknameInputValue(), wantCalls, tc.want, tc.want)
+			}
+			if err = seat(); err != ErrAlreadyInRoom || calls != wantCalls {
+				t.Fatalf("repeated seating: err=%v, callbacks=%d", err, calls)
+			}
+		})
+	}
+}
+
 func TestManagerSetNicknamePublishesAfterUnlock(t *testing.T) {
 	catalog := testCatalog(t)
 	host := testPlayer("Alice")
