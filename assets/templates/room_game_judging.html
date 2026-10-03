@@ -7,7 +7,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   {{if $canJudge}}
   <h5 class="mb-0">Pick the Winner</h5>
-  {{$.Button ($room.JudgeButton $player) `class="btn btn-primary"`}}
+  {{$.NewUI ($room.JudgeControl $player) `class="btn btn-primary"` $player.JudgeReadinessTag}}
   {{else}}
   <h5 class="mb-0">{{$dot.WaitingTitle}}</h5>
   {{end}}
@@ -15,7 +15,7 @@
 <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
   {{range $dot.SubmissionViews}}
   <div class="col">
-    {{$.Template "button" "submission_clickable.html" . `type="button"`}}
+    {{$.NewUI .Button `type="button" class="card-face card-face-white w-100 text-start"` .InitialAttrs}}
   </div>
   {{end}}
 </div>

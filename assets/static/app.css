@@ -92,12 +92,12 @@
   margin-top: auto;
 }
 
-.is-selected {
+.card-face[aria-pressed="true"] {
   border-color: var(--card-selected-border) !important;
   box-shadow: 0 0 0 3px rgba(165,47,40,.15);
 }
 
-.is-winning {
+.card-face[data-winning="true"] {
   border-color: var(--card-winning-border) !important;
   box-shadow: 0 0 0 3px rgba(214,146,0,.18);
   background: linear-gradient(180deg, #fffdf4 0%, #fff2c9 100%);

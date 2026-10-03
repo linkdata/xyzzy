@@ -300,29 +300,43 @@ func (r *Room) SelectionOrderFor(player *Player, card *deck.WhiteCard) (result i
 // It reports whether the selection changed. Invalid cards and players that
 // cannot currently submit leave the selection unchanged.
 func (r *Room) ToggleCardSelection(player *Player, card *deck.WhiteCard) (changed bool) {
+	var tags []any
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer func() {
+		r.mu.Unlock()
+		for _, tag := range tags {
+			r.manager.notify(tag)
+		}
+	}()
 	current := r.playerLocked(player)
 	if current == nil || !r.canSubmitLocked(current) || card == nil || !slices.Contains(current.Hand, card) {
 		return
 	}
 	needPick := r.needPickLocked()
-	if idx := slices.Index(current.SelectedCards, card); idx >= 0 {
+	ready := len(current.SelectedCards) == needPick
+	switch idx := slices.Index(current.SelectedCards, card); {
+	case idx >= 0:
+		// Removing a card also changes the ordinals of later selected cards.
+		for _, affected := range current.SelectedCards[idx:] {
+			tags = append(tags, r.HandCardTag(player, affected))
+		}
 		current.SelectedCards = slices.Delete(current.SelectedCards, idx, idx+1)
-		changed = true
-		return
-	}
-	if needPick == 1 {
+	case needPick == 1:
+		for _, previous := range current.SelectedCards {
+			tags = append(tags, r.HandCardTag(player, previous))
+		}
 		current.SelectedCards = []*deck.WhiteCard{card}
-		changed = true
+		tags = append(tags, r.HandCardTag(player, card))
+	case len(current.SelectedCards) < needPick:
+		current.SelectedCards = append(current.SelectedCards, card)
+		tags = append(tags, r.HandCardTag(player, card))
+	default:
 		return
 	}
-	if len(current.SelectedCards) >= needPick {
-		return
+	if ready != (len(current.SelectedCards) == needPick) {
+		tags = append(tags, player.HandReadinessTag())
 	}
-	current.SelectedCards = append(current.SelectedCards, card)
-	changed = true
-	return
+	return true
 }
 
 // SubmissionSelected reports whether submission is selected by player.
@@ -340,19 +354,34 @@ func (r *Room) SubmissionSelected(player *Player, submission *Submission) (resul
 // It reports whether the selection changed. Unknown submissions and players
 // that cannot currently judge leave the selection unchanged.
 func (r *Room) ToggleSubmissionSelection(player *Player, submission *Submission) (changed bool) {
+	var tags []any
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer func() {
+		r.mu.Unlock()
+		for _, tag := range tags {
+			r.manager.notify(tag)
+		}
+	}()
 	current := r.playerLocked(player)
 	if current == nil || r.state != StateJudging || r.judgeLocked() != current || submission == nil || !slices.Contains(r.submissions, submission) {
 		return
 	}
-	if current.SelectedSubmission == submission {
+	previous := current.SelectedSubmission
+	if previous == submission {
 		current.SelectedSubmission = nil
 	} else {
 		current.SelectedSubmission = submission
 	}
-	changed = true
-	return
+	if previous != nil {
+		tags = append(tags, r.SubmissionTag(player, previous))
+	}
+	if current.SelectedSubmission != nil {
+		tags = append(tags, r.SubmissionTag(player, current.SelectedSubmission))
+	}
+	if (previous == nil) != (current.SelectedSubmission == nil) {
+		tags = append(tags, player.JudgeReadinessTag())
+	}
+	return true
 }
 
 // Submissions returns a shallow copy of the current round's submissions.
