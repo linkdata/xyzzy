@@ -30,6 +30,58 @@ func TestCreateRoomLimiterAllowsPerIPBurst(t *testing.T) {
 	}
 }
 
+func TestCreateRoomLimiterGroupsIPv6Clients(t *testing.T) {
+	limiter := newCreateRoomLimiter()
+	now := time.Date(2026, time.August, 23, 12, 0, 0, 0, time.UTC)
+	limiter.now = func() time.Time { return now }
+	for i := range createRoomMinuteBurst {
+		if !limiter.Allow(fmt.Sprintf("2001:db8:1:2::%x", i)) {
+			t.Fatalf("address %d rejected within shared burst", i)
+		}
+	}
+	if limiter.Allow("2001:db8:1:2::ffff") {
+		t.Fatal("eleventh address in /64 allowed")
+	}
+	if !limiter.Allow("2001:db8:1:3::1") {
+		t.Fatal("neighbouring /64 rejected")
+	}
+	if len(limiter.buckets) != 2 {
+		t.Fatalf("bucket count = %d, want 2", len(limiter.buckets))
+	}
+}
+
+func TestCreateRoomLimiterSharesNAT64WithIPv4(t *testing.T) {
+	limiter := newCreateRoomLimiter()
+	now := time.Date(2026, time.August, 23, 12, 0, 0, 0, time.UTC)
+	limiter.now = func() time.Time { return now }
+	for range createRoomMinuteBurst {
+		if !limiter.Allow("192.0.2.1") {
+			t.Fatal("IPv4 rejected within burst")
+		}
+	}
+	if limiter.Allow("64:ff9b::c000:201") || limiter.Allow("::ffff:192.0.2.1") {
+		t.Fatal("NAT64 or mapped IPv4 escaped IPv4 limit")
+	}
+	if !limiter.Allow("64:ff9b::c000:202") {
+		t.Fatal("different NAT64 IPv4 address rejected")
+	}
+}
+
+func TestCreateRoomLimiterPrunesIdleBuckets(t *testing.T) {
+	now := time.Date(2026, time.August, 23, 12, 0, 0, 0, time.UTC)
+	limiter := newCreateRoomLimiter()
+	limiter.now = func() time.Time { return now }
+	limiter.Allow("192.0.2.1")
+	limiter.Allow("192.0.2.2")
+	now = now.Add(59 * time.Minute)
+	limiter.Allow("192.0.2.2")
+	now = now.Add(time.Minute)
+	limiter.Allow("192.0.2.3")
+	if len(limiter.buckets) != 2 {
+		t.Fatalf("bucket count = %d, want 2 active buckets", len(limiter.buckets))
+	}
+}
+
 func TestCreateRoomLimiterEnforcesHourlyRate(t *testing.T) {
 	now := time.Date(2026, time.August, 23, 12, 0, 0, 0, time.UTC)
 	limiter := newCreateRoomLimiter()

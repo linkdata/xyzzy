@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -10,10 +11,14 @@ const (
 	createRoomHourBurst   = 50
 )
 
+// Keep client keys aligned with JaWS clientBucketKey in requestpool.go.
+var nat64Prefix = netip.MustParsePrefix("64:ff9b::/96")
+
 type createRoomLimiter struct {
-	mu      sync.Mutex
-	now     func() time.Time
-	buckets map[string]*createRoomBucket
+	mu        sync.Mutex
+	now       func() time.Time
+	buckets   map[string]*createRoomBucket
+	lastSweep time.Time
 }
 
 type createRoomBucket struct {
@@ -36,6 +41,27 @@ func (l *createRoomLimiter) Allow(ip string) (ok bool) {
 	now := l.now()
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if now.Sub(l.lastSweep) >= time.Minute {
+		for key, bucket := range l.buckets {
+			if now.Sub(bucket.hourSeen) >= time.Hour {
+				delete(l.buckets, key)
+			}
+		}
+		l.lastSweep = now
+	}
+
+	addr, err := netip.ParseAddr(ip)
+	if err == nil {
+		addr = addr.Unmap()
+		switch {
+		case nat64Prefix.Contains(addr):
+			a := addr.As16()
+			addr = netip.AddrFrom4([4]byte(a[12:]))
+		case addr.Is6():
+			addr = netip.PrefixFrom(addr, 64).Masked().Addr()
+		}
+		ip = addr.String()
+	}
 
 	bucket := l.buckets[ip]
 	if bucket == nil {
