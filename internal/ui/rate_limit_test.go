@@ -2,13 +2,14 @@ package ui
 
 import (
 	"fmt"
-	"github.com/linkdata/jaws"
-	jui "github.com/linkdata/jaws/lib/ui"
-	"github.com/linkdata/xyzzy/internal/game"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/linkdata/jaws"
+	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/xyzzy/internal/game"
 )
 
 func TestCreateRoomLimiterAllowsPerIPBurst(t *testing.T) {
