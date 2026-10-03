@@ -230,7 +230,7 @@ race-free and the relevant dirty notification converges the display.
 
 - State is process-local and is not shared across server replicas or persisted
   across restarts.
-- New rooms are private. The host can publish one before starting the game.
+- New rooms are private. The host can publish one while it is in the lobby.
   Private rooms are omitted from the public list, but their URLs are not an
   authorization boundary. A code remains valid after a public room is made
   private again.
