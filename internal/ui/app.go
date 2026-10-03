@@ -143,11 +143,10 @@ func (a *App) player(sess *jaws.Session, r *http.Request) (result *game.Player) 
 func (a *App) cleanupExpired() {
 	affected := a.Manager.CleanupExpiredSessions()
 	if len(affected) > 0 {
-		tags := []any{a.Manager}
+		a.Jaws.Dirty(a.Manager)
 		for _, room := range affected {
-			tags = append(tags, room)
+			a.Jaws.Dirty(room)
 		}
-		a.Jaws.Dirty(tags...)
 	}
 }
 
