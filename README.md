@@ -24,9 +24,11 @@ go run ./cmd/xyzzy -debug -address 127.0.0.1:8080
 
 Open <http://127.0.0.1:8080/> once in a regular window and once in a private
 window, or use two separate browser profiles. A single browser profile shares
-one JaWS Session and therefore represents one player. Debug mode enables JaWS
-debugging, lowers the minimum player count from three to two, permits a target
-score of one, and starts with the highest-pick prompt.
+one JaWS Session and therefore represents one player. Share the room URL with
+the second player, or clear **Private game** in the room lobby to list the room
+publicly. Debug mode enables JaWS debugging, lowers the minimum player count
+from three to two, permits a target score of one, and starts with the
+highest-pick prompt.
 
 All templates, styles, and card data are embedded in the binary. There is no
 database, Node.js build, or npm dependency. A production binary can be built
