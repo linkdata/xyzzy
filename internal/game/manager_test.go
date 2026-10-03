@@ -1,11 +1,21 @@
 package game
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/linkdata/xyzzy/internal/deck"
 )
+
+func TestSetNicknameCapsLength(t *testing.T) {
+	manager := NewManager(testCatalog(t))
+	player := testPlayer("Alice")
+	manager.SetNickname(player, strings.Repeat("A!", maxNicknameLength+1))
+	if got, want := player.NicknameValue(), strings.Repeat("A", maxNicknameLength); got != want {
+		t.Fatalf("NicknameValue() = %q, want %q", got, want)
+	}
+}
 
 func TestManagerRoomLifecycle(t *testing.T) {
 	catalog := testCatalog(t)
