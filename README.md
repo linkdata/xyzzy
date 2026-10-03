@@ -53,7 +53,9 @@ reachable. The proxy must preserve the public host for WebSocket origin checks
 and provide HSTS when it serves HTTPS.
 
 Room creation is rate-limited by the client IP stored in the JaWS Session,
-using the same forwarding-header trust setting.
+using the same forwarding-header trust setting. IPv4 addresses, including
+mapped IPv4 and NAT64 equivalents, share per-address limits; IPv6 addresses
+share a limit per /64.
 
 ## How the UI works
 
