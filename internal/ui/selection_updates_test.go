@@ -62,7 +62,7 @@ func (p *selectionPage) click(e *jaws.Element) {
 }
 
 func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
-	for _, pick := range []int{1, 2} {
+	for _, pick := range []int{1, 2, 3} {
 		t.Run(fmt.Sprint(pick), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				app, _ := testPlayableApp(t)
@@ -97,6 +97,9 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 				steps := []step{{0, map[int]int{0: 1}, 1}, {1, map[int]int{0: 0, 1: 1}, 0}, {1, map[int]int{1: 0}, -1}}
 				if pick == 2 {
 					steps = []step{{0, map[int]int{0: 1}, 0}, {1, map[int]int{1: 2}, 1}, {2, nil, 0}, {0, map[int]int{0: 0, 1: 1}, -1}, {1, map[int]int{1: 0}, 0}}
+				}
+				if pick == 3 {
+					steps = []step{{0, map[int]int{0: 1}, 0}, {1, map[int]int{1: 2}, 0}, {2, map[int]int{2: 3}, 1}, {3, nil, 0}, {0, map[int]int{0: 0, 1: 1, 2: 2}, -1}, {1, map[int]int{1: 0, 2: 1}, 0}}
 				}
 				settleSelection()
 				for _, p := range pages {
@@ -179,7 +182,7 @@ func TestHandSelectionUpdatesOnlyAffectedCards(t *testing.T) {
 								t.Fatalf("unrelated update: %+v", msg)
 							}
 						}
-						if bytes > 1200 {
+						if bytes > 300*len(expected)+40 {
 							t.Fatalf("selection sent %d bytes", bytes)
 						}
 						for id, e := range retained[i] {

@@ -41,12 +41,12 @@ type selectionControl struct {
 }
 
 // SubmitCardsControl retains the button while hand-selection readiness changes.
-func (r *Room) SubmitCardsControl(player *Player) *selectionControl {
+func (r *Room) SubmitCardsControl(player *Player) jaws.UI {
 	return &selectionControl{Button: *ui.NewButton(r.SubmitCardsButton(player)), room: r, player: player}
 }
 
 // JudgeControl retains the button while submission-selection readiness changes.
-func (r *Room) JudgeControl(player *Player) *selectionControl {
+func (r *Room) JudgeControl(player *Player) jaws.UI {
 	return &selectionControl{Button: *ui.NewButton(r.JudgeButton(player)), room: r, player: player, judge: true}
 }
 
@@ -56,9 +56,9 @@ func (b *selectionControl) JawsUpdate(elem *jaws.Element) {
 	enabled := false
 	if current != nil {
 		if b.judge {
-			enabled = b.room.state == StateJudging && b.room.judgeLocked() == current && current.SelectedSubmission != nil
+			enabled = b.room.judgeReadyLocked(current)
 		} else {
-			enabled = b.room.canSubmitLocked(current) && len(current.SelectedCards) == b.room.needPickLocked()
+			enabled = b.room.submitReadyLocked(current)
 		}
 	}
 	b.room.mu.RUnlock()
@@ -67,4 +67,12 @@ func (b *selectionControl) JawsUpdate(elem *jaws.Element) {
 	} else {
 		elem.SetAttr("disabled", "")
 	}
+}
+
+func (r *Room) submitReadyLocked(current *Player) bool {
+	return current != nil && r.canSubmitLocked(current) && len(current.SelectedCards) == r.needPickLocked()
+}
+
+func (r *Room) judgeReadyLocked(current *Player) bool {
+	return current != nil && r.state == StateJudging && r.judgeLocked() == current && current.SelectedSubmission != nil
 }

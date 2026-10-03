@@ -110,7 +110,7 @@ func (r *Room) SubmitCardsButton(player *Player) (result ui.Object) {
 		InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) {
 			r.mu.RLock()
 			current := r.playerLocked(player)
-			if current == nil || !r.canSubmitLocked(current) || len(current.SelectedCards) != r.needPickLocked() {
+			if !r.submitReadyLocked(current) {
 				attrs = `disabled`
 			}
 			r.mu.RUnlock()
@@ -134,7 +134,7 @@ func (r *Room) JudgeButton(player *Player) (result ui.Object) {
 		InitialHTMLAttr(func(obj ui.Object, elem *jaws.Element) (attrs template.HTMLAttr) {
 			r.mu.RLock()
 			current := r.playerLocked(player)
-			if current == nil || r.state != StateJudging || r.judgeLocked() != current || current.SelectedSubmission == nil {
+			if !r.judgeReadyLocked(current) {
 				attrs = `disabled`
 			}
 			r.mu.RUnlock()

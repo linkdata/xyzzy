@@ -930,8 +930,7 @@ func TestHandCardClickRetainsCardControls(t *testing.T) {
 	h.get(t, "/")
 	hostSession := h.session(t)
 	host := h.app.player(hostSession, nil)
-	h.app.Manager.SetNickname(host, "Alice")
-	room, err := h.app.createRoom(host)
+	room, err := h.app.Manager.CreateRoom(host, nil)
 	if err != nil {
 		t.Fatalf("createRoom() error = %v", err)
 	}
@@ -940,15 +939,13 @@ func TestHandCardClickRetainsCardControls(t *testing.T) {
 	h.getWithClient(t, guestClient, "/")
 	guestSession := h.sessionForClient(t, guestClient)
 	guest := h.app.player(guestSession, nil)
-	h.app.Manager.SetNickname(guest, "Bob")
-	if _, err = h.app.joinRoom(guest, room.Code()); err != nil {
+	if _, err = h.app.Manager.JoinRoom(room.Code(), guest); err != nil {
 		t.Fatalf("joinRoom() error = %v", err)
 	}
 	if err = room.Start(host); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 
-	time.Sleep(2 * jaws.DefaultUpdateInterval) // Settle setup notifications before rendering.
 	pageHTML := h.getWithClient(t, guestClient, h.app.RoomURL(room.Code()))
 	rq := immediateModeRequestForHTML(t, guestSession, pageHTML)
 	gameJID := immediateModeTemplateJID(t, rq, pageHTML, "room_game_playing.html")

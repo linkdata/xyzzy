@@ -1,11 +1,11 @@
 package ui
 
 import (
-	jui "github.com/linkdata/jaws/lib/ui"
 	"html/template"
 	"strconv"
 
 	"github.com/linkdata/jaws"
+	jui "github.com/linkdata/jaws/lib/ui"
 	"github.com/linkdata/xyzzy/internal/game"
 )
 
