@@ -88,13 +88,13 @@ func (p *Player) NicknameInputValue() (result string) {
 	return
 }
 
-func (p *Player) setNickname(nickname string) (changed bool) {
+func (p *Player) setNickname(nickname string) (nameChanged, inputChanged bool) {
 	if p != nil {
 		p.uiMu.Lock()
-		if changed = p.Nickname != nickname || p.NicknameInput != nickname; changed {
-			p.Nickname = nickname
-			p.NicknameInput = nickname
-		}
+		nameChanged = p.Nickname != nickname
+		inputChanged = p.NicknameInput != nickname
+		p.Nickname = nickname
+		p.NicknameInput = nickname
 		p.uiMu.Unlock()
 	}
 	return

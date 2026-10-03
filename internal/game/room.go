@@ -439,13 +439,14 @@ func (r *Room) SetPrivate(player *Player, private bool) (err error) {
 	return
 }
 
-func (r *Room) setNickname(player *Player, nickname string) (changed bool) {
+func (r *Room) setNickname(player *Player, nickname string) (nameChanged, inputChanged, publicHostChanged bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	current := r.playerLocked(player)
 	if current != nil {
 		nickname = r.uniqueNicknameForLocked(current, NormalizeNickname(nickname))
-		changed = current.setNickname(nickname)
+		nameChanged, inputChanged = current.setNickname(nickname)
+		publicHostChanged = nameChanged && r.host == current && !r.private
 	}
 	return
 }
