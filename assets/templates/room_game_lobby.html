@@ -23,7 +23,7 @@
 <div class="mb-3">
   <h5 class="mb-0">Card Packs</h5>
   <small class="text-muted">
-    {{$room.BlackCount}} black / {{$room.WhiteCount}} white selected
+    {{$.Span $room.DeckCounts}}
     (need ≥50 black, ≥{{$room.RequiredWhite}} white)
   </small>
 </div>
@@ -39,7 +39,9 @@
     {{$.Span $targetScore `class="badge bg-secondary text-nowrap"`}}
     <span class="text-muted small">pts</span>
   </div>
-  {{$.Button ($room.StartGameButton $player) `class="btn btn-success"`}}
+  {{if $room.IsHost $player}}
+  {{$.Button ($room.StartGameButton $player) `class="btn btn-success"` $room.DeckSelectionTag}}
+  {{end}}
 </div>
 
 <div class="row row-cols-1 row-cols-md-3 g-2">

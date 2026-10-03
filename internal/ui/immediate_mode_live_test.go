@@ -1459,7 +1459,10 @@ func TestDeckInputScopesRejectedAndAcceptedUpdates(t *testing.T) {
 	} {
 		acceptedCtx, acceptedDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
 		if err = peer.reader.readUntil(acceptedCtx, func(msg wire.WsMsg) bool {
-			return msg.Jid == peer.panel && msg.What == what.Inner && strings.Contains(msg.Data, "2 black / 4 white selected")
+			if msg.What == what.Inner && msg.Jid == peer.panel {
+				t.Fatal("deck selection replaced the lobby panel")
+			}
+			return msg.What == what.Inner && msg.Data == "2 black / 4 white selected"
 		}); err != nil {
 			acceptedDone()
 			t.Fatalf("waiting for accepted %s room update: %v", peer.name, err)

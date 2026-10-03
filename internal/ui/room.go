@@ -31,7 +31,7 @@ func (d deckInput) JawsSet(elem *jaws.Element, value bool) (err error) {
 			err = jaws.ErrValueUnchanged
 			return
 		}
-		elem.Dirty(d.Room)
+		elem.Dirty(d.Room.DeckSelectionTag())
 	}
 	return
 }

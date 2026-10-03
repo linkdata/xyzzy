@@ -146,8 +146,9 @@ the same lock is held and then delegates to the original binder.
 Deck selection is the one custom input definition because “is this deck
 enabled?” is computed from a set rather than stored in an addressable scalar.
 Its `roomDeckTag{Room, Deck}` dependency scopes input reconciliation to one deck;
-an actual selection change also dirties the `Room` so shared counts and controls
-update. An unchanged edit returns `jaws.ErrValueUnchanged` and dirties neither.
+an actual selection change also dirties `Room.DeckSelectionTag()` for the count
+Span and Start button readiness. The remaining controls stay intact. An unchanged
+edit returns `jaws.ErrValueUnchanged` and dirties neither.
 
 `Manager.SetNickname` is likewise the single committed-nickname boundary. It
 normalizes or uniquifies the value and publishes only changed dependencies after
