@@ -748,12 +748,12 @@ func (r *Room) ProceedReview(player *Player) (err error) {
 	return
 }
 
-func (r *Room) join(player *Player) (err error) {
+func (r *Room) join(player *Player) (inputChanged bool, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.playerLocked(player) == nil {
 		if err = r.canJoinLocked(player); err == nil {
-			r.seatLocked(player)
+			inputChanged = r.seatLocked(player)
 			r.players = append(r.players, player)
 			if r.host == nil {
 				r.host = player
@@ -830,14 +830,15 @@ func (r *Room) expiredPlayers() (result []*Player) {
 	return
 }
 
-func (r *Room) seatLocked(player *Player) {
-	player.setNickname(r.uniqueNicknameLocked(player))
+func (r *Room) seatLocked(player *Player) (inputChanged bool) {
+	_, inputChanged = player.setNickname(r.uniqueNicknameLocked(player))
 	player.setRoom(r)
 	player.Score = 0
 	player.Hand = nil
 	player.Submitted = nil
 	player.SelectedCards = nil
 	player.SelectedSubmission = nil
+	return
 }
 
 func (r *Room) canJoinLocked(player *Player) (err error) {
