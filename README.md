@@ -213,8 +213,9 @@ changes, so the count reconciles live. It is an intentionally approximate
 indicator of distinct active Sessions. Tabs sharing a Session count once;
 GET-only and disconnected Sessions do not count.
 
-Visiting `GET /` likewise leaves the player's current room before rendering the
-lobby.
+Visiting `GET /` leaves the player's current room before rendering the lobby,
+except when `Sec-Fetch-Site` indicates a cross-site or same-site navigation.
+Those requests redirect a seated player back to their room.
 
 ### State and concurrency
 
