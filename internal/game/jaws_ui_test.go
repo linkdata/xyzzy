@@ -134,22 +134,22 @@ func TestPrivateToggleSuccessRunsOnlyForChanges(t *testing.T) {
 		successes++
 	})
 
-	if err = binder.JawsSet(elem, false); !errors.Is(err, jaws.ErrValueUnchanged) {
+	if err = binder.JawsSet(elem, true); !errors.Is(err, jaws.ErrValueUnchanged) {
 		t.Fatalf("initial no-op JawsSet() error = %v, want %v", err, jaws.ErrValueUnchanged)
 	}
 	if successes != 0 {
 		t.Fatalf("success count after no-op = %d, want 0", successes)
 	}
-	if err = binder.JawsSet(elem, true); err != nil {
+	if err = binder.JawsSet(elem, false); err != nil {
 		t.Fatalf("changed JawsSet() error = %v", err)
 	}
-	if !room.IsPrivate() {
-		t.Fatal("room is not private after accepted edit")
+	if room.IsPrivate() {
+		t.Fatal("room is not public after accepted edit")
 	}
 	if successes != 1 {
 		t.Fatalf("success count after change = %d, want 1", successes)
 	}
-	if err = binder.JawsSet(elem, true); !errors.Is(err, jaws.ErrValueUnchanged) {
+	if err = binder.JawsSet(elem, false); !errors.Is(err, jaws.ErrValueUnchanged) {
 		t.Fatalf("second no-op JawsSet() error = %v, want %v", err, jaws.ErrValueUnchanged)
 	}
 	if successes != 1 {

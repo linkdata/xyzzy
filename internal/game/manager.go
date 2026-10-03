@@ -26,7 +26,7 @@ func (m *Manager) notify(tags ...any) {
 	}
 }
 
-// CreateRoom creates a room and seats player as its host.
+// CreateRoom creates a private room and seats player as its host.
 //
 // An empty defaultDecks slice uses the catalog defaults. It returns
 // [ErrAlreadyInRoom] when player is nil or already seated.
@@ -50,6 +50,7 @@ func (m *Manager) CreateRoom(player *Player, defaultDecks []*deck.Deck) (room *R
 					reviewDelay:   ReviewDelay,
 					targetScore:   ScoreGoal,
 					state:         StateLobby,
+					private:       true,
 					czarIndex:     -1,
 					selectedDecks: normalizeDecks(m.catalog, defaultDecks),
 				}

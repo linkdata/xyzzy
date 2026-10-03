@@ -228,8 +228,10 @@ race-free and the relevant dirty notification converges the display.
 
 - State is process-local and is not shared across server replicas or persisted
   across restarts.
-- A private room is omitted from the public list; possession of its URL is the
-  access mechanism, not an authorization boundary.
+- New rooms are private. The host can publish one before starting the game.
+  Private rooms are omitted from the public list, but their URLs are not an
+  authorization boundary. A code remains valid after a public room is made
+  private again.
 - A room page tries to join once, when its JaWS connection starts. A seat that
   opens before that connection is accepted can be claimed; a seat that opens
   after a failed attempt requires a reload.
