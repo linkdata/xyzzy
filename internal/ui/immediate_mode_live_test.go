@@ -1331,7 +1331,7 @@ func TestPrivateToggleInputUpdatesPeerAndLobby(t *testing.T) {
 	hideCtx, hideDone := context.WithTimeout(t.Context(), immediateModeTestTimeout)
 	defer hideDone()
 	if err := lobbyReader.readUntil(hideCtx, func(msg wire.WsMsg) bool {
-		if msg.What == what.Inner && strings.Contains(msg.Data, "No rooms yet") {
+		if msg.What == what.Inner && strings.Contains(msg.Data, "1 private game") {
 			hiddenLobby = msg
 			return true
 		}

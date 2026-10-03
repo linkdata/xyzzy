@@ -102,6 +102,16 @@ func (m *Manager) PublicRooms() (result []*Room) {
 	return
 }
 
+// PrivateRoomCount returns the number of active private rooms.
+func (m *Manager) PrivateRoomCount() (result int) {
+	for _, room := range m.Rooms() {
+		if room.IsPrivate() {
+			result++
+		}
+	}
+	return
+}
+
 // SetNickname normalizes and stores the player's nickname.
 //
 // The operation is serialized with room membership changes. A seated nickname

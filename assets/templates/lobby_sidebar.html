@@ -1,9 +1,10 @@
 {{with .Dot}}
 {{$rooms := .App.Manager.PublicRooms}}
+{{$privateCount := .App.Manager.PrivateRoomCount}}
 <div class="d-grid mb-3">
   {{$.Button .CreateRoomButton `class="btn btn-primary"`}}
 </div>
-{{if $rooms}}
+{{if or $rooms $privateCount}}
 <div class="list-group">
   {{range $rooms}}
   <a href="/room/{{.Code}}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
@@ -13,6 +14,9 @@
     </span>
     <span class="badge bg-secondary rounded-pill">{{.PlayerCount}}</span>
   </a>
+  {{end}}
+  {{if $privateCount}}
+  <div class="list-group-item text-muted">{{$privateCount}} private {{if eq $privateCount 1}}game{{else}}games{{end}}</div>
   {{end}}
 </div>
 {{else}}
