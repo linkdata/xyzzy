@@ -308,6 +308,9 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	h := newLiveHarness(t)
 
 	html := h.get(t, "/")
+	if strings.Contains(html, "private game") {
+		t.Fatal("private game row appeared with no private rooms")
+	}
 	conn, cancel := h.connect(t, html)
 	defer cancel()
 
@@ -323,12 +326,17 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 
 	ctxCreate, doneCreate := context.WithTimeout(context.Background(), 5*time.Second)
 	defer doneCreate()
-	createMsg, err := readUntilContains(ctxCreate, conn, "No rooms yet")
+	createMsg, err := readUntilContains(ctxCreate, conn, "1 private game")
 	if err != nil {
 		t.Fatalf("readUntilContains(create) error = %v", err)
 	}
-	if strings.Contains(createMsg, room.Code()) || strings.Contains(h.get(t, "/"), room.Code()) {
-		t.Fatal("new private room appeared in lobby")
+	privateHTML := h.get(t, "/")
+	if strings.Contains(createMsg, room.Code()) || strings.Contains(createMsg, "Bob") ||
+		strings.Contains(privateHTML, room.Code()) {
+		t.Fatal("new private room details appeared in lobby")
+	}
+	if !strings.Contains(privateHTML, "1 private game") {
+		t.Fatal("private game count missing from initial lobby HTML")
 	}
 
 	privateToggle := room.PrivateToggle(host)
@@ -344,6 +352,9 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	if !strings.Contains(showMsg, "Bob") {
 		t.Fatalf("expected published room update to mention host name, got %s", showMsg)
 	}
+	if strings.Contains(showMsg, "private game") {
+		t.Fatalf("private game row remained after publishing room: %s", showMsg)
+	}
 
 	if err := privateToggle.JawsSet(newPrivateToggleElement(h.app, privateToggle), true); err != nil {
 		t.Fatalf("privateToggle.JawsSet(true) error = %v", err)
@@ -351,12 +362,12 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 
 	ctxHide, doneHide := context.WithTimeout(context.Background(), 5*time.Second)
 	defer doneHide()
-	hideMsg, err := readUntilContains(ctxHide, conn, "No rooms yet")
+	hideMsg, err := readUntilContains(ctxHide, conn, "1 private game")
 	if err != nil {
 		t.Fatalf("readUntilContains(hide) error = %v", err)
 	}
-	if strings.Contains(hideMsg, room.Code()) {
-		t.Fatalf("expected private room to disappear from lobby update, got %s", hideMsg)
+	if strings.Contains(hideMsg, room.Code()) || strings.Contains(hideMsg, "Bob") {
+		t.Fatalf("private room details appeared in lobby update: %s", hideMsg)
 	}
 
 	if err := privateToggle.JawsSet(newPrivateToggleElement(h.app, privateToggle), false); err != nil {
@@ -371,6 +382,52 @@ func TestLobbyPageReceivesLivePrivateVisibilityUpdates(t *testing.T) {
 	}
 	if !strings.Contains(showMsg, "Bob") {
 		t.Fatalf("expected room reappearance update to mention host name, got %s", showMsg)
+	}
+	if strings.Contains(showMsg, "private game") {
+		t.Fatalf("private game row remained after republishing room: %s", showMsg)
+	}
+}
+
+func TestLobbyPrivateGameCountTracksRoomRemoval(t *testing.T) {
+	h := newLiveHarness(t)
+	html := h.get(t, "/")
+	conn, cancel := h.connect(t, html)
+	defer cancel()
+
+	firstClient := h.newClient(t)
+	h.getWithClient(t, firstClient, "/")
+	firstHost := h.app.player(h.sessionForClient(t, firstClient), nil)
+	if _, err := h.app.createRoom(firstHost); err != nil {
+		t.Fatalf("createRoom(first) error = %v", err)
+	}
+	ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
+	defer done()
+	if _, err := readUntilContains(ctx, conn, "1 private game"); err != nil {
+		t.Fatalf("readUntilContains(first create) error = %v", err)
+	}
+
+	secondClient := h.newClient(t)
+	h.getWithClient(t, secondClient, "/")
+	secondHost := h.app.player(h.sessionForClient(t, secondClient), nil)
+	if _, err := h.app.createRoom(secondHost); err != nil {
+		t.Fatalf("createRoom(second) error = %v", err)
+	}
+	if _, err := readUntilContains(ctx, conn, "2 private games"); err != nil {
+		t.Fatalf("readUntilContains(second create) error = %v", err)
+	}
+
+	h.getWithClient(t, firstClient, "/")
+	if _, err := readUntilContains(ctx, conn, "1 private game"); err != nil {
+		t.Fatalf("readUntilContains(first removal) error = %v", err)
+	}
+
+	h.getWithClient(t, secondClient, "/")
+	msg, err := readUntilContains(ctx, conn, "No rooms yet")
+	if err != nil {
+		t.Fatalf("readUntilContains(second removal) error = %v", err)
+	}
+	if strings.Contains(msg, "private game") {
+		t.Fatalf("private game row remained after all rooms were removed: %s", msg)
 	}
 }
 
