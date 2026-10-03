@@ -1,7 +1,12 @@
 package ui
 
 import (
+	"fmt"
+	"github.com/linkdata/jaws"
+	jui "github.com/linkdata/jaws/lib/ui"
+	"github.com/linkdata/xyzzy/internal/game"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -43,26 +48,38 @@ func TestCreateRoomLimiterEnforcesHourlyRate(t *testing.T) {
 	}
 }
 
-func TestClientIP(t *testing.T) {
-	tests := []struct {
-		name       string
-		request    *http.Request
-		remoteAddr string
-		want       string
-	}{
-		{name: "nil request", want: "unknown"},
-		{name: "empty address", request: new(http.Request), want: "unknown"},
-		{name: "IPv4 with port", request: new(http.Request), remoteAddr: "192.0.2.1:443", want: "192.0.2.1"},
-		{name: "IPv6 with port", request: new(http.Request), remoteAddr: "[2001:db8::1]:443", want: "2001:db8::1"},
-		{name: "unsplit address", request: new(http.Request), remoteAddr: " host.example ", want: "host.example"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.request != nil {
-				tt.request.RemoteAddr = tt.remoteAddr
+func TestCreateRoomUsesSessionAddress(t *testing.T) {
+	for _, trusted := range []bool{false, true} {
+		t.Run(fmt.Sprint("trusted=", trusted), func(t *testing.T) {
+			app, _ := testApp(t)
+			app.Jaws.TrustForwardedHeaders = trusted
+			limitedIP := "127.0.0.1"
+			if trusted {
+				limitedIP = "192.0.2.1"
 			}
-			if got := clientIP(tt.request); got != tt.want {
-				t.Fatalf("clientIP() = %q, want %q", got, tt.want)
+			for range createRoomMinuteBurst {
+				if !app.createRoomLimiter.Allow(limitedIP) {
+					t.Fatal("could not fill limiter bucket")
+				}
+			}
+			for _, client := range []string{"192.0.2.1", "192.0.2.1", "192.0.2.2"} {
+				req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+				req.RemoteAddr = "127.0.0.1:12345"
+				req.Header.Set("X-Forwarded-For", client)
+				var player *game.Player
+				app.Jaws.SessionMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					player = app.player(app.Jaws.GetSession(r), r)
+					rq := app.Jaws.NewRequest(w, r)
+					elem := rq.NewElement(jui.NewButton("Create"))
+					dot := templateDot{App: app, Player: player}
+					if err := dot.CreateRoomButton().JawsClick(elem, jaws.Click{}); err != nil {
+						t.Fatal(err)
+					}
+				})).ServeHTTP(httptest.NewRecorder(), req)
+				wantRoom := trusted && client == "192.0.2.2"
+				if got := player.Room() != nil; got != wantRoom {
+					t.Fatalf("client %s created room = %t, want %t", client, got, wantRoom)
+				}
 			}
 		})
 	}
