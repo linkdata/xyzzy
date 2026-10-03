@@ -28,12 +28,16 @@ type startGameControl struct {
 }
 
 // StartGameControl keeps the action's button while its readiness changes.
-func (r *Room) StartGameControl(player *Player) *startGameControl {
+func (r *Room) StartGameControl(player *Player) jaws.UI {
 	return &startGameControl{Button: *ui.NewButton(r.StartGameButton(player)), room: r, player: player}
 }
 
 func (b *startGameControl) JawsUpdate(elem *jaws.Element) {
 	b.room.mu.RLock()
+	if b.player == nil || b.room.host != b.player {
+		b.room.mu.RUnlock()
+		return
+	}
 	enabled := b.room.canStartLocked(b.player)
 	b.room.mu.RUnlock()
 	if enabled {

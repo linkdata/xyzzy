@@ -48,7 +48,11 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			selectedDeck := app.Catalog.DefaultDecks()[0]
-			p.deck = p.tr.GetElements(roomDeckTag{Room: room, Deck: selectedDeck})[0].Jid()
+			deckElements := p.tr.GetElements(roomDeckTag{Room: room, Deck: selectedDeck})
+			if len(deckElements) != 1 {
+				t.Fatalf("deck has %d Elements, want 1", len(deckElements))
+			}
+			p.deck = deckElements[0].Jid()
 			for id := range immediateModeHTMLJIDs(p.tr.BodyString()) {
 				e := p.tr.GetElementByJid(id)
 				if e != nil {
@@ -85,7 +89,10 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 					}
 					continue
 				}
-				expected := map[jid.Jid]what.What{p.count: what.Inner, p.start: what.SAttr}
+				expected := map[jid.Jid]what.What{p.count: what.Inner}
+				if i < 2 {
+					expected[p.start] = what.SAttr
+				}
 				if value == "true" && i < 2 {
 					expected[p.start] = what.RAttr
 				}
@@ -106,6 +113,15 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 						}
 						if msg.Data != wantCount {
 							t.Fatalf("count = %q, want %q", msg.Data, wantCount)
+						}
+					}
+					if msg.Jid == p.start {
+						want := "disabled\n"
+						if value == "true" {
+							want = "disabled"
+						}
+						if msg.Data != want {
+							t.Fatalf("readiness = %q, want %q", msg.Data, want)
 						}
 					}
 					if msg.Jid == p.deck && msg.Data != value {
