@@ -66,6 +66,7 @@ func TestDeckSelectionRetainsControls(t *testing.T) {
 					p.start = e.Jid()
 				}
 			}
+			p.tr.BcastCh <- wire.Message{What: what.Update}
 			pages = append(pages, p)
 		}
 		settle := func() { synctest.Wait(); time.Sleep(jaws.DefaultUpdateInterval + time.Millisecond); synctest.Wait() }
