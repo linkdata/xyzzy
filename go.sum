@@ -6,8 +6,8 @@ github.com/linkdata/jaws v0.807.0 h1:iUQPdaj5yF+eEy49a2yaG0Lee+GJ5On7atKNNZyPXbc
 github.com/linkdata/jaws v0.807.0/go.mod h1:WAjBu+Fgwzf8ydzQJDP6x+WL/5/w5O3bYyFrjtvazAc=
 github.com/linkdata/jq v0.6.0 h1:yxAeWsknIWmt7Wbr5CIEkj2i1WwC2DnJDZlOrPxJkr0=
 github.com/linkdata/jq v0.6.0/go.mod h1:b76MMuWybyXrVEKSHJkv+r5IEattnghPf1bNRJ5PNlE=
-github.com/linkdata/secureheaders v1.5.0 h1:4kI290hrVUYqluxF8pQfRYpbZuorSd9+8GlMgrLcrK4=
-github.com/linkdata/secureheaders v1.5.0/go.mod h1:50TiKmPaWki8gIZXmBxrLUinyJst12YuN3EbsXZMO+4=
+github.com/linkdata/secureheaders v1.5.1 h1:T7Xxc0DqEr/gWxpYsXnC6r+Go91vrBH/EcwI03dvCK4=
+github.com/linkdata/secureheaders v1.5.1/go.mod h1:50TiKmPaWki8gIZXmBxrLUinyJst12YuN3EbsXZMO+4=
 github.com/linkdata/staticserve v1.1.8 h1:qpm0dAaAsik1YrETSiMoS7ciBL9qPVNUFcfdio/ol84=
 github.com/linkdata/staticserve v1.1.8/go.mod h1:uOUrHkbNEkVXWvuw7gk0ydm39r9Y1ReZA9o4aWF+hgc=
 github.com/linkdata/webserv v1.5.0 h1:Z85MFYibkgyoxknha5l4eqR9UCKRtQEOeKFCuijFnqE=
